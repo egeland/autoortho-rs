@@ -126,12 +126,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     fixes_col = fixes_col.push(
                         row![
                             text(label)
-                                .size(12)
-                                .width(Length::Fixed(100.0))
+                                .size(13)
+                                .width(Length::Fixed(120.0))
                                 .color(color),
                             text(format!("{:.0} ft", alt))
-                                .size(12)
-                                .width(Length::Fixed(80.0))
+                                .size(13)
+                                .width(Length::Fixed(100.0))
                                 .color(color),
                         ]
                         .spacing(8),
