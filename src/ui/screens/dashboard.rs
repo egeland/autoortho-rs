@@ -93,11 +93,33 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         }
 
         if let Some(ref summary) = state.simbrief_route_summary {
+            let arrow = if state.simbrief_show_details {
+                "\u{25BC}"
+            } else {
+                "\u{25B6}"
+            };
             section = section.push(
-                text(format!("{} {}", ICON_MAP, summary))
-                    .size(14)
-                    .color(iced::Color::from_rgb(0.0, 0.6, 0.0)),
+                button(
+                    text(format!("{} {} {}", ICON_MAP, summary, arrow))
+                        .size(14)
+                        .color(iced::Color::from_rgb(0.0, 0.6, 0.0)),
+                )
+                .padding([4, 8])
+                .style(button::text)
+                .on_press(Message::ToggleSimbriefDetails),
             );
+
+            if state.simbrief_show_details && !state.simbrief_fixes.is_empty() {
+                let mut fixes_col = column![].spacing(2);
+                for (ident, alt) in &state.simbrief_fixes {
+                    fixes_col = fixes_col.push(
+                        text(format!("  {} — {:.0} ft", ident, alt))
+                            .size(12)
+                            .color(iced::Color::from_rgb(0.6, 0.6, 0.6)),
+                    );
+                }
+                section = section.push(fixes_col);
+            }
         }
 
         if let Some(ref err) = state.simbrief_error {

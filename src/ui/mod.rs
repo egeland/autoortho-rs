@@ -111,8 +111,9 @@ pub enum Message {
     // SimBrief
     SetSimbriefUserId(String),
     FetchSimbrief,
-    SimbriefLoaded(String),
+    SimbriefLoaded(String, Vec<(String, f32)>), // (summary, fixes)
     SimbriefFailed(String),
+    ToggleSimbriefDetails,
 
     // UI refresh
     Tick,
@@ -217,25 +218,36 @@ impl AutoOrthoApp {
                     |result| match result {
                         Ok(plan) => {
                             let alt = plan.cruise_altitude_ft;
-                            Message::SimbriefLoaded(format!(
+                            let summary = format!(
                                 "{} \u{2192} {} (FL{:.0})",
                                 plan.origin,
                                 plan.destination,
                                 alt / 100.0
-                            ))
+                            );
+                            let fixes: Vec<(String, f32)> = plan
+                                .fixes
+                                .iter()
+                                .map(|f| (f.ident.clone(), f.altitude_ft))
+                                .collect();
+                            Message::SimbriefLoaded(summary, fixes)
                         }
                         Err(e) => Message::SimbriefFailed(e.to_string()),
                     },
                 );
             }
-            Message::SimbriefLoaded(summary) => {
+            Message::SimbriefLoaded(summary, fixes) => {
                 self.state.simbrief_fetching = false;
                 self.state.simbrief_route_summary = Some(summary);
+                self.state.simbrief_fixes = fixes;
+                self.state.simbrief_show_details = false;
                 self.state.simbrief_error = None;
             }
             Message::SimbriefFailed(err) => {
                 self.state.simbrief_fetching = false;
                 self.state.simbrief_error = Some(err);
+            }
+            Message::ToggleSimbriefDetails => {
+                self.state.simbrief_show_details = !self.state.simbrief_show_details;
             }
             Message::SaveConfiguration => {
                 self.state.save_config();

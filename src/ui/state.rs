@@ -133,6 +133,8 @@ pub struct AppState {
     // SimBrief flight plan
     pub simbrief_fetching: bool,
     pub simbrief_route_summary: Option<String>,
+    pub simbrief_fixes: Vec<(String, f32)>, // (ident, altitude_ft) for display
+    pub simbrief_show_details: bool,
     pub simbrief_error: Option<String>,
 
     // Developer test tile state
@@ -183,6 +185,8 @@ impl AppState {
             dds_cache_size_bytes: 0,
             simbrief_fetching: false,
             simbrief_route_summary: None,
+            simbrief_fixes: Vec::new(),
+            simbrief_show_details: false,
             simbrief_error: None,
             test_tile_lat: "-33.86".to_string(),
             test_tile_lon: "151.21".to_string(),
