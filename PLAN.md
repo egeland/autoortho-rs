@@ -50,7 +50,8 @@
 - [x] `xplane/udp.rs` — Async UDP client
 - [x] `xplane/dataref.rs` — DatarefTracker with 8 datarefs, auto-reconnect, shared state
 - [x] `xplane/simbrief.rs` — SimBrief OFP client with route parsing, prefetch point generation, on-route detection
-- [x] **SimBrief Config + UI** — User ID in Settings, Fetch button + route preview on Dashboard
+- [x] **SimBrief Config + UI** — User ID Number in Settings, Fetch button + expandable route preview on Dashboard (waypoints with TOC/TOD, airport field elevations)
+- [ ] **SimBrief route settings** — Consideration radius, deviation threshold, prefetch radius sliders
 - [ ] **SimBrief prefetch/zoom wiring** — Connect flight plan data to SpatialPrefetcher and DynamicZoom
 
 ### Phase 6 — Ancillary Features ✅

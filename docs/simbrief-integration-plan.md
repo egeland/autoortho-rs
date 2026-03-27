@@ -229,17 +229,18 @@ Add optional flag to fetch flight plan on startup:
 
 ## Implementation Order
 
-1. **[ ] Config**: Add `SimBriefConfig` to `AppConfig`
-2. **[ ] Client**: Enhance `simbrief.rs` — add `Waypoint` struct, parse full OFP, handle errors
-3. **[ ] State**: Add `SimBriefState` to `AppState`, add fetch button action
-4. **[ ] Settings UI**: Add SimBrief section to Settings screen (user ID input + fetch button)
-5. **[ ] Route Settings UI**: Add sliders for consideration/deviation/prefetch radius
-6. **[ ] Dynamic Zoom**: Implement SimBrief-based zoom selection in `dynamic_zoom.rs`
-7. **[ ] Prefetcher**: Implement SimBrief-based prefetching in `prefetch.rs`
-8. **[ ] Toggle**: Wire up "Use Flight Data" toggle to enable/disable SimBrief mode
-9. **[ ] API**: Add `/api/simbrief/fetch` endpoint (optional)
-10. **[ ] CLI**: Add `--simbrief-fetch` flag (optional)
-11. **[ ] Tests**: Unit tests for OFP parsing, integration tests for fetch + interpolate
+1. **[x] Config**: Add `simbrief_user_id` to `AutoOrthoConfig`
+2. **[x] Client**: `simbrief.rs` already has `FlightFix`, full OFP parsing, prefetch points, on-route detection
+3. **[x] State**: SimBrief state on `AppState` (fetching, route summary, fixes, show_details)
+4. **[x] Settings UI**: SimBrief User ID Number input with tooltip in Settings
+5. **[x] Dashboard UI**: Fetch button, route preview, expandable waypoint list with TOC/TOD highlighting, airport field elevations
+6. **[ ] Route Settings UI**: Add sliders for consideration/deviation/prefetch radius
+7. **[ ] Dynamic Zoom**: Implement SimBrief-based zoom selection in `dynamic_zoom.rs`
+8. **[ ] Prefetcher**: Implement SimBrief-based prefetching in `prefetch.rs`
+9. **[ ] Toggle**: Wire up "Use Flight Data" toggle to enable/disable SimBrief mode
+10. **[ ] API**: Add `/api/simbrief/fetch` endpoint (optional)
+11. **[ ] CLI**: Add `--simbrief-fetch` flag (optional)
+12. **[ ] Tests**: Unit tests for OFP parsing, integration tests for fetch + interpolate
 
 ---
 
