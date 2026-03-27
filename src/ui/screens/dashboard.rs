@@ -71,6 +71,46 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .spacing(6);
 
+    // --- Flight Plan section ---
+    let flight_plan_section = {
+        let mut section = column![text("Flight Plan").size(18), rule::horizontal(1),].spacing(6);
+
+        if state.config.simbrief_user_id.is_empty() {
+            section = section.push(
+                text("Set SimBrief User ID in Settings to fetch flight plans.")
+                    .size(13)
+                    .color(iced::Color::from_rgb(0.5, 0.5, 0.5)),
+            );
+        } else if state.simbrief_fetching {
+            section = section.push(button(text("Fetching...").size(14)).padding([8, 16]));
+        } else {
+            section = section.push(
+                button(text(format!("{} Fetch Flight Plan", ICON_GLOBE)).size(14))
+                    .padding([8, 16])
+                    .style(button::success)
+                    .on_press(Message::FetchSimbrief),
+            );
+        }
+
+        if let Some(ref summary) = state.simbrief_route_summary {
+            section = section.push(
+                text(format!("{} {}", ICON_MAP, summary))
+                    .size(14)
+                    .color(iced::Color::from_rgb(0.0, 0.6, 0.0)),
+            );
+        }
+
+        if let Some(ref err) = state.simbrief_error {
+            section = section.push(
+                text(err.clone())
+                    .size(13)
+                    .color(iced::Color::from_rgb(0.8, 0.1, 0.1)),
+            );
+        }
+
+        section
+    };
+
     // --- Configuration summary ---
     let config_section = column![
         text("Configuration").size(18),
@@ -110,6 +150,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         controls,
         space::vertical().height(20),
         status_section,
+        space::vertical().height(20),
+        flight_plan_section,
         space::vertical().height(20),
         config_section,
         space::vertical().height(12),

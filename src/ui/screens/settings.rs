@@ -93,6 +93,27 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .spacing(8);
 
+    // -- SimBrief section --
+    let simbrief = column![
+        text("SimBrief").size(18),
+        rule::horizontal(1),
+        tooltip(
+            labeled_input(
+                "User ID:",
+                &state.config.simbrief_user_id,
+                Message::SetSimbriefUserId
+            ),
+            container(
+                text("Find your SimBrief User ID at simbrief.com \u{2192} Account Settings.")
+                    .size(12),
+            )
+            .padding(8)
+            .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
+    ]
+    .spacing(8);
+
     // -- Tiles section --
     let tiles = column![
         text("Tiles").size(18),
@@ -256,6 +277,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         paths,
         space::vertical().height(16),
         network,
+        space::vertical().height(16),
+        simbrief,
         space::vertical().height(16),
         tiles,
         space::vertical().height(16),

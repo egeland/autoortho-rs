@@ -108,6 +108,12 @@ pub enum Message {
     SetEnableDdsCache(bool),
     ClearDdsCache,
 
+    // SimBrief
+    SetSimbriefUserId(String),
+    FetchSimbrief,
+    SimbriefLoaded(String),
+    SimbriefFailed(String),
+
     // UI refresh
     Tick,
 
@@ -198,6 +204,46 @@ impl AutoOrthoApp {
                         self.state.dds_cache_size_bytes = 0;
                     }
                 }
+            }
+            Message::SetSimbriefUserId(id) => {
+                self.state.config.simbrief_user_id = id;
+            }
+            Message::FetchSimbrief => {
+                self.state.simbrief_fetching = true;
+                self.state.simbrief_error = None;
+                let user_id = self.state.config.simbrief_user_id.clone();
+                return iced::Task::perform(
+                    async move { crate::xplane::simbrief::fetch_flight_plan(&user_id).await },
+                    |result| match result {
+                        Ok(plan) => {
+                            let origin = plan
+                                .origin_fix()
+                                .map(|f| f.ident.clone())
+                                .unwrap_or_default();
+                            let dest = plan
+                                .destination_fix()
+                                .map(|f| f.ident.clone())
+                                .unwrap_or_default();
+                            let alt = plan.cruise_altitude_ft;
+                            Message::SimbriefLoaded(format!(
+                                "{} \u{2192} {} (FL{:.0})",
+                                origin,
+                                dest,
+                                alt / 100.0
+                            ))
+                        }
+                        Err(e) => Message::SimbriefFailed(e.to_string()),
+                    },
+                );
+            }
+            Message::SimbriefLoaded(summary) => {
+                self.state.simbrief_fetching = false;
+                self.state.simbrief_route_summary = Some(summary);
+                self.state.simbrief_error = None;
+            }
+            Message::SimbriefFailed(err) => {
+                self.state.simbrief_fetching = false;
+                self.state.simbrief_error = Some(err);
             }
             Message::SaveConfiguration => {
                 self.state.save_config();

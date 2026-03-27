@@ -35,6 +35,8 @@ pub struct AutoOrthoConfig {
     pub dds_cache_size_mb: u64,
     #[serde(default = "default_enable_dds_cache")]
     pub enable_dds_cache: bool,
+    #[serde(default)]
+    pub simbrief_user_id: String,
 }
 
 fn default_ui_scale() -> f64 {
@@ -85,6 +87,7 @@ impl Default for AutoOrthoConfig {
             window_height: None,
             dds_cache_size_mb: 4096,
             enable_dds_cache: true,
+            simbrief_user_id: String::new(),
         }
     }
 }

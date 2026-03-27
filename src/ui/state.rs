@@ -130,6 +130,11 @@ pub struct AppState {
     // Cache status
     pub dds_cache_size_bytes: u64,
 
+    // SimBrief flight plan
+    pub simbrief_fetching: bool,
+    pub simbrief_route_summary: Option<String>,
+    pub simbrief_error: Option<String>,
+
     // Developer test tile state
     pub test_tile_lat: String,
     pub test_tile_lon: String,
@@ -176,6 +181,9 @@ impl AppState {
             web_server_url: None,
             xplane_tracker: ServiceStatus::Stopped,
             dds_cache_size_bytes: 0,
+            simbrief_fetching: false,
+            simbrief_route_summary: None,
+            simbrief_error: None,
             test_tile_lat: "-33.86".to_string(),
             test_tile_lon: "151.21".to_string(),
             test_tile_zoom: 14,
