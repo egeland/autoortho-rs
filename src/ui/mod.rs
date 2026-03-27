@@ -216,19 +216,11 @@ impl AutoOrthoApp {
                     async move { crate::xplane::simbrief::fetch_flight_plan(&user_id).await },
                     |result| match result {
                         Ok(plan) => {
-                            let origin = plan
-                                .origin_fix()
-                                .map(|f| f.ident.clone())
-                                .unwrap_or_default();
-                            let dest = plan
-                                .destination_fix()
-                                .map(|f| f.ident.clone())
-                                .unwrap_or_default();
                             let alt = plan.cruise_altitude_ft;
                             Message::SimbriefLoaded(format!(
                                 "{} \u{2192} {} (FL{:.0})",
-                                origin,
-                                dest,
+                                plan.origin,
+                                plan.destination,
                                 alt / 100.0
                             ))
                         }

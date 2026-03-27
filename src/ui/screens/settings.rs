@@ -99,12 +99,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         rule::horizontal(1),
         tooltip(
             labeled_input(
-                "User ID:",
+                "User ID Number:",
                 &state.config.simbrief_user_id,
                 Message::SetSimbriefUserId
             ),
             container(
-                text("Find your SimBrief User ID at simbrief.com \u{2192} Account Settings.")
+                text("Your numeric SimBrief User ID. Find it at simbrief.com \u{2192} Account Settings \u{2192} SimBrief User ID.")
                     .size(12),
             )
             .padding(8)
