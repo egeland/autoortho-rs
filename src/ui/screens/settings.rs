@@ -111,51 +111,155 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .style(container::rounded_box),
             tooltip::Position::Bottom,
         ),
-        row![
-            text(format!(
-                "Route Consideration: {} nm",
-                state.config.route_consideration_radius_nm
-            ))
-            .width(Length::Fixed(260.0)),
-            slider(
-                10u32..=200,
-                state.config.route_consideration_radius_nm,
-                Message::SetRouteConsiderationRadius
+        tooltip(
+            row![
+                text(format!(
+                    "Route Consideration: {} nm",
+                    state.config.route_consideration_radius_nm
+                ))
+                .width(Length::Fixed(260.0)),
+                slider(
+                    10u32..=200,
+                    state.config.route_consideration_radius_nm,
+                    Message::SetRouteConsiderationRadius
+                )
+                .width(Length::Fixed(200.0)),
+            ]
+            .spacing(12)
+            .align_y(iced::Alignment::Center),
+            container(
+                text("Distance from route centerline to still be considered 'on route'. Used for SimBrief altitude and prefetch logic.")
+                    .size(12),
             )
-            .width(Length::Fixed(200.0)),
-        ]
-        .spacing(12)
-        .align_y(iced::Alignment::Center),
-        row![
-            text(format!(
-                "Deviation Threshold: {} nm",
-                state.config.route_deviation_threshold_nm
-            ))
-            .width(Length::Fixed(260.0)),
-            slider(
-                5u32..=100,
-                state.config.route_deviation_threshold_nm,
-                Message::SetRouteDeviationThreshold
+            .padding(8)
+            .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
+        tooltip(
+            row![
+                text(format!(
+                    "Deviation Threshold: {} nm",
+                    state.config.route_deviation_threshold_nm
+                ))
+                .width(Length::Fixed(260.0)),
+                slider(
+                    5u32..=100,
+                    state.config.route_deviation_threshold_nm,
+                    Message::SetRouteDeviationThreshold
+                )
+                .width(Length::Fixed(200.0)),
+            ]
+            .spacing(12)
+            .align_y(iced::Alignment::Center),
+            container(
+                text("Max distance from route before switching from SimBrief altitude to dataref altitude.")
+                    .size(12),
             )
-            .width(Length::Fixed(200.0)),
-        ]
-        .spacing(12)
-        .align_y(iced::Alignment::Center),
-        row![
-            text(format!(
-                "Prefetch Radius: {} nm",
-                state.config.route_prefetch_radius_nm
-            ))
-            .width(Length::Fixed(260.0)),
-            slider(
-                10u32..=150,
-                state.config.route_prefetch_radius_nm,
-                Message::SetRoutePrefetchRadius
+            .padding(8)
+            .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
+        tooltip(
+            row![
+                text(format!(
+                    "Prefetch Radius: {} nm",
+                    state.config.route_prefetch_radius_nm
+                ))
+                .width(Length::Fixed(260.0)),
+                slider(
+                    10u32..=150,
+                    state.config.route_prefetch_radius_nm,
+                    Message::SetRoutePrefetchRadius
+                )
+                .width(Length::Fixed(200.0)),
+            ]
+            .spacing(12)
+            .align_y(iced::Alignment::Center),
+            container(
+                text("Radius around each waypoint to prefetch tiles.")
+                    .size(12),
             )
-            .width(Length::Fixed(200.0)),
-        ]
-        .spacing(12)
-        .align_y(iced::Alignment::Center),
+            .padding(8)
+            .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
+        tooltip(
+            row![
+                text(format!(
+                    "Prefetch Route Distance: {}%",
+                    state.config.prefetch_route_percent
+                ))
+                .width(Length::Fixed(260.0)),
+                slider(
+                    0u32..=100,
+                    state.config.prefetch_route_percent,
+                    Message::SetPrefetchRoutePercent
+                )
+                .width(Length::Fixed(200.0)),
+            ]
+            .spacing(12)
+            .align_y(iced::Alignment::Center),
+            container(
+                text("Percentage of total route distance to prefetch ahead of aircraft.")
+                    .size(12),
+            )
+            .padding(8)
+            .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
+        tooltip(
+            row![
+                text("Prefetch around airports:").width(Length::Fixed(260.0)),
+                button(
+                    text(if state.config.prefetch_airports {
+                        "Yes"
+                    } else {
+                        "No"
+                    })
+                    .size(14)
+                )
+                .padding([6, 16])
+                .style(if state.config.prefetch_airports {
+                    button::success
+                } else {
+                    button::secondary
+                })
+                .on_press(Message::SetPrefetchAirports(!state.config.prefetch_airports)),
+            ]
+            .spacing(12)
+            .align_y(iced::Alignment::Center),
+            container(
+                text("Also prefetch tiles around origin and destination airports.")
+                    .size(12),
+            )
+            .padding(8)
+            .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
+        tooltip(
+            row![
+                text(format!(
+                    "Airport Radius: {} nm",
+                    state.config.airport_radius_nm
+                ))
+                .width(Length::Fixed(260.0)),
+                slider(
+                    20u32..=150,
+                    state.config.airport_radius_nm,
+                    Message::SetAirportRadius
+                )
+                .width(Length::Fixed(200.0)),
+            ]
+            .spacing(12)
+            .align_y(iced::Alignment::Center),
+            container(
+                text("Radius around airports to prefetch when airport prefetch is enabled.")
+                    .size(12),
+            )
+            .padding(8)
+            .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
     ]
     .spacing(8);
 

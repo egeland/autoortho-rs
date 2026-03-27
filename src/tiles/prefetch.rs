@@ -1,6 +1,18 @@
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
+use crate::tiles::coords::TileCoords;
+use crate::xplane::simbrief::PrefetchPoint;
+
+#[derive(Debug, Clone, Copy)]
+pub struct RoutePrefetchConfig {
+    pub percent_ahead: u32,
+    pub waypoint_radius_nm: f64,
+    pub airport_radius_nm: f64,
+    pub include_airports: bool,
+    pub zoom: u32,
+}
+
 /// Spatial prefetcher for flight-aware tile loading
 pub struct SpatialPrefetcher {
     queue: VecDeque<(u32, u32)>, // (row, col) tiles to prefetch
@@ -62,6 +74,71 @@ impl SpatialPrefetcher {
 
     pub fn clear_queue(&mut self) {
         self.queue.clear();
+    }
+
+    /// Enqueue tiles based on SimBrief flight plan route
+    /// Points are already spaced every 10NM by SimBrief parsing
+    pub fn prefetch_route(
+        &mut self,
+        points: &[PrefetchPoint],
+        route_distance_nm: f64,
+        config: RoutePrefetchConfig,
+    ) {
+        self.queue.clear();
+
+        if points.is_empty() || route_distance_nm <= 0.0 {
+            return;
+        }
+
+        let target_distance = route_distance_nm * (config.percent_ahead as f64 / 100.0);
+
+        let is_airport = |idx: usize, total: usize| -> bool {
+            if !config.include_airports {
+                return false;
+            }
+            idx == 0 || idx == total.saturating_sub(1)
+        };
+
+        for (idx, point) in points.iter().enumerate() {
+            if point.distance_along_route_nm > target_distance {
+                break;
+            }
+
+            let radius = if is_airport(idx, points.len()) {
+                config.airport_radius_nm
+            } else {
+                config.waypoint_radius_nm
+            };
+
+            if let Ok((tile_col, tile_row)) =
+                TileCoords::latlng_to_tile(point.lat, point.lon, config.zoom)
+            {
+                self.enqueue_tiles_around(tile_col, tile_row, radius, config.zoom);
+            }
+        }
+    }
+
+    /// Enqueue all tiles within radius (in NM) of a center tile
+    fn enqueue_tiles_around(
+        &mut self,
+        center_col: u32,
+        center_row: u32,
+        radius_nm: f64,
+        zoom: u32,
+    ) {
+        let tiles_per_nm = 2_f64.powi(zoom as i32) / 360.0 / 60.0;
+        let radius_tiles = (radius_nm * tiles_per_nm).ceil() as i32;
+
+        for dr in -radius_tiles..=radius_tiles {
+            for dc in -radius_tiles..=radius_tiles {
+                let col = center_col as i32 + dc;
+                let row = center_row as i32 + dr;
+
+                if col >= 0 && row >= 0 {
+                    self.queue.push_back((row as u32, col as u32));
+                }
+            }
+        }
     }
 }
 
@@ -143,9 +220,183 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_spatial_prefetcher_creation() {
-        let prefetcher = SpatialPrefetcher::new();
+    fn test_prefetch_route_empty_points() {
+        let mut prefetcher = SpatialPrefetcher::new();
+
+        let config = RoutePrefetchConfig {
+            percent_ahead: 100,
+            waypoint_radius_nm: 40.0,
+            airport_radius_nm: 60.0,
+            include_airports: true,
+            zoom: 14,
+        };
+
+        prefetcher.prefetch_route(&[], 1000.0, config);
+
         assert_eq!(prefetcher.queue_len(), 0);
+    }
+
+    #[test]
+    fn test_prefetch_route_with_points() {
+        let mut prefetcher = SpatialPrefetcher::new();
+
+        let points = vec![
+            PrefetchPoint {
+                lat: 33.94,
+                lon: -118.41,
+                altitude_ft: 0.0,
+                ground_height_ft: 0.0,
+                time_to_reach_sec: 0.0,
+                distance_along_route_nm: 0.0,
+            },
+            PrefetchPoint {
+                lat: 36.0,
+                lon: -115.0,
+                altitude_ft: 35000.0,
+                ground_height_ft: 2000.0,
+                time_to_reach_sec: 1800.0,
+                distance_along_route_nm: 200.0,
+            },
+            PrefetchPoint {
+                lat: 40.0,
+                lon: -110.0,
+                altitude_ft: 38000.0,
+                ground_height_ft: 5000.0,
+                time_to_reach_sec: 3600.0,
+                distance_along_route_nm: 500.0,
+            },
+        ];
+
+        let config = RoutePrefetchConfig {
+            percent_ahead: 100,
+            waypoint_radius_nm: 40.0,
+            airport_radius_nm: 60.0,
+            include_airports: true,
+            zoom: 14,
+        };
+
+        prefetcher.prefetch_route(&points, 500.0, config);
+
+        // Should have enqueued tiles around each point
+        assert!(prefetcher.queue_len() > 0);
+    }
+
+    #[test]
+    fn test_prefetch_route_percent_limit() {
+        let mut prefetcher = SpatialPrefetcher::new();
+
+        let points = vec![
+            PrefetchPoint {
+                lat: 33.94,
+                lon: -118.41,
+                altitude_ft: 0.0,
+                ground_height_ft: 0.0,
+                time_to_reach_sec: 0.0,
+                distance_along_route_nm: 0.0,
+            },
+            PrefetchPoint {
+                lat: 36.0,
+                lon: -115.0,
+                altitude_ft: 35000.0,
+                ground_height_ft: 2000.0,
+                time_to_reach_sec: 1800.0,
+                distance_along_route_nm: 200.0,
+            },
+            PrefetchPoint {
+                lat: 40.0,
+                lon: -110.0,
+                altitude_ft: 38000.0,
+                ground_height_ft: 5000.0,
+                time_to_reach_sec: 3600.0,
+                distance_along_route_nm: 500.0,
+            },
+        ];
+
+        // 50% of 500NM = 250NM - should only prefetch first 2 points
+        let config_50 = RoutePrefetchConfig {
+            percent_ahead: 50,
+            waypoint_radius_nm: 40.0,
+            airport_radius_nm: 60.0,
+            include_airports: true,
+            zoom: 14,
+        };
+
+        prefetcher.prefetch_route(&points, 500.0, config_50);
+
+        // Should have fewer tiles than 100%
+        let queue_len_50 = prefetcher.queue_len();
+
+        prefetcher.clear_queue();
+
+        // 100% should have more
+        let config_100 = RoutePrefetchConfig {
+            percent_ahead: 100,
+            waypoint_radius_nm: 40.0,
+            airport_radius_nm: 60.0,
+            include_airports: true,
+            zoom: 14,
+        };
+
+        prefetcher.prefetch_route(&points, 500.0, config_100);
+
+        let queue_len_100 = prefetcher.queue_len();
+
+        assert!(queue_len_100 > queue_len_50);
+    }
+
+    #[test]
+    fn test_prefetch_route_airports_disabled() {
+        let mut prefetcher = SpatialPrefetcher::new();
+
+        let points = vec![
+            PrefetchPoint {
+                lat: 33.94,
+                lon: -118.41,
+                altitude_ft: 0.0,
+                ground_height_ft: 0.0,
+                time_to_reach_sec: 0.0,
+                distance_along_route_nm: 0.0,
+            },
+            PrefetchPoint {
+                lat: 40.0,
+                lon: -110.0,
+                altitude_ft: 38000.0,
+                ground_height_ft: 5000.0,
+                time_to_reach_sec: 3600.0,
+                distance_along_route_nm: 500.0,
+            },
+        ];
+
+        // With airports disabled
+        let config_no_airports = RoutePrefetchConfig {
+            percent_ahead: 100,
+            waypoint_radius_nm: 40.0,
+            airport_radius_nm: 60.0,
+            include_airports: false,
+            zoom: 14,
+        };
+
+        prefetcher.prefetch_route(&points, 500.0, config_no_airports);
+
+        let queue_len_no_airports = prefetcher.queue_len();
+
+        prefetcher.clear_queue();
+
+        // With airports enabled
+        let config_airports = RoutePrefetchConfig {
+            percent_ahead: 100,
+            waypoint_radius_nm: 40.0,
+            airport_radius_nm: 60.0,
+            include_airports: true,
+            zoom: 14,
+        };
+
+        prefetcher.prefetch_route(&points, 500.0, config_airports);
+
+        let queue_len_airports = prefetcher.queue_len();
+
+        // Should have more tiles when airports are included
+        assert!(queue_len_airports >= queue_len_no_airports);
     }
 
     #[test]

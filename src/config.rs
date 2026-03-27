@@ -43,6 +43,14 @@ pub struct AutoOrthoConfig {
     pub route_deviation_threshold_nm: u32,
     #[serde(default = "default_route_prefetch_radius_nm")]
     pub route_prefetch_radius_nm: u32,
+    #[serde(default = "default_prefetch_route_percent")]
+    pub prefetch_route_percent: u32,
+    #[serde(default = "default_prefetch_airports")]
+    pub prefetch_airports: bool,
+    #[serde(default = "default_airport_radius_nm")]
+    pub airport_radius_nm: u32,
+    #[serde(default = "default_near_airport_zoom")]
+    pub near_airport_zoom: u32,
 }
 
 fn default_ui_scale() -> f64 {
@@ -67,6 +75,22 @@ fn default_route_deviation_threshold_nm() -> u32 {
 
 fn default_route_prefetch_radius_nm() -> u32 {
     40
+}
+
+fn default_prefetch_route_percent() -> u32 {
+    20
+}
+
+fn default_prefetch_airports() -> bool {
+    true
+}
+
+fn default_airport_radius_nm() -> u32 {
+    60
+}
+
+fn default_near_airport_zoom() -> u32 {
+    19
 }
 
 fn default_xplane_path() -> String {
@@ -109,6 +133,10 @@ impl Default for AutoOrthoConfig {
             route_consideration_radius_nm: 50,
             route_deviation_threshold_nm: 40,
             route_prefetch_radius_nm: 40,
+            prefetch_route_percent: 20,
+            prefetch_airports: true,
+            airport_radius_nm: 60,
+            near_airport_zoom: 19,
         }
     }
 }

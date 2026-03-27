@@ -118,8 +118,15 @@ pub enum Message {
     SetRouteConsiderationRadius(u32),
     SetRouteDeviationThreshold(u32),
     SetRoutePrefetchRadius(u32),
+    SetPrefetchRoutePercent(u32),
+    SetPrefetchAirports(bool),
+    SetAirportRadius(u32),
     FetchSimbrief,
-    SimbriefLoaded(String, Vec<(String, String, f32)>), // (summary, fixes: ident/type/alt)
+    SimbriefLoaded(
+        String,
+        Vec<(String, String, f32)>,
+        crate::xplane::simbrief::FlightPlan,
+    ), // (summary, fixes, full plan)
     SimbriefFailed(String),
     ToggleSimbriefDetails,
 
@@ -235,6 +242,15 @@ impl AutoOrthoApp {
             Message::SetRoutePrefetchRadius(v) => {
                 self.state.config.route_prefetch_radius_nm = v;
             }
+            Message::SetPrefetchRoutePercent(v) => {
+                self.state.config.prefetch_route_percent = v;
+            }
+            Message::SetPrefetchAirports(v) => {
+                self.state.config.prefetch_airports = v;
+            }
+            Message::SetAirportRadius(v) => {
+                self.state.config.airport_radius_nm = v;
+            }
             Message::FetchSimbrief => {
                 self.state.simbrief_fetching = true;
                 self.state.simbrief_error = None;
@@ -264,16 +280,17 @@ impl AutoOrthoApp {
                                     (f.ident.clone(), f.fix_type.clone(), alt)
                                 })
                                 .collect();
-                            Message::SimbriefLoaded(summary, fixes)
+                            Message::SimbriefLoaded(summary, fixes, plan)
                         }
                         Err(e) => Message::SimbriefFailed(e.to_string()),
                     },
                 );
             }
-            Message::SimbriefLoaded(summary, fixes) => {
+            Message::SimbriefLoaded(summary, fixes, plan) => {
                 self.state.simbrief_fetching = false;
                 self.state.simbrief_route_summary = Some(summary);
                 self.state.simbrief_fixes = fixes;
+                self.state.simbrief_flight_plan = Some(plan);
                 self.state.simbrief_show_details = false;
                 self.state.simbrief_error = None;
             }

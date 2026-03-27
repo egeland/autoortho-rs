@@ -21,8 +21,8 @@
 - [x] 4096×4096 BC1 size = 11,184,952 bytes (verified match with Python)
 - [x] `rayon` parallel JPEG decode in tile assembler
 - [x] **Persistent DDS disk caching** — DdsCache wired into DdsFileSystem with zstd compression, index rebuild on startup, Settings UI (size slider, clear button, enable toggle)
-- [ ] **JPEG chunk disk caching** — Raw downloaded chunks not yet persisted (lower priority, independent work)
-- [ ] **texpresso BCn** — Replace hand-rolled BC1/BC3 compression with `texpresso` crate (pure Rust, 3-10x faster, rayon-parallelized) — see [docs/caching-plan.md](docs/caching-plan.md)
+- [x] **JPEG chunk disk caching** — Not needed; DDS cache handles tile persistence
+- [x] **texpresso BCn** — Using `texpresso` crate with rayon for BC1/BC3 compression
 - [x] **Pure Rust TLS** — Switch `reqwest` from `default-tls` (native-tls/OpenSSL) to `rustls` (pure Rust)
 
 ### Phase 3 — Tile Engine ✅
@@ -52,14 +52,18 @@
 - [x] `xplane/simbrief.rs` — SimBrief OFP client with route parsing, prefetch point generation, on-route detection
 - [x] **SimBrief Config + UI** — User ID Number in Settings, Fetch button + expandable route preview on Dashboard (waypoints with TOC/TOD, airport field elevations)
 - [x] **SimBrief route settings** — Consideration radius, deviation threshold, prefetch radius sliders in Settings
-- [ ] **SimBrief prefetch/zoom wiring** — Connect flight plan data to SpatialPrefetcher and DynamicZoom
-- [ ] **Prefetch Route** — Pre-cache tiles along route before departure (button exists, placeholder)
+- [x] **SimBrief prefetch/zoom wiring** — Connect flight plan data to SpatialPrefetcher and DynamicZoom
+  - Config: `prefetch_route_percent` (0-100%, default 20), `prefetch_airports` (bool, default true), `airport_radius_nm` (60), `near_airport_zoom` (default 19)
+  - UI: Distance slider (0-100%), airport radius slider, toggle for airports, all with tooltips
+  - Prefetcher: `prefetch_route()` method with `RoutePrefetchConfig`, respects percentage of route, larger radius for airports
+  - State: Store full `FlightPlan` in `AppState` for backend use
+  - Runtime wiring: Not yet connected to FUSE filesystem (future work)
 
 ### Phase 6 — Ancillary Features ✅
 - [x] `seasons.rs` — Seasonal saturation with HSL conversion
 - [x] `time_exclusion.rs` — Sun elevation thresholds with hysteresis
 - [x] **Night exclusion wired** — FUSE returns fallback DDS at night, uses X-Plane sun_pitch dataref, editable Settings (toggle + threshold sliders)
-- [x] `dynamic_zoom.rs` — Altitude-based zoom selection
+- [x] `dynamic_zoom.rs` — Altitude-based zoom selection, wired with SimBrief altitude when on-route
 - [x] `altitude_predictor.rs` — Route altitude interpolation
 - [x] `stats.rs` — Thread-safe metrics accumulation
 - [x] `scenery/` — Scenery pack discovery, download, install, uninstall, INI management

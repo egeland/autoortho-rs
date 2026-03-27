@@ -136,6 +136,7 @@ pub struct AppState {
     pub simbrief_fixes: Vec<(String, String, f32)>, // (ident, fix_type, altitude_ft) for display
     pub simbrief_show_details: bool,
     pub simbrief_error: Option<String>,
+    pub simbrief_flight_plan: Option<crate::xplane::simbrief::FlightPlan>,
 
     // Developer test tile state
     pub test_tile_lat: String,
@@ -188,6 +189,7 @@ impl AppState {
             simbrief_fixes: Vec::new(),
             simbrief_show_details: false,
             simbrief_error: None,
+            simbrief_flight_plan: None,
             test_tile_lat: "-33.86".to_string(),
             test_tile_lon: "151.21".to_string(),
             test_tile_zoom: 14,
