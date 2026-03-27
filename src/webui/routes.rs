@@ -282,7 +282,10 @@ async fn custommap_maptypes() -> Json<Vec<&'static str>> {
 
 async fn custommap_tiles(State(_state): State<Arc<WebState>>) -> Json<Vec<String>> {
     // Scan installed scenery for DSF files and extract lat/lon cell keys
-    let install_dir = crate::config::AutoOrthoConfig::load().scenery_install_dir;
+    let install_dir = crate::config::AutoOrthoConfig::load()
+        .scenery_install_dir()
+        .to_string_lossy()
+        .into_owned();
     let tiles = scan_dsf_tiles(&install_dir);
     Json(tiles)
 }

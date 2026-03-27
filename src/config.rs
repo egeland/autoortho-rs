@@ -8,7 +8,8 @@ use std::path::{Path, PathBuf};
 /// All persistent configuration for AutoOrtho.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AutoOrthoConfig {
-    pub mount_dir: String,
+    #[serde(default = "default_xplane_path")]
+    pub xplane_path: String,
     pub cache_dir: String,
     pub xplane_host: String,
     pub xplane_port: u16,
@@ -20,8 +21,6 @@ pub struct AutoOrthoConfig {
     pub day_threshold: f32,
     #[serde(default)]
     pub scenery_download_dir: String,
-    #[serde(default)]
-    pub scenery_install_dir: String,
     #[serde(default = "default_ui_scale")]
     pub ui_scale: f64,
     #[serde(default)]
@@ -50,36 +49,25 @@ fn default_enable_dds_cache() -> bool {
     true
 }
 
+fn default_xplane_path() -> String {
+    dirs::home_dir()
+        .map(|p| p.join("X-Plane 12").to_string_lossy().into_owned())
+        .unwrap_or_else(|| "X-Plane 12".to_string())
+}
+
 impl Default for AutoOrthoConfig {
     fn default() -> Self {
         let cache_dir = dirs::cache_dir()
             .map(|p| p.join("autoortho").to_string_lossy().into_owned())
             .unwrap_or_else(|| "autoortho_cache".to_string());
 
-        let mount_dir = if cfg!(target_os = "windows") {
-            dirs::home_dir()
-                .map(|p| p.join("autoortho_mount").to_string_lossy().into_owned())
-                .unwrap_or_else(|| "C:\\autoortho".to_string())
-        } else {
-            "/tmp/autoortho".to_string()
-        };
-
         let scenery_download_dir = dirs::download_dir()
             .or_else(|| dirs::home_dir().map(|h| h.join("Downloads")))
             .map(|p| p.join("autoortho-scenery").to_string_lossy().into_owned())
             .unwrap_or_else(|| "downloads".to_string());
 
-        let scenery_install_dir = dirs::home_dir()
-            .map(|p| {
-                p.join("X-Plane 12")
-                    .join("Custom Scenery")
-                    .to_string_lossy()
-                    .into_owned()
-            })
-            .unwrap_or_else(|| "Custom Scenery".to_string());
-
         Self {
-            mount_dir,
+            xplane_path: default_xplane_path(),
             cache_dir,
             xplane_host: "127.0.0.1".to_string(),
             xplane_port: 49000,
@@ -90,7 +78,6 @@ impl Default for AutoOrthoConfig {
             night_threshold: -12.0,
             day_threshold: -10.0,
             scenery_download_dir,
-            scenery_install_dir,
             ui_scale: 1.0,
             window_x: None,
             window_y: None,
@@ -155,6 +142,23 @@ impl AutoOrthoConfig {
 
         debug!("Saved config to {}", path.display());
         Ok(())
+    }
+
+    /// X-Plane's Custom Scenery directory, derived from `xplane_path`.
+    pub fn custom_scenery_path(&self) -> PathBuf {
+        PathBuf::from(&self.xplane_path).join("Custom Scenery")
+    }
+
+    /// FUSE mount point, derived from `xplane_path`.
+    pub fn mount_dir(&self) -> PathBuf {
+        self.custom_scenery_path()
+            .join("z_autoortho")
+            .join("textures")
+    }
+
+    /// Scenery install directory (Custom Scenery), derived from `xplane_path`.
+    pub fn scenery_install_dir(&self) -> PathBuf {
+        self.custom_scenery_path()
     }
 
     /// Clear saved window position/size (for --reset-window).
@@ -229,5 +233,24 @@ mod tests {
     fn test_config_path_not_empty() {
         let path = AutoOrthoConfig::config_path();
         assert!(path.to_string_lossy().contains("autoortho"));
+    }
+
+    #[test]
+    fn test_derived_paths() {
+        let mut config = AutoOrthoConfig::default();
+        config.xplane_path = "/home/user/X-Plane 12".to_string();
+
+        assert_eq!(
+            config.custom_scenery_path(),
+            PathBuf::from("/home/user/X-Plane 12/Custom Scenery")
+        );
+        assert_eq!(
+            config.mount_dir(),
+            PathBuf::from("/home/user/X-Plane 12/Custom Scenery/z_autoortho/textures")
+        );
+        assert_eq!(
+            config.scenery_install_dir(),
+            PathBuf::from("/home/user/X-Plane 12/Custom Scenery")
+        );
     }
 }

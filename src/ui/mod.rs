@@ -50,7 +50,7 @@ pub enum Message {
     GoToScreen(Screen),
 
     // Setup wizard messages
-    SetMountDir(String),
+    SetXPlanePath(String),
     SetCacheDir(String),
     SetXPlaneHost(String),
     SetXPlanePort(String),
@@ -71,7 +71,6 @@ pub enum Message {
 
     // Scenery management
     SetSceneryDownloadDir(String),
-    SetSceneryInstallDir(String),
     RefreshAvailableRegions,
     RegionsLoaded(Vec<state::SceneryRegionInfo>),
     RegionsLoadFailed(String),
@@ -91,10 +90,9 @@ pub enum Message {
     TestTileFailed(String),
 
     // Folder pickers
-    BrowseMountDir,
+    BrowseXPlanePath,
     BrowseCacheDir,
     BrowseSceneryDownloadDir,
-    BrowseSceneryInstallDir,
     FolderPicked(String, String), // (field_name, path)
 
     // Window events
@@ -151,8 +149,14 @@ impl AutoOrthoApp {
             Message::GoToScreen(screen) => {
                 self.state.current_screen = screen;
             }
-            Message::SetMountDir(dir) => {
-                self.state.config.mount_dir = dir;
+            Message::SetXPlanePath(path) => {
+                self.state.config.xplane_path = path;
+                self.state.scenery_install_dir = self
+                    .state
+                    .config
+                    .scenery_install_dir()
+                    .to_string_lossy()
+                    .into_owned();
             }
             Message::SetCacheDir(dir) => {
                 self.state.config.cache_dir = dir;
@@ -255,9 +259,6 @@ impl AutoOrthoApp {
             }
             Message::SetSceneryDownloadDir(v) => {
                 self.state.scenery_download_dir = v;
-            }
-            Message::SetSceneryInstallDir(v) => {
-                self.state.scenery_install_dir = v;
             }
             Message::RefreshAvailableRegions => {
                 self.state.scenery_refreshing = true;
@@ -516,8 +517,8 @@ impl AutoOrthoApp {
                 self.state.test_tile_status = Some(format!("Error: {}", err));
                 self.state.test_tile_image = None;
             }
-            Message::BrowseMountDir => {
-                return browse_folder("mount_dir", &self.state.config.mount_dir);
+            Message::BrowseXPlanePath => {
+                return browse_folder("xplane_path", &self.state.config.xplane_path);
             }
             Message::BrowseCacheDir => {
                 return browse_folder("cache_dir", &self.state.config.cache_dir);
@@ -525,14 +526,18 @@ impl AutoOrthoApp {
             Message::BrowseSceneryDownloadDir => {
                 return browse_folder("scenery_download_dir", &self.state.scenery_download_dir);
             }
-            Message::BrowseSceneryInstallDir => {
-                return browse_folder("scenery_install_dir", &self.state.scenery_install_dir);
-            }
             Message::FolderPicked(field, path) => match field.as_str() {
-                "mount_dir" => self.state.config.mount_dir = path,
+                "xplane_path" => {
+                    self.state.config.xplane_path = path;
+                    self.state.scenery_install_dir = self
+                        .state
+                        .config
+                        .scenery_install_dir()
+                        .to_string_lossy()
+                        .into_owned();
+                }
                 "cache_dir" => self.state.config.cache_dir = path,
                 "scenery_download_dir" => self.state.scenery_download_dir = path,
-                "scenery_install_dir" => self.state.scenery_install_dir = path,
                 _ => {}
             },
             Message::WindowOpened(id) => {
@@ -1214,8 +1219,8 @@ mod tests {
     #[test]
     fn test_config_update() {
         let mut app = AutoOrthoApp::new();
-        let _ = app.update(Message::SetMountDir("/mnt/ortho".to_string()));
-        assert_eq!(app.state.config.mount_dir, "/mnt/ortho");
+        let _ = app.update(Message::SetXPlanePath("/home/user/X-Plane 12".to_string()));
+        assert_eq!(app.state.config.xplane_path, "/home/user/X-Plane 12");
     }
 
     #[test]

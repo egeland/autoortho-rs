@@ -39,10 +39,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     if let Some(pos) = args.iter().position(|a| a == "--mount") {
+        let config = autoortho_lib::config::AutoOrthoConfig::load();
+        let config_mount_dir = config.mount_dir().to_string_lossy().into_owned();
         let mountpoint = args
             .get(pos + 1)
             .map(|s| s.as_str())
-            .unwrap_or("/tmp/autoortho_mount");
+            .unwrap_or(&config_mount_dir);
         let rt = tokio::runtime::Runtime::new()?;
         return rt.block_on(run_with_mount(mountpoint));
     }
@@ -351,7 +353,7 @@ async fn run_server() -> Result<(), Box<dyn Error>> {
         .map_err(|e| format!("Web server error: {}", e))?;
     info!("Web UI at http://{}", addr);
 
-    info!("AutoOrtho ready. Mount: {}", config.mount_dir);
+    info!("AutoOrtho ready. Mount: {}", config.mount_dir().display());
     info!("Press Ctrl+C to shut down.");
 
     tokio::signal::ctrl_c().await?;

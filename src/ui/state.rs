@@ -143,7 +143,7 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Self {
         let config = AutoOrthoConfig::load();
-        let is_configured = !config.mount_dir.is_empty();
+        let is_configured = !config.xplane_path.is_empty();
 
         let scenery_download_dir = if config.scenery_download_dir.is_empty() {
             dirs::download_dir()
@@ -154,18 +154,7 @@ impl AppState {
             config.scenery_download_dir.clone()
         };
 
-        let scenery_install_dir = if config.scenery_install_dir.is_empty() {
-            dirs::home_dir()
-                .map(|p| {
-                    p.join("X-Plane 12")
-                        .join("Custom Scenery")
-                        .to_string_lossy()
-                        .into_owned()
-                })
-                .unwrap_or_else(|| "Custom Scenery".to_string())
-        } else {
-            config.scenery_install_dir.clone()
-        };
+        let scenery_install_dir = config.scenery_install_dir().to_string_lossy().into_owned();
 
         Self {
             current_screen: if is_configured {
@@ -203,18 +192,19 @@ impl AppState {
 
     /// Whether the scenery install directory looks like X-Plane's Custom Scenery folder
     pub fn scenery_dir_valid(&self) -> bool {
-        if self.scenery_install_dir.is_empty() {
+        if self.config.xplane_path.is_empty() {
             return false;
         }
-        let path = std::path::Path::new(&self.scenery_install_dir);
-        path.join("scenery_packs.ini").exists()
+        self.config
+            .custom_scenery_path()
+            .join("scenery_packs.ini")
+            .exists()
     }
 
     /// Persist configuration to file
     pub fn save_config(&mut self) {
-        // Sync scenery dirs into config before saving
+        // Sync scenery download dir into config before saving
         self.config.scenery_download_dir = self.scenery_download_dir.clone();
-        self.config.scenery_install_dir = self.scenery_install_dir.clone();
 
         match self.config.save() {
             Ok(()) => {
@@ -231,7 +221,11 @@ impl AppState {
     pub fn load_config(&mut self) {
         self.config = AutoOrthoConfig::load();
         self.scenery_download_dir = self.config.scenery_download_dir.clone();
-        self.scenery_install_dir = self.config.scenery_install_dir.clone();
+        self.scenery_install_dir = self
+            .config
+            .scenery_install_dir()
+            .to_string_lossy()
+            .into_owned();
         self.is_configured = true;
     }
 
@@ -246,8 +240,8 @@ impl AppState {
     pub fn validate_config(&mut self) -> bool {
         self.clear_error();
 
-        if self.config.mount_dir.is_empty() {
-            self.set_error("Mount directory cannot be empty".to_string());
+        if self.config.xplane_path.is_empty() {
+            self.set_error("X-Plane path cannot be empty".to_string());
             return false;
         }
 
@@ -303,9 +297,9 @@ mod tests {
     }
 
     #[test]
-    fn test_validate_mount_dir_empty() {
+    fn test_validate_xplane_path_empty() {
         let mut state = AppState::new();
-        state.config.mount_dir = String::new();
+        state.config.xplane_path = String::new();
         assert!(!state.validate_config());
         assert!(state.error_message.is_some());
     }
@@ -328,7 +322,7 @@ mod tests {
     #[test]
     fn test_validate_config_success() {
         let mut state = AppState::new();
-        state.config.mount_dir = "/mnt/ortho".to_string();
+        state.config.xplane_path = "/home/user/X-Plane 12".to_string();
         state.config.min_zoom = 10;
         state.config.max_zoom = 18;
         state.config.xplane_port = 49000;

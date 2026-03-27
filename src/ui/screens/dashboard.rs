@@ -80,7 +80,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             "Zoom Range:",
             format!("{} – {}", state.config.min_zoom, state.config.max_zoom)
         ),
-        config_row("Mount Dir:", state.config.mount_dir.clone()),
+        config_row("X-Plane:", state.config.xplane_path.clone()),
         config_row("Cache Dir:", state.config.cache_dir.clone()),
         config_row(
             "Night Exclusion:",

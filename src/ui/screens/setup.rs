@@ -10,15 +10,15 @@ const PROVIDERS: &[&str] = &["ARC", "BI", "GO2", "NAIP", "USGS", "EOX", "FIREFLY
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let title = text("Setup Wizard").size(28);
 
-    // Mount directory with browse button
-    let mount_row = row![
-        text("Mount Directory:").width(Length::Fixed(140.0)),
-        text_input("/tmp/autoortho", &state.config.mount_dir)
-            .on_input(Message::SetMountDir)
+    // X-Plane folder with browse button
+    let xplane_row = row![
+        text("X-Plane Folder:").width(Length::Fixed(140.0)),
+        text_input("~/X-Plane 12", &state.config.xplane_path)
+            .on_input(Message::SetXPlanePath)
             .width(Length::Fill),
         button(text("Browse").size(13))
             .padding([6, 12])
-            .on_press(Message::BrowseMountDir),
+            .on_press(Message::BrowseXPlanePath),
     ]
     .spacing(8)
     .align_y(iced::Alignment::Center);
@@ -104,7 +104,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let form = column![
         title,
         space::vertical().height(24),
-        mount_row,
+        xplane_row,
         cache_row,
         space::vertical().height(12),
         host_row,

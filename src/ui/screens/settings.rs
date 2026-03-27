@@ -17,12 +17,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         rule::horizontal(1),
         tooltip(
             labeled_path_input(
-                "FUSE Mount Point:",
-                &state.config.mount_dir,
-                Message::SetMountDir,
-                Message::BrowseMountDir
+                "X-Plane Folder:",
+                &state.config.xplane_path,
+                Message::SetXPlanePath,
+                Message::BrowseXPlanePath
             ),
-            container(text("Virtual filesystem where X-Plane reads DDS textures on-the-fly. Point scenery_packs.ini here.").size(12))
+            container(text("Root X-Plane installation folder. Custom Scenery, mount point, and scenery install paths are derived from this.").size(12))
                 .padding(8)
                 .style(container::rounded_box),
             tooltip::Position::Bottom,
@@ -51,29 +51,19 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .style(container::rounded_box),
             tooltip::Position::Bottom,
         ),
-        tooltip(
-            labeled_path_input(
-                "Scenery Install:",
-                &state.scenery_install_dir,
-                Message::SetSceneryInstallDir,
-                Message::BrowseSceneryInstallDir
-            ),
-            container(text("Point this to X-Plane's Custom Scenery folder. Packs are installed into z_autoortho/ subfolders inside it.").size(12))
-                .padding(8)
-                .style(container::rounded_box),
-            tooltip::Position::Bottom,
-        ),
     ]
     .spacing(8);
 
-    // Warn if scenery_packs.ini is not found in the install dir
-    let ini_warning: Element<'_, Message> = if !state.scenery_install_dir.is_empty()
-        && !std::path::Path::new(&state.scenery_install_dir)
+    // Warn if scenery_packs.ini is not found in the Custom Scenery dir
+    let ini_warning: Element<'_, Message> = if !state.config.xplane_path.is_empty()
+        && !state
+            .config
+            .custom_scenery_path()
             .join("scenery_packs.ini")
             .exists()
     {
         text(format!(
-            "{} No scenery_packs.ini found in Scenery Install folder — is this X-Plane's Custom Scenery directory?",
+            "{} No scenery_packs.ini found in Custom Scenery folder — is this the correct X-Plane directory?",
             crate::ui::helpers::ICON_WARNING
         ))
         .size(13)
