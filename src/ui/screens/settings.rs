@@ -1,7 +1,7 @@
 use crate::ui::Message;
 use crate::ui::state::AppState;
 use iced::widget::{
-    button, column, container, pick_list, row, rule, slider, space, text, text_input,
+    button, column, container, pick_list, row, rule, slider, space, text, text_input, tooltip,
 };
 use iced::{Element, Fill, Length};
 
@@ -15,17 +15,29 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let paths = column![
         text("Paths").size(18),
         rule::horizontal(1),
-        labeled_path_input(
-            "Mount Directory:",
-            &state.config.mount_dir,
-            Message::SetMountDir,
-            Message::BrowseMountDir
+        tooltip(
+            labeled_path_input(
+                "FUSE Mount Point:",
+                &state.config.mount_dir,
+                Message::SetMountDir,
+                Message::BrowseMountDir
+            ),
+            container(text("Virtual filesystem where X-Plane reads DDS textures on-the-fly. Point scenery_packs.ini here.").size(12))
+                .padding(8)
+                .style(container::rounded_box),
+            tooltip::Position::Bottom,
         ),
-        labeled_path_input(
-            "Cache Directory:",
-            &state.config.cache_dir,
-            Message::SetCacheDir,
-            Message::BrowseCacheDir
+        tooltip(
+            labeled_path_input(
+                "Tile Cache:",
+                &state.config.cache_dir,
+                Message::SetCacheDir,
+                Message::BrowseCacheDir
+            ),
+            container(text("Persistent storage for generated DDS textures. Survives restarts so tiles don't need re-downloading.").size(12))
+                .padding(8)
+                .style(container::rounded_box),
+            tooltip::Position::Bottom,
         ),
     ]
     .spacing(8);

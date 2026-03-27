@@ -3,6 +3,7 @@ use crate::ui::helpers;
 use crate::ui::state::AppState;
 use iced::widget::{
     button, column, container, progress_bar, row, rule, scrollable, space, text, text_input,
+    tooltip,
 };
 use iced::{Element, Fill, Length};
 
@@ -15,30 +16,48 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let inst_space = helpers::disk_space_label(&state.scenery_install_dir);
 
     let dirs_section = column![
-        row![
-            text("Download to:").size(13).width(Length::Fixed(90.0)),
-            text_input("", &state.scenery_download_dir)
-                .on_input(Message::SetSceneryDownloadDir)
-                .size(13),
-            button(text(format!("{} Browse", helpers::ICON_FOLDER)).size(12))
-                .padding([4, 10])
-                .on_press(Message::BrowseSceneryDownloadDir),
-            text(dl_space).size(12),
-        ]
-        .spacing(8)
-        .align_y(iced::Alignment::Center),
-        row![
-            text("Install to:").size(13).width(Length::Fixed(90.0)),
-            text_input("", &state.scenery_install_dir)
-                .on_input(Message::SetSceneryInstallDir)
-                .size(13),
-            button(text(format!("{} Browse", helpers::ICON_FOLDER)).size(12))
-                .padding([4, 10])
-                .on_press(Message::BrowseSceneryInstallDir),
-            text(inst_space).size(12),
-        ]
-        .spacing(8)
-        .align_y(iced::Alignment::Center),
+        tooltip(
+            row![
+                text("Temp Downloads:").size(13).width(Length::Fixed(120.0)),
+                text_input("", &state.scenery_download_dir)
+                    .on_input(Message::SetSceneryDownloadDir)
+                    .size(13),
+                button(text(format!("{} Browse", helpers::ICON_FOLDER)).size(12))
+                    .padding([4, 10])
+                    .on_press(Message::BrowseSceneryDownloadDir),
+                text(dl_space).size(12),
+            ]
+            .spacing(8)
+            .align_y(iced::Alignment::Center),
+            container(
+                text("Temporary storage for scenery pack zip files during download. Can be cleaned up after installation.")
+                    .size(12),
+            )
+            .padding(8)
+            .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
+        tooltip(
+            row![
+                text("Scenery Install:").size(13).width(Length::Fixed(120.0)),
+                text_input("", &state.scenery_install_dir)
+                    .on_input(Message::SetSceneryInstallDir)
+                    .size(13),
+                button(text(format!("{} Browse", helpers::ICON_FOLDER)).size(12))
+                    .padding([4, 10])
+                    .on_press(Message::BrowseSceneryInstallDir),
+                text(inst_space).size(12),
+            ]
+            .spacing(8)
+            .align_y(iced::Alignment::Center),
+            container(
+                text("Where scenery mesh packs are extracted. Should be inside or symlinked into X-Plane's Custom Scenery folder.")
+                    .size(12),
+            )
+            .padding(8)
+            .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
     ]
     .spacing(6);
 
