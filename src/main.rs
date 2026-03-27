@@ -6,6 +6,7 @@ use autoortho_lib::fuse::filesystem::DdsFileSystem;
 use autoortho_lib::pipeline::cache::DdsCache;
 use autoortho_lib::stats::StatsStore;
 use autoortho_lib::tiles::fetcher::TileFetcher;
+use autoortho_lib::tiles::prefetch::{RoutePrefetchConfig, SpatialPrefetcher};
 use autoortho_lib::tiles::provider::ProviderFactory;
 use autoortho_lib::xplane::dataref::DatarefTracker;
 use log::{info, warn};
@@ -294,6 +295,91 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
         });
     } else {
         info!("Night exclusion disabled");
+    }
+
+    // SimBrief route prefetch: if user_id is configured, fetch flight plan and start prefetch
+    if !config.simbrief_user_id.is_empty() {
+        info!("Fetching SimBrief flight plan for route prefetching...");
+        let simbrief_user_id = config.simbrief_user_id.clone();
+        match tokio::runtime::Handle::current().block_on(
+            autoortho_lib::xplane::simbrief::fetch_flight_plan(&simbrief_user_id),
+        ) {
+            Ok(plan) => {
+                info!(
+                    "SimBrief route loaded: {} -> {}",
+                    plan.origin, plan.destination
+                );
+                let fetcher_for_prefetch = fetcher.clone();
+                let tracker_for_prefetch = tracker.clone();
+                let config_for_prefetch = config.clone();
+
+                tokio::spawn(async move {
+                    let mut prefetcher = SpatialPrefetcher::new();
+                    let route_config = RoutePrefetchConfig {
+                        percent_ahead: config_for_prefetch.prefetch_route_percent,
+                        waypoint_radius_nm: config_for_prefetch.route_prefetch_radius_nm as f64,
+                        airport_radius_nm: config_for_prefetch.airport_radius_nm as f64,
+                        include_airports: config_for_prefetch.prefetch_airports,
+                        zoom: config_for_prefetch.max_zoom,
+                    };
+
+                    loop {
+                        let flight_data = tracker_for_prefetch.get_flight_data();
+
+                        if flight_data.data_valid {
+                            let lat = flight_data.lat;
+                            let lon = flight_data.lon;
+
+                            // Check if on route
+                            if plan.is_on_route(
+                                lat,
+                                lon,
+                                config_for_prefetch.route_consideration_radius_nm as f64,
+                            ) {
+                                // Get prefetch points along route
+                                let points = plan.get_prefetch_points(
+                                    lat, lon,
+                                    10.0,    // spacing_nm - fill gaps between waypoints
+                                    99999.0, // max lookahead - get all points
+                                );
+
+                                if !points.is_empty() {
+                                    // Calculate total route distance
+                                    let route_distance_nm = points
+                                        .last()
+                                        .map(|p| p.distance_along_route_nm)
+                                        .unwrap_or(0.0);
+
+                                    // Update prefetch queue
+                                    prefetcher.prefetch_route(
+                                        &points,
+                                        route_distance_nm,
+                                        route_config,
+                                    );
+
+                                    // Trigger fetches for queued tiles
+                                    while let Some((row, col)) = prefetcher.next_tile() {
+                                        let _ = fetcher_for_prefetch
+                                            .get_chunk_data(
+                                                row,
+                                                col,
+                                                &config_for_prefetch.tile_provider,
+                                                config_for_prefetch.max_zoom,
+                                            )
+                                            .await;
+                                    }
+                                }
+                            }
+                        }
+
+                        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+                    }
+                });
+            }
+            Err(e) => {
+                warn!("Failed to fetch SimBrief flight plan: {}", e);
+            }
+        }
     }
 
     // Create mount point if it doesn't exist

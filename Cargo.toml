@@ -73,6 +73,10 @@ path = "src/lib.rs"
 name = "autoortho"
 path = "src/main.rs"
 
+[[bench]]
+name = "bench"
+harness = false
+
 [profile.release]
 lto = "thin"
 opt-level = 3
