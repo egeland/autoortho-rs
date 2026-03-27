@@ -1,7 +1,7 @@
 use crate::ui::Message;
 use crate::ui::helpers::*;
 use crate::ui::state::{AppState, ServiceStatus};
-use iced::widget::{button, column, container, row, rule, space, text};
+use iced::widget::{button, column, container, row, rule, space, text, tooltip};
 use iced::{Element, Fill, Length};
 
 /// Main dashboard screen — real-time status and controls
@@ -84,12 +84,28 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         } else if state.simbrief_fetching {
             section = section.push(button(text("Fetching...").size(14)).padding([8, 16]));
         } else {
-            section = section.push(
+            let mut btn_row = row![
                 button(text(format!("{} Fetch Flight Plan", ICON_GLOBE)).size(14))
                     .padding([8, 16])
                     .style(button::success)
                     .on_press(Message::FetchSimbrief),
-            );
+            ]
+            .spacing(8);
+
+            if state.simbrief_route_summary.is_some() {
+                btn_row = btn_row.push(tooltip(
+                    button(text(format!("{} Prefetch Route", ICON_MAP)).size(14)).padding([8, 16]),
+                    container(
+                        text("Coming soon — pre-cache tiles along the route before departure.")
+                            .size(12),
+                    )
+                    .padding(8)
+                    .style(container::rounded_box),
+                    tooltip::Position::Bottom,
+                ));
+            }
+
+            section = section.push(btn_row);
         }
 
         if let Some(ref summary) = state.simbrief_route_summary {

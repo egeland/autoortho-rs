@@ -37,6 +37,12 @@ pub struct AutoOrthoConfig {
     pub enable_dds_cache: bool,
     #[serde(default)]
     pub simbrief_user_id: String,
+    #[serde(default = "default_route_consideration_radius_nm")]
+    pub route_consideration_radius_nm: u32,
+    #[serde(default = "default_route_deviation_threshold_nm")]
+    pub route_deviation_threshold_nm: u32,
+    #[serde(default = "default_route_prefetch_radius_nm")]
+    pub route_prefetch_radius_nm: u32,
 }
 
 fn default_ui_scale() -> f64 {
@@ -49,6 +55,18 @@ fn default_dds_cache_size_mb() -> u64 {
 
 fn default_enable_dds_cache() -> bool {
     true
+}
+
+fn default_route_consideration_radius_nm() -> u32 {
+    50
+}
+
+fn default_route_deviation_threshold_nm() -> u32 {
+    40
+}
+
+fn default_route_prefetch_radius_nm() -> u32 {
+    40
 }
 
 fn default_xplane_path() -> String {
@@ -88,6 +106,9 @@ impl Default for AutoOrthoConfig {
             dds_cache_size_mb: 4096,
             enable_dds_cache: true,
             simbrief_user_id: String::new(),
+            route_consideration_radius_nm: 50,
+            route_deviation_threshold_nm: 40,
+            route_prefetch_radius_nm: 40,
         }
     }
 }

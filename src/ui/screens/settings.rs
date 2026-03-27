@@ -111,6 +111,51 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .style(container::rounded_box),
             tooltip::Position::Bottom,
         ),
+        row![
+            text(format!(
+                "Route Consideration: {} nm",
+                state.config.route_consideration_radius_nm
+            ))
+            .width(Length::Fixed(260.0)),
+            slider(
+                10u32..=200,
+                state.config.route_consideration_radius_nm,
+                Message::SetRouteConsiderationRadius
+            )
+            .width(Length::Fixed(200.0)),
+        ]
+        .spacing(12)
+        .align_y(iced::Alignment::Center),
+        row![
+            text(format!(
+                "Deviation Threshold: {} nm",
+                state.config.route_deviation_threshold_nm
+            ))
+            .width(Length::Fixed(260.0)),
+            slider(
+                5u32..=100,
+                state.config.route_deviation_threshold_nm,
+                Message::SetRouteDeviationThreshold
+            )
+            .width(Length::Fixed(200.0)),
+        ]
+        .spacing(12)
+        .align_y(iced::Alignment::Center),
+        row![
+            text(format!(
+                "Prefetch Radius: {} nm",
+                state.config.route_prefetch_radius_nm
+            ))
+            .width(Length::Fixed(260.0)),
+            slider(
+                10u32..=150,
+                state.config.route_prefetch_radius_nm,
+                Message::SetRoutePrefetchRadius
+            )
+            .width(Length::Fixed(200.0)),
+        ]
+        .spacing(12)
+        .align_y(iced::Alignment::Center),
     ]
     .spacing(8);
 

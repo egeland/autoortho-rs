@@ -234,7 +234,7 @@ Add optional flag to fetch flight plan on startup:
 3. **[x] State**: SimBrief state on `AppState` (fetching, route summary, fixes, show_details)
 4. **[x] Settings UI**: SimBrief User ID Number input with tooltip in Settings
 5. **[x] Dashboard UI**: Fetch button, route preview, expandable waypoint list with TOC/TOD highlighting, airport field elevations
-6. **[ ] Route Settings UI**: Add sliders for consideration/deviation/prefetch radius
+6. **[x] Route Settings UI**: Sliders for consideration radius, deviation threshold, prefetch radius in Settings
 7. **[ ] Dynamic Zoom**: Implement SimBrief-based zoom selection in `dynamic_zoom.rs`
 8. **[ ] Prefetcher**: Implement SimBrief-based prefetching in `prefetch.rs`
 9. **[ ] Toggle**: Wire up "Use Flight Data" toggle to enable/disable SimBrief mode

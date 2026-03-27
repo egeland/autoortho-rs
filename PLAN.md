@@ -51,8 +51,9 @@
 - [x] `xplane/dataref.rs` — DatarefTracker with 8 datarefs, auto-reconnect, shared state
 - [x] `xplane/simbrief.rs` — SimBrief OFP client with route parsing, prefetch point generation, on-route detection
 - [x] **SimBrief Config + UI** — User ID Number in Settings, Fetch button + expandable route preview on Dashboard (waypoints with TOC/TOD, airport field elevations)
-- [ ] **SimBrief route settings** — Consideration radius, deviation threshold, prefetch radius sliders
+- [x] **SimBrief route settings** — Consideration radius, deviation threshold, prefetch radius sliders in Settings
 - [ ] **SimBrief prefetch/zoom wiring** — Connect flight plan data to SpatialPrefetcher and DynamicZoom
+- [ ] **Prefetch Route** — Pre-cache tiles along route before departure (button exists, placeholder)
 
 ### Phase 6 — Ancillary Features ✅
 - [x] `seasons.rs` — Seasonal saturation with HSL conversion

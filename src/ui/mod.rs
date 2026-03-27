@@ -110,6 +110,9 @@ pub enum Message {
 
     // SimBrief
     SetSimbriefUserId(String),
+    SetRouteConsiderationRadius(u32),
+    SetRouteDeviationThreshold(u32),
+    SetRoutePrefetchRadius(u32),
     FetchSimbrief,
     SimbriefLoaded(String, Vec<(String, String, f32)>), // (summary, fixes: ident/type/alt)
     SimbriefFailed(String),
@@ -208,6 +211,15 @@ impl AutoOrthoApp {
             }
             Message::SetSimbriefUserId(id) => {
                 self.state.config.simbrief_user_id = id;
+            }
+            Message::SetRouteConsiderationRadius(v) => {
+                self.state.config.route_consideration_radius_nm = v;
+            }
+            Message::SetRouteDeviationThreshold(v) => {
+                self.state.config.route_deviation_threshold_nm = v;
+            }
+            Message::SetRoutePrefetchRadius(v) => {
+                self.state.config.route_prefetch_radius_nm = v;
             }
             Message::FetchSimbrief => {
                 self.state.simbrief_fetching = true;
