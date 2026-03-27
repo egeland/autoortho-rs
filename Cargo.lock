@@ -420,6 +420,7 @@ dependencies = [
  "serde_json",
  "sha2 0.11.0",
  "tempfile",
+ "texpresso",
  "thiserror 2.0.18",
  "tokio",
  "tokio-tungstenite",
@@ -5331,6 +5332,16 @@ name = "termtree"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f50febec83f5ee1df3015341d8bd429f2d1cc62bcba7ea2076759d315084683"
+
+[[package]]
+name = "texpresso"
+version = "2.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8550677e2259d675a7841cb1403db35f330cc9e58674c8c5caa12dd12c51dc71"
+dependencies = [
+ "libm",
+ "rayon",
+]
 
 [[package]]
 name = "thiserror"

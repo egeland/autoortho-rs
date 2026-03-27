@@ -54,6 +54,7 @@ libloading = "0.8"
 # FUSE (optional — requires macFUSE/libfuse installed)
 fuser = { version = "0.17", optional = true }
 libc = { version = "0.2", optional = true }
+texpresso = { version = "2.0.2", features = ["rayon"] }
 
 [features]
 default = []
@@ -71,3 +72,10 @@ path = "src/lib.rs"
 [[bin]]
 name = "autoortho"
 path = "src/main.rs"
+
+[profile.release]
+lto = "thin"
+opt-level = 3
+codegen-units = 1
+strip = true
+panic = "abort"
