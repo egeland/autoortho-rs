@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
 // Copyright (c) 2024 the AutoOrtho contributors
 
-use log::{info, warn};
+use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -153,7 +153,7 @@ impl AutoOrthoConfig {
         std::fs::write(&tmp, &toml).map_err(|e| format!("Failed to write config: {}", e))?;
         std::fs::rename(&tmp, path).map_err(|e| format!("Failed to rename config: {}", e))?;
 
-        info!("Saved config to {}", path.display());
+        debug!("Saved config to {}", path.display());
         Ok(())
     }
 
