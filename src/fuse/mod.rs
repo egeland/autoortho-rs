@@ -6,10 +6,8 @@ use regex::Regex;
 use thiserror::Error;
 
 pub mod filesystem;
-pub mod platform;
-
-#[cfg(feature = "fuse")]
 pub mod mount;
+pub mod platform;
 
 #[derive(Debug, Error)]
 pub enum FuseError {

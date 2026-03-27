@@ -220,7 +220,6 @@ async fn test_tile_generation() -> Result<(), Box<dyn Error>> {
 }
 
 /// Run with FUSE mount — serves DDS tiles at the mount point.
-#[cfg(feature = "fuse")]
 async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     use std::path::Path;
 
@@ -257,9 +256,9 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     };
 
     let fs = if let Some(dc) = dds_cache {
-        Arc::new(DdsFileSystem::with_disk_cache(fetcher, dc))
+        Arc::new(DdsFileSystem::with_disk_cache(fetcher.clone(), dc))
     } else {
-        Arc::new(DdsFileSystem::new(fetcher))
+        Arc::new(DdsFileSystem::new(fetcher.clone()))
     };
 
     // Start web server
@@ -399,7 +398,7 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     let mount_path = mount_path.to_path_buf();
 
     // Run FUSE mount in a blocking thread (it blocks until unmounted)
-    tokio::task::spawn_blocking(move || {
+    tokio::task::spawn_blocking::<_, Result<(), String>>(move || {
         autoortho_lib::fuse::mount::mount(fs_clone, &mount_path, runtime_handle)
             .map_err(|e| e.to_string())
     })
@@ -408,13 +407,6 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
 
     info!("FUSE unmounted. Shutting down.");
     Ok(())
-}
-
-#[cfg(not(feature = "fuse"))]
-async fn run_with_mount(_mountpoint: &str) -> Result<(), Box<dyn Error>> {
-    eprintln!("FUSE support not compiled. Rebuild with: cargo build --features fuse");
-    eprintln!("Requires macFUSE (macOS), libfuse (Linux), or WinFsp (Windows).");
-    std::process::exit(1);
 }
 
 async fn run_server() -> Result<(), Box<dyn Error>> {

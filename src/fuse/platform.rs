@@ -11,7 +11,7 @@
 
 /// Check if FUSE/virtual filesystem support is available on this platform.
 pub fn is_fuse_available() -> bool {
-    cfg!(feature = "fuse")
+    true
 }
 
 /// Platform name for logging.
