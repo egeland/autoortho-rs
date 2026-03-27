@@ -9,9 +9,9 @@
 use crate::fuse::filesystem::DdsFileSystem;
 use crate::fuse::{MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
 use fuser::{
-    FileType, Filesystem, MountOption, ReplyAttr, ReplyData, ReplyDirectory, ReplyEntry, Request,
+    Errno, FileType, Filesystem, Generation, INodeNo, MountOption, ReplyAttr, ReplyData,
+    ReplyDirectory, ReplyEntry, Request,
 };
-use libc::ENOENT;
 use log::{debug, info, warn};
 use std::collections::HashMap;
 use std::ffi::OsStr;
@@ -112,7 +112,7 @@ impl AutoOrthoFuse {
 
     fn make_dir_attr(ino: u64) -> fuser::FileAttr {
         fuser::FileAttr {
-            ino,
+            ino: INodeNo(ino),
             size: 4096,
             blocks: 8,
             atime: Self::now(),
@@ -132,7 +132,7 @@ impl AutoOrthoFuse {
 
     fn make_file_attr(ino: u64, size: u64) -> fuser::FileAttr {
         fuser::FileAttr {
-            ino,
+            ino: INodeNo(ino),
             size,
             blocks: size.div_ceil(4096) * 8,
             atime: Self::now(),
@@ -152,12 +152,13 @@ impl AutoOrthoFuse {
 }
 
 impl Filesystem for AutoOrthoFuse {
-    fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
+    fn lookup(&self, _req: &Request, parent: INodeNo, name: &OsStr, reply: ReplyEntry) {
+        let parent_raw = parent.0;
         let name_str = name.to_string_lossy();
-        let parent_path = match self.inode_path(parent) {
+        let parent_path = match self.inode_path(parent_raw) {
             Some(p) => p,
             None => {
-                reply.error(ENOENT);
+                reply.error(Errno::ENOENT);
                 return;
             }
         };
@@ -170,13 +171,13 @@ impl Filesystem for AutoOrthoFuse {
 
         debug!(
             "lookup: parent={} name={} → {}",
-            parent, name_str, full_path
+            parent_raw, name_str, full_path
         );
 
         // Poison pill check
         if is_poison_path(&full_path) {
             info!("Poison pill detected at {}. Shutting down.", full_path);
-            reply.error(ENOENT);
+            reply.error(Errno::ENOENT);
             // TODO: trigger fuse_exit
             return;
         }
@@ -192,19 +193,26 @@ impl Filesystem for AutoOrthoFuse {
                 } else {
                     Self::make_file_attr(ino, attr.size)
                 };
-                reply.entry(&TTL, &fuse_attr, 0);
+                reply.entry(&TTL, &fuse_attr, Generation(0));
             }
             Err(_) => {
-                reply.error(ENOENT);
+                reply.error(Errno::ENOENT);
             }
         }
     }
 
-    fn getattr(&mut self, _req: &Request, ino: u64, reply: ReplyAttr) {
-        let path = match self.inode_path(ino) {
+    fn getattr(
+        &self,
+        _req: &Request,
+        ino: INodeNo,
+        _fh: Option<fuser::FileHandle>,
+        reply: ReplyAttr,
+    ) {
+        let ino_raw = ino.0;
+        let path = match self.inode_path(ino_raw) {
             Some(p) => p,
             None => {
-                reply.error(ENOENT);
+                reply.error(Errno::ENOENT);
                 return;
             }
         };
@@ -214,67 +222,67 @@ impl Filesystem for AutoOrthoFuse {
         match result {
             Ok(attr) => {
                 let fuse_attr = if attr.is_dir {
-                    Self::make_dir_attr(ino)
+                    Self::make_dir_attr(ino_raw)
                 } else {
-                    Self::make_file_attr(ino, attr.size)
+                    Self::make_file_attr(ino_raw, attr.size)
                 };
                 reply.attr(&TTL, &fuse_attr);
             }
             Err(_) => {
-                reply.error(ENOENT);
+                reply.error(Errno::ENOENT);
             }
         }
     }
 
     fn read(
-        &mut self,
+        &self,
         _req: &Request,
-        ino: u64,
-        _fh: u64,
-        offset: i64,
+        ino: INodeNo,
+        _fh: fuser::FileHandle,
+        offset: u64,
         size: u32,
-        _flags: i32,
-        _lock_owner: Option<u64>,
+        _flags: fuser::OpenFlags,
+        _lock_owner: Option<fuser::LockOwner>,
         reply: ReplyData,
     ) {
-        let path = match self.inode_path(ino) {
+        let ino_raw = ino.0;
+        let path = match self.inode_path(ino_raw) {
             Some(p) => p,
             None => {
-                reply.error(ENOENT);
+                reply.error(Errno::ENOENT);
                 return;
             }
         };
 
         debug!(
             "read: ino={} path={} offset={} size={}",
-            ino, path, offset, size
+            ino_raw, path, offset, size
         );
 
-        let result = self
-            .runtime
-            .block_on(self.fs.read_dds(&path, offset as u64, size));
+        let result = self.runtime.block_on(self.fs.read_dds(&path, offset, size));
 
         match result {
             Ok(data) => reply.data(&data),
             Err(e) => {
                 warn!("read error for {}: {}", path, e);
-                reply.error(libc::EIO);
+                reply.error(Errno::EIO);
             }
         }
     }
 
     fn readdir(
-        &mut self,
+        &self,
         _req: &Request,
-        ino: u64,
-        _fh: u64,
-        offset: i64,
+        ino: INodeNo,
+        _fh: fuser::FileHandle,
+        offset: u64,
         mut reply: ReplyDirectory,
     ) {
-        let path = match self.inode_path(ino) {
+        let ino_raw = ino.0;
+        let path = match self.inode_path(ino_raw) {
             Some(p) => p,
             None => {
-                reply.error(ENOENT);
+                reply.error(Errno::ENOENT);
                 return;
             }
         };
@@ -282,7 +290,7 @@ impl Filesystem for AutoOrthoFuse {
         let entries = match self.fs.list_dir(&path) {
             Ok(e) => e,
             Err(_) => {
-                reply.error(ENOENT);
+                reply.error(Errno::ENOENT);
                 return;
             }
         };
@@ -303,7 +311,7 @@ impl Filesystem for AutoOrthoFuse {
             };
 
             // reply.add returns true when buffer is full
-            if reply.add(entry_ino, (i + 1) as i64, file_type, name) {
+            if reply.add(INodeNo(entry_ino), (i + 1) as u64, file_type, name) {
                 break;
             }
         }
@@ -311,7 +319,7 @@ impl Filesystem for AutoOrthoFuse {
         reply.ok();
     }
 
-    fn statfs(&mut self, _req: &Request, _ino: u64, reply: fuser::ReplyStatfs) {
+    fn statfs(&self, _req: &Request, _ino: INodeNo, reply: fuser::ReplyStatfs) {
         // Return generous fake stats (matching Python implementation)
         reply.statfs(
             124_699_647, // blocks
@@ -343,14 +351,15 @@ pub fn mount(
 
     info!("Mounting AutoOrtho FUSE at {}", mountpoint.display());
 
-    let options = vec![
+    let mut config = fuser::Config::default();
+    config.mount_options = vec![
         MountOption::RO,
         MountOption::FSName("autoortho".to_string()),
-        MountOption::AllowOther,
         MountOption::AutoUnmount,
     ];
+    config.acl = fuser::SessionACL::All;
 
-    fuser::mount2(fuse_fs, mountpoint, &options)?;
+    fuser::mount2(fuse_fs, mountpoint, &config)?;
 
     info!("FUSE unmounted from {}", mountpoint.display());
     Ok(())

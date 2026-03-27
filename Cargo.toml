@@ -52,7 +52,7 @@ futures-lite = "2.6"
 libloading = "0.8"
 
 # FUSE (optional — requires macFUSE/libfuse installed)
-fuser = { version = "0.14", optional = true }
+fuser = { version = "0.17", optional = true }
 libc = { version = "0.2", optional = true }
 
 [features]

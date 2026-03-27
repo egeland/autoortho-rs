@@ -93,7 +93,7 @@
 - [x] iced 0.13 → 0.14
 - [x] reqwest 0.12 → 0.13, config 0.14 → 0.15, lru 0.12 → 0.16
 - [x] rfd 0.15 → 0.17, sha2 0.10 → 0.11, mockall 0.13 → 0.14
-- [ ] fuser 0.14 → 0.17 (defer until FUSE live-tested)
+- [x] fuser 0.14 → 0.17
 - [ ] tokio-tungstenite 0.26 → 0.29 (defer until WebSocket used)
 - [ ] criterion 0.5 → 0.8 (defer until benchmarks written)
 
@@ -108,6 +108,13 @@
 - [ ] Performance profiling with `cargo-flamegraph` and/or `cargo-profiler`
 - [ ] End-to-end integration test: mount, request DDS, byte-compare
 - [ ] Documentation pass
+
+### Phase 11 — X-Plane Plugin 🔄
+- [ ] **X-Plane Plugin** — Thin plugin in Rust (xplm crate) replacing UDP dataref polling with direct XPLM SDK calls. See [docs/xplane-plugin-plan.md](docs/xplane-plugin-plan.md)
+  - Direct dataref reads (zero network latency, no UDP drops)
+  - Scenery pack ordering automation
+  - Reliable sim start/aircraft loaded detection
+  - IPC to autoortho-rs via UDP relay (backward compatible) or shared memory
 
 ---
 
@@ -291,6 +298,7 @@ Source: https://github.com/ProgrammingDinosaur/autoortho4xplane/tree/develop/doc
 ## Ideas from autoortho4xplane to Consider
 
 ### High Priority
+- [ ] **X-Plane Plugin** — Thin Rust plugin replacing UDP dataref polling with direct XPLM SDK calls (zero latency, no drops) + scenery pack management. See [docs/xplane-plugin-plan.md](docs/xplane-plugin-plan.md)
 - [ ] **Performance presets UI** — Fast/Balanced/Quality/Custom dropdown in Settings that sets all tuning params at once
 - [ ] **Early-build DDS** — Two-phase tile building: build at 90% chunks with placeholder, heal when remaining arrive (reduces first-texture latency)
 - [ ] **Stall detection** — Log warnings at 60s and 180s when downloads appear stalled (server throttling indicator)
