@@ -1,0 +1,7 @@
+/target
+test_output.*
+test_chunk_*
+.DS_Store
+*.swp
+*.swo
+.idea/

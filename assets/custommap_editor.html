@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Custom Map Editor - AutoOrtho</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A==" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA==" crossorigin=""></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; display: flex; flex-direction: column; height: 100vh; }
+  #toolbar {
+    display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+    background: #16213e; border-bottom: 1px solid #0f3460; flex-shrink: 0; flex-wrap: wrap;
+  }
+  #toolbar label { color: #e0e0e0; font-size: 13px; }
+  #toolbar select, #toolbar button {
+    font-size: 12px; padding: 4px 10px; border-radius: 4px; border: 1px solid #0f3460;
+    background: #1a1a2e; color: #e0e0e0; cursor: pointer;
+  }
+  #toolbar button:hover { background: #0f3460; }
+  #toolbar button.active { background: #d9534f; color: white; border-color: #d9534f; }
+  #toolbar .separator { width: 1px; height: 24px; background: #0f3460; margin: 0 4px; }
+  #map { flex: 1; }
+  .leaflet-control-container { z-index: 800; position: relative; }
+
+  #legend {
+    position: absolute; top: 10px; right: 10px; z-index: 1000;
+    background: rgba(26, 26, 46, 0.92); border-radius: 8px; padding: 6px 8px;
+    color: #e0e0e0; font-size: 11px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    cursor: pointer; user-select: none;
+  }
+  #legend h4 { font-size: 12px; color: #fff; margin: 0; }
+  #legend h4::after { content: ' \25B2'; font-size: 8px; color: #888; }
+  #legend.collapsed h4::after { content: ' \25BC'; }
+  #legend.collapsed .legend-body { display: none; }
+  .legend-body { margin-top: 4px; }
+  .legend-item { display: flex; align-items: center; margin: 2px 0; }
+  .legend-color { width: 12px; height: 12px; border-radius: 2px; margin-right: 5px; border: 1px solid rgba(255,255,255,0.2); }
+  .legend-label { font-size: 10px; }
+
+  #status {
+    position: absolute; bottom: 10px; left: 10px; z-index: 1000;
+    background: rgba(26, 26, 46, 0.85); border-radius: 6px; padding: 6px 12px;
+    color: #aaa; font-size: 11px;
+  }
+
+  .selection-rect {
+    position: absolute; z-index: 1000;
+    border: 2px dashed rgba(255,255,255,0.8);
+    background: rgba(255,255,255,0.1);
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div id="toolbar">
+  <label for="maptype-select">Paint type:</label>
+  <select id="maptype-select"></select>
+  <div class="separator"></div>
+  <button id="btn-undo" title="Undo (Ctrl+Z)">Undo</button>
+  <button id="btn-redo" title="Redo (Ctrl+Y)">Redo</button>
+  <div class="separator"></div>
+  <button id="btn-mode">Mode: Paint</button>
+  <div class="separator"></div>
+  <button id="btn-clear">Clear All</button>
+  <button id="btn-override">Override All Visible</button>
+  <div class="separator"></div>
+  <button id="btn-import">Import</button>
+  <button id="btn-export">Export</button>
+  <input type="file" id="import-file" accept=".json" style="display:none">
+</div>
+
+<div id="map"></div>
+<div id="legend" onclick="this.classList.toggle('collapsed')">
+  <h4>Legend</h4>
+  <div class="legend-body"></div>
+</div>
+<div id="status">Loading...</div>
+
+<script>
+// ============================================================================
+// Config
+// ============================================================================
+const MAPTYPE_COLORS = {
+  'BI':      '#4285F4',
+  'NAIP':    '#34A853',
+  'EOX':     '#FBBC04',
+  'USGS':    '#EA4335',
+  'Firefly': '#FF6D01',
+  'GO2':     '#46BDC6',
+  'ARC':     '#7B1FA2',
+  'YNDX':    '#D81B60',
+  'APPLE':   '#333333'
+};
+
+let currentMaptype = 'BI';
+let eraseMode = false;
+let debounceTimer = null;
+
+// Available DSF tiles (set of "lat,lon" keys)
+let availableTiles = new Set();
+let availableTilesLoaded = false;
+let availableTileGridLayer = null;
+
+// Drag-selection state
+let dragStart = null;
+let dragStartLatLng = null;
+let selectionDiv = null;
+
+// ============================================================================
+// REST API helpers
+// ============================================================================
+async function apiSetCells(cells) {
+  await fetch('/api/custommap/cells', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({cells: cells})
+  });
+}
+
+async function apiRemoveCells(keys) {
+  await fetch('/api/custommap/cells', {
+    method: 'DELETE',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({keys: keys})
+  });
+}
+
+// ============================================================================
+// Undo / Redo
+// ============================================================================
+const undoStack = [];
+const redoStack = [];
+const MAX_UNDO = 100;
+
+function snapshotKeys(keys) {
+  const before = {};
+  for (const key of keys) {
+    before[key] = cellRects[key] ? cellRects[key]._maptype : null;
+  }
+  return before;
+}
+
+function pushUndo(before, after) {
+  let changed = false;
+  for (const key of Object.keys(after)) {
+    if (before[key] !== after[key]) { changed = true; break; }
+  }
+  if (!changed) return;
+  undoStack.push({ before, after });
+  if (undoStack.length > MAX_UNDO) undoStack.shift();
+  redoStack.length = 0;
+}
+
+function applySnapshot(snapshot) {
+  const toSet = {};
+  const toRemove = [];
+  for (const [key, maptype] of Object.entries(snapshot)) {
+    if (maptype === null) {
+      removeCellRect(key);
+      toRemove.push(key);
+    } else {
+      addCellRect(key, maptype);
+      toSet[key] = maptype;
+    }
+  }
+  if (Object.keys(toSet).length > 0) apiSetCells(toSet);
+  if (toRemove.length > 0) apiRemoveCells(toRemove);
+  updateStatus();
+}
+
+function undo() {
+  if (undoStack.length === 0) return;
+  const action = undoStack.pop();
+  redoStack.push(action);
+  applySnapshot(action.before);
+}
+
+function redo() {
+  if (redoStack.length === 0) return;
+  const action = redoStack.pop();
+  undoStack.push(action);
+  applySnapshot(action.after);
+}
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault();
+    undo();
+  } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+    e.preventDefault();
+    redo();
+  }
+});
+
+// ============================================================================
+// Leaflet Map
+// ============================================================================
+const map = L.map('map', {
+  center: [30, 0],
+  zoom: 3,
+  minZoom: 2,
+  maxZoom: 10,
+  worldCopyJump: true
+});
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
+  subdomains: 'abcd',
+  maxZoom: 20
+}).addTo(map);
+
+// Cell rectangles layer
+const cellLayer = L.layerGroup().addTo(map);
+const cellRects = {};
+
+// Grid overlay (visible at zoom >= 3)
+const GridLayer = L.GridLayer.extend({
+  createTile: function(coords) {
+    const tile = document.createElement('canvas');
+    const size = this.getTileSize();
+    tile.width = size.x;
+    tile.height = size.y;
+
+    if (map.getZoom() < 3) return tile;
+
+    const ctx = tile.getContext('2d');
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+
+    const nw = this._map.unproject([coords.x * size.x, coords.y * size.y], coords.z);
+    const se = this._map.unproject([(coords.x + 1) * size.x, (coords.y + 1) * size.y], coords.z);
+
+    const latStart = Math.floor(se.lat);
+    const latEnd = Math.ceil(nw.lat);
+    const lonStart = Math.floor(nw.lng);
+    const lonEnd = Math.ceil(se.lng);
+
+    for (let lat = latStart; lat <= latEnd; lat++) {
+      const pixelY = this._map.project([lat, 0], coords.z).y - coords.y * size.y;
+      ctx.beginPath();
+      ctx.moveTo(0, pixelY);
+      ctx.lineTo(size.x, pixelY);
+      ctx.stroke();
+    }
+    for (let lon = lonStart; lon <= lonEnd; lon++) {
+      const pixelX = this._map.project([0, lon], coords.z).x - coords.x * size.x;
+      ctx.beginPath();
+      ctx.moveTo(pixelX, 0);
+      ctx.lineTo(pixelX, size.y);
+      ctx.stroke();
+    }
+    return tile;
+  }
+});
+new GridLayer({ opacity: 1, zIndex: 400 }).addTo(map);
+
+// ============================================================================
+// Cell Management
+// ============================================================================
+function cellKey(lat, lon) {
+  return Math.floor(lat) + ',' + Math.floor(lon);
+}
+
+function addCellRect(key, maptype) {
+  if (cellRects[key]) {
+    cellLayer.removeLayer(cellRects[key]);
+  }
+  const parts = key.split(',');
+  const lat = parseInt(parts[0]);
+  const lon = parseInt(parts[1]);
+  const color = MAPTYPE_COLORS[maptype] || '#888';
+  const rect = L.rectangle([[lat, lon], [lat + 1, lon + 1]], {
+    color: color,
+    fillColor: color,
+    fillOpacity: 0.35,
+    weight: 1,
+    opacity: 0.7
+  });
+  rect._maptype = maptype;
+  rect._cellKey = key;
+  cellLayer.addLayer(rect);
+  cellRects[key] = rect;
+}
+
+function removeCellRect(key) {
+  if (cellRects[key]) {
+    cellLayer.removeLayer(cellRects[key]);
+    delete cellRects[key];
+  }
+}
+
+function loadCells(cellsObj) {
+  cellLayer.clearLayers();
+  for (const k in cellRects) delete cellRects[k];
+  for (const [key, maptype] of Object.entries(cellsObj)) {
+    addCellRect(key, maptype);
+  }
+  updateStatus();
+}
+
+function updateStatus() {
+  const count = Object.keys(cellRects).length;
+  let mode = eraseMode
+    ? 'Erase mode \u2014 left-click & drag to erase'
+    : 'Paint: ' + currentMaptype + ' \u2014 left-click & drag to paint';
+  mode += ' | right-click & drag to pan';
+  let tileInfo = '';
+  if (!availableTilesLoaded) tileInfo = ' | Loading tiles...';
+  else if (availableTiles.size === 0) tileInfo = ' | No scenery tiles found';
+  else tileInfo = ' | ' + availableTiles.size + ' tiles available';
+  document.getElementById('status').textContent =
+    count + ' cell' + (count !== 1 ? 's' : '') + ' configured | ' + mode + tileInfo;
+}
+
+// ============================================================================
+// Available DSF Tiles
+// ============================================================================
+function loadAvailableTiles(tiles) {
+  availableTiles = new Set(tiles);
+  availableTilesLoaded = true;
+
+  if (availableTileGridLayer) {
+    map.removeLayer(availableTileGridLayer);
+  }
+
+  const AvailableTileOverlay = L.GridLayer.extend({
+    createTile: function(coords) {
+      const tile = document.createElement('canvas');
+      const size = this.getTileSize();
+      tile.width = size.x;
+      tile.height = size.y;
+
+      if (map.getZoom() < 2) return tile;
+
+      const ctx = tile.getContext('2d');
+      const nw = this._map.unproject([coords.x * size.x, coords.y * size.y], coords.z);
+      const se = this._map.unproject([(coords.x + 1) * size.x, (coords.y + 1) * size.y], coords.z);
+
+      const latStart = Math.floor(se.lat);
+      const latEnd = Math.ceil(nw.lat);
+      const lonStart = Math.floor(nw.lng);
+      const lonEnd = Math.ceil(se.lng);
+
+      for (let lat = latStart; lat < latEnd; lat++) {
+        for (let lon = lonStart; lon < lonEnd; lon++) {
+          const key = lat + ',' + lon;
+          if (!availableTiles.has(key)) continue;
+
+          const nwPx = this._map.project([lat + 1, lon], coords.z);
+          const sePx = this._map.project([lat, lon + 1], coords.z);
+          const x = nwPx.x - coords.x * size.x;
+          const y = nwPx.y - coords.y * size.y;
+          const w = sePx.x - nwPx.x;
+          const h = sePx.y - nwPx.y;
+
+          ctx.fillStyle = 'rgba(200, 200, 200, 0.15)';
+          ctx.fillRect(x, y, w, h);
+
+          ctx.strokeStyle = 'rgba(200, 200, 200, 0.7)';
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([4, 2]);
+          ctx.strokeRect(x + 0.75, y + 0.75, w - 1.5, h - 1.5);
+          ctx.setLineDash([]);
+        }
+      }
+      return tile;
+    }
+  });
+
+  availableTileGridLayer = new AvailableTileOverlay({ opacity: 1, zIndex: 350 });
+  availableTileGridLayer.addTo(map);
+  updateStatus();
+}
+
+function isTileAvailable(key) {
+  if (!availableTilesLoaded || availableTiles.size === 0) return false;
+  return availableTiles.has(key);
+}
+
+// ============================================================================
+// Apply action to all 1-degree cells within a geographic bounding box
+// ============================================================================
+function applyCellsInBounds(south, north, west, east) {
+  const latMin = Math.floor(Math.min(south, north));
+  const latMax = Math.floor(Math.max(south, north));
+  const lonMin = Math.floor(Math.min(west, east));
+  const lonMax = Math.floor(Math.max(west, east));
+
+  const keys = [];
+  for (let lat = latMin; lat <= latMax; lat++) {
+    for (let lon = lonMin; lon <= lonMax; lon++) {
+      const key = lat + ',' + lon;
+      if (isTileAvailable(key)) keys.push(key);
+    }
+  }
+
+  const before = snapshotKeys(keys);
+  const after = {};
+  const toSet = {};
+  const toRemove = [];
+  for (const key of keys) {
+    if (eraseMode) {
+      removeCellRect(key);
+      after[key] = null;
+      toRemove.push(key);
+    } else {
+      addCellRect(key, currentMaptype);
+      after[key] = currentMaptype;
+      toSet[key] = currentMaptype;
+    }
+  }
+
+  if (Object.keys(toSet).length > 0) apiSetCells(toSet);
+  if (toRemove.length > 0) apiRemoveCells(toRemove);
+
+  pushUndo(before, after);
+  updateStatus();
+}
+
+// ============================================================================
+// Drag-selection rectangle (visual feedback)
+// ============================================================================
+function createSelectionDiv() {
+  const div = document.createElement('div');
+  div.className = 'selection-rect';
+  document.body.appendChild(div);
+  return div;
+}
+
+function updateSelectionDiv(startX, startY, curX, curY) {
+  if (!selectionDiv) selectionDiv = createSelectionDiv();
+  const x = Math.min(startX, curX);
+  const y = Math.min(startY, curY);
+  const w = Math.abs(curX - startX);
+  const h = Math.abs(curY - startY);
+  selectionDiv.style.left = x + 'px';
+  selectionDiv.style.top = y + 'px';
+  selectionDiv.style.width = w + 'px';
+  selectionDiv.style.height = h + 'px';
+  selectionDiv.style.display = 'block';
+}
+
+function removeSelectionDiv() {
+  if (selectionDiv) selectionDiv.style.display = 'none';
+}
+
+// ============================================================================
+// Mouse Interaction: left-click to paint/erase, right-click to pan
+// ============================================================================
+map.dragging.disable();
+
+let rightDragStart = null;
+let rightDragCenter = null;
+
+map.on('mousedown', function(e) {
+  if (e.originalEvent.button === 2) {
+    rightDragStart = { x: e.originalEvent.clientX, y: e.originalEvent.clientY };
+    rightDragCenter = map.getCenter();
+    map.getContainer().style.cursor = 'grabbing';
+    return;
+  }
+  if (e.originalEvent.button !== 0) return;
+  if (!availableTilesLoaded || availableTiles.size === 0) return;
+  dragStart = { x: e.originalEvent.clientX, y: e.originalEvent.clientY };
+  dragStartLatLng = e.latlng;
+});
+
+map.on('mousemove', function(e) {
+  if (rightDragStart) {
+    const dx = e.originalEvent.clientX - rightDragStart.x;
+    const dy = e.originalEvent.clientY - rightDragStart.y;
+    const startPoint = map.latLngToContainerPoint(rightDragCenter);
+    const newCenter = map.containerPointToLatLng(
+      L.point(startPoint.x - dx, startPoint.y - dy)
+    );
+    map.setView(newCenter, map.getZoom(), { animate: false });
+    return;
+  }
+  if (!dragStart) return;
+  updateSelectionDiv(
+    dragStart.x, dragStart.y,
+    e.originalEvent.clientX, e.originalEvent.clientY
+  );
+});
+
+map.on('mouseup', function(e) {
+  if (e.originalEvent.button === 2 && rightDragStart) {
+    rightDragStart = null;
+    rightDragCenter = null;
+    map.getContainer().style.cursor = 'crosshair';
+    return;
+  }
+  if (!dragStart) return;
+  removeSelectionDiv();
+  const endLatLng = e.latlng;
+  applyCellsInBounds(
+    dragStartLatLng.lat, endLatLng.lat,
+    dragStartLatLng.lng, endLatLng.lng
+  );
+  dragStart = null;
+  dragStartLatLng = null;
+});
+
+map.getContainer().addEventListener('contextmenu', function(e) { e.preventDefault(); });
+map.getContainer().style.cursor = 'crosshair';
+
+// ============================================================================
+// Toolbar API (called from buttons)
+// ============================================================================
+function setCurrentMaptype(maptype) {
+  currentMaptype = maptype;
+  updateStatus();
+}
+
+function setEraseMode(enabled) {
+  eraseMode = enabled;
+  const btn = document.getElementById('btn-mode');
+  btn.textContent = enabled ? 'Mode: Erase' : 'Mode: Paint';
+  if (enabled) btn.classList.add('active');
+  else btn.classList.remove('active');
+  updateStatus();
+}
+
+async function clearAllCells() {
+  if (!confirm('Remove all cell assignments?')) return;
+  const before = {};
+  const after = {};
+  for (const [key, rect] of Object.entries(cellRects)) {
+    before[key] = rect._maptype;
+    after[key] = null;
+  }
+  cellLayer.clearLayers();
+  for (const k in cellRects) delete cellRects[k];
+  pushUndo(before, after);
+  await fetch('/api/custommap/clear', { method: 'POST' });
+  updateStatus();
+}
+
+async function overrideAllVisible() {
+  const maptype = document.getElementById('maptype-select').value;
+  if (!confirm("Paint all visible cells with '" + maptype + "'?")) return;
+  const bounds = map.getBounds();
+  const latMin = Math.floor(bounds.getSouth());
+  const latMax = Math.floor(bounds.getNorth());
+  const lonMin = Math.floor(bounds.getWest());
+  const lonMax = Math.floor(bounds.getEast());
+
+  const keys = [];
+  for (let lat = latMin; lat <= latMax; lat++) {
+    for (let lon = lonMin; lon <= lonMax; lon++) {
+      const key = lat + ',' + lon;
+      if (isTileAvailable(key)) keys.push(key);
+    }
+  }
+
+  const before = snapshotKeys(keys);
+  const after = {};
+  const toSet = {};
+  for (const key of keys) {
+    addCellRect(key, maptype);
+    after[key] = maptype;
+    toSet[key] = maptype;
+  }
+  if (Object.keys(toSet).length > 0) apiSetCells(toSet);
+  pushUndo(before, after);
+  updateStatus();
+}
+
+async function importMap() {
+  const fileInput = document.getElementById('import-file');
+  fileInput.value = '';
+  fileInput.onchange = async function() {
+    if (!fileInput.files.length) return;
+    const text = await fileInput.files[0].text();
+    const merge = confirm('Merge with existing cells?\n\nOK = merge, Cancel = replace all');
+    const url = '/api/custommap/import?merge=' + (merge ? 'true' : 'false');
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: text
+    });
+    const cells = await resp.json();
+    loadCells(cells);
+  };
+  fileInput.click();
+}
+
+function exportMap() {
+  window.location.href = '/api/custommap/export';
+}
+
+// ============================================================================
+// Legend
+// ============================================================================
+function buildLegend() {
+  const body = document.querySelector('#legend .legend-body');
+  for (const [name, color] of Object.entries(MAPTYPE_COLORS)) {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = '<div class="legend-color" style="background:' + color + '"></div>' +
+                     '<span class="legend-label">' + name + '</span>';
+    body.appendChild(item);
+  }
+  const availItem = document.createElement('div');
+  availItem.className = 'legend-item';
+  availItem.innerHTML = '<div class="legend-color" style="background:rgba(200,200,200,0.2);border:1.5px dashed rgba(200,200,200,0.7)"></div>' +
+                        '<span class="legend-label">Use default maptype</span>';
+  body.appendChild(availItem);
+}
+buildLegend();
+
+// ============================================================================
+// Toolbar wiring
+// ============================================================================
+document.getElementById('maptype-select').addEventListener('change', function() {
+  setCurrentMaptype(this.value);
+});
+document.getElementById('btn-undo').addEventListener('click', undo);
+document.getElementById('btn-redo').addEventListener('click', redo);
+document.getElementById('btn-mode').addEventListener('click', function() {
+  setEraseMode(!eraseMode);
+});
+document.getElementById('btn-clear').addEventListener('click', clearAllCells);
+document.getElementById('btn-override').addEventListener('click', overrideAllVisible);
+document.getElementById('btn-import').addEventListener('click', importMap);
+document.getElementById('btn-export').addEventListener('click', exportMap);
+
+// ============================================================================
+// Init: load data from server
+// ============================================================================
+async function init() {
+  const [cellsResp, tilesResp, maptypesResp] = await Promise.all([
+    fetch('/api/custommap/cells'),
+    fetch('/api/custommap/tiles'),
+    fetch('/api/custommap/maptypes')
+  ]);
+  const cells = await cellsResp.json();
+  const tiles = await tilesResp.json();
+  const maptypes = await maptypesResp.json();
+
+  // Populate maptype selector
+  const select = document.getElementById('maptype-select');
+  for (const mt of maptypes) {
+    const opt = document.createElement('option');
+    opt.value = mt;
+    opt.textContent = mt;
+    select.appendChild(opt);
+  }
+  currentMaptype = maptypes[0] || 'BI';
+
+  loadAvailableTiles(tiles);
+  loadCells(cells);
+}
+init();
+</script>
+</body>
+</html>

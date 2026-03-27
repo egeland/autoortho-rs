@@ -1,0 +1,14 @@
+FROM rust:1.93-bookworm
+
+RUN apt-get update && apt-get install -y \
+    libfuse-dev \
+    pkg-config \
+    fuse3 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY . .
+
+RUN cargo build --features fuse
+
+CMD ["./target/debug/autoortho", "--mount", "/mnt/autoortho"]
