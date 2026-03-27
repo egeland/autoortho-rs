@@ -49,8 +49,9 @@
 - [x] `xplane/mod.rs` — RREF codec, FlightDataAverager, HeadingAverager
 - [x] `xplane/udp.rs` — Async UDP client
 - [x] `xplane/dataref.rs` — DatarefTracker with 8 datarefs, auto-reconnect, shared state
-- [x] `xplane/simbrief.rs` — SimBrief OFP client (partial: basic fetch, needs full OFP parsing + Settings UI)
-- [ ] **SimBrief Settings UI + full integration** — See [docs/simbrief-integration-plan.md](docs/simbrief-integration-plan.md)
+- [x] `xplane/simbrief.rs` — SimBrief OFP client with route parsing, prefetch point generation, on-route detection
+- [x] **SimBrief Config + UI** — User ID in Settings, Fetch button + route preview on Dashboard
+- [ ] **SimBrief prefetch/zoom wiring** — Connect flight plan data to SpatialPrefetcher and DynamicZoom
 
 ### Phase 6 — Ancillary Features ✅
 - [x] `seasons.rs` — Seasonal saturation with HSL conversion
