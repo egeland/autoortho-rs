@@ -57,8 +57,8 @@
 
 ### Phase 6 — Ancillary Features ✅
 - [x] `seasons.rs` — Seasonal saturation with HSL conversion
-- [x] `time_exclusion.rs` — Sun elevation thresholds (partial: struct exists, not wired up to FUSE)
-- [ ] **Night exclusion full implementation** — See [docs/time-exclusion-plan.md](docs/time-exclusion-plan.md)
+- [x] `time_exclusion.rs` — Sun elevation thresholds with hysteresis
+- [x] **Night exclusion wired** — FUSE returns fallback DDS at night, uses X-Plane sun_pitch dataref, editable Settings (toggle + threshold sliders)
 - [x] `dynamic_zoom.rs` — Altitude-based zoom selection
 - [x] `altitude_predictor.rs` — Route altitude interpolation
 - [x] `stats.rs` — Thread-safe metrics accumulation

@@ -245,29 +245,57 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .spacing(8);
 
     // -- Advanced section --
+    let night_threshold_i32 = state.config.night_threshold as i32;
+    let day_threshold_i32 = state.config.day_threshold as i32;
     let advanced = column![
         text("Advanced").size(18),
         rule::horizontal(1),
+        tooltip(
+            row![
+                text("Night Exclusion:").width(Length::Fixed(160.0)),
+                button(
+                    text(if state.config.enable_night_exclusion {
+                        "Enabled"
+                    } else {
+                        "Disabled"
+                    })
+                    .size(14)
+                )
+                .padding([6, 16])
+                .style(if state.config.enable_night_exclusion {
+                    button::success
+                } else {
+                    button::secondary
+                })
+                .on_press(Message::SetEnableNightExclusion(
+                    !state.config.enable_night_exclusion
+                )),
+            ]
+            .spacing(12)
+            .align_y(iced::Alignment::Center),
+            container(
+                text("When enabled, AutoOrtho returns blank tiles at night so X-Plane uses its default scenery. Uses the sim's sun elevation angle.")
+                    .size(12),
+            )
+            .padding(8)
+            .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
         row![
-            text("Night Exclusion:").width(Length::Fixed(160.0)),
-            text(if state.config.enable_night_exclusion {
-                "Enabled"
-            } else {
-                "Disabled"
-            }),
+            text(format!("Night Threshold: {}°", night_threshold_i32))
+                .width(Length::Fixed(260.0)),
+            slider(-20..=0i32, night_threshold_i32, Message::SetNightThreshold)
+                .width(Length::Fixed(200.0)),
         ]
         .spacing(12)
         .align_y(iced::Alignment::Center),
         row![
-            text("Night Threshold:").width(Length::Fixed(160.0)),
-            text(format!("{}°", state.config.night_threshold)),
+            text(format!("Day Threshold: {}°", day_threshold_i32)).width(Length::Fixed(260.0)),
+            slider(-20..=0i32, day_threshold_i32, Message::SetDayThreshold)
+                .width(Length::Fixed(200.0)),
         ]
-        .spacing(12),
-        row![
-            text("Day Threshold:").width(Length::Fixed(160.0)),
-            text(format!("{}°", state.config.day_threshold)),
-        ]
-        .spacing(12),
+        .spacing(12)
+        .align_y(iced::Alignment::Center),
     ]
     .spacing(8);
 

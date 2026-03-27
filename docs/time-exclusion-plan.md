@@ -361,16 +361,16 @@ impl DdsFileSystem {
 
 ## Implementation Order
 
-1. **[ ] Config**: Add `default_to_exclusion` to config
-2. **[ ] TimeSource**: Create `SimTimeSource` using `local_time_sec` dataref, keep real-time fallback
-3. **[ ] AtomicExclusionState**: Add to `AppState`, wire up in update loop with `dataref.sun_pitch`
-4. **[ ] Global scenery detection**: `find_xplane_global_dse()` in `platform.rs`
-5. **[ ] FUSE exclusion-aware reads**: Add exclusion state to `DdsFileSystem`, implement `try_global_dsf()`
-6. **[ ] FUSE mount wiring**: Pass state and path to `DdsFileSystem`
-7. **[ ] Decision preservation**: Implement `preserve()` on disconnect
-8. **[ ] Active DSF protection**: LRU cache of recently served DSF paths, don't redirect those
-9. **[ ] UI**: Add "Default to Exclusion" toggle, show current status
-10. **[ ] Tests**: Unit tests for sun pitch calculation, integration test for redirect
+1. **[x] Settings UI**: Night exclusion toggle, night/day threshold sliders (editable)
+2. **[x] FUSE exclusion-aware reads**: AtomicBool on DdsFileSystem, returns fallback DDS when active
+3. **[x] Fallback DDS builder**: `build_fallback_dds()` in dds.rs — solid-color DDS without RGBA allocation
+4. **[x] X-Plane sun_pitch wiring**: Background task reads DatarefTracker, updates exclusion flag every 5s
+5. **[ ] Decision preservation**: Preserve state on disconnect (not yet implemented)
+6. **[ ] Active DSF protection**: LRU cache of recently served paths (not yet implemented)
+7. **[ ] Global scenery redirect**: Serve X-Plane's default DSFs instead of blank tiles (deferred — fallback tiles work)
+8. **[ ] Default to exclusion**: Config option to assume night until sim data available
+9. **[ ] Dashboard status**: Show current exclusion state (Active/Inactive)
+10. **[ ] Tests**: Integration test for night redirect
 11. **[ ] Documentation**: Document in `docs/performance.md`
 
 ---

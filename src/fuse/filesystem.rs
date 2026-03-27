@@ -12,6 +12,7 @@ use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::zoom::ChunkGrid;
 use log::{debug, warn};
 use std::collections::HashMap;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -30,6 +31,9 @@ pub struct DdsFileSystem {
     disk_cache: Option<Arc<std::sync::Mutex<DdsCache>>>,
     /// Scenery root directory (for pass-through of real files)
     root: Option<std::path::PathBuf>,
+    /// Night exclusion: when true, read_dds returns a solid-color fallback tile
+    /// instead of fetching satellite imagery. Updated externally via the Arc.
+    night_exclusion: Arc<AtomicBool>,
 }
 
 impl DdsFileSystem {
@@ -41,6 +45,7 @@ impl DdsFileSystem {
             dds_cache: Mutex::new(HashMap::new()),
             disk_cache: None,
             root: None,
+            night_exclusion: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -53,6 +58,7 @@ impl DdsFileSystem {
             dds_cache: Mutex::new(HashMap::new()),
             disk_cache: None,
             root: Some(root),
+            night_exclusion: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -68,7 +74,15 @@ impl DdsFileSystem {
             dds_cache: Mutex::new(HashMap::new()),
             disk_cache: Some(disk_cache),
             root: None,
+            night_exclusion: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    /// Get a clone of the night exclusion flag Arc.
+    /// External code (e.g., the dataref tracker loop) can set this to `true`
+    /// to make `read_dds()` return fallback tiles instead of fetching imagery.
+    pub fn night_exclusion_flag(&self) -> Arc<AtomicBool> {
+        self.night_exclusion.clone()
     }
 
     /// Set the DDS compression format.
@@ -126,7 +140,24 @@ impl DdsFileSystem {
     ///
     /// If the DDS is not yet generated, triggers the full pipeline:
     /// fetch chunks → decode JPEGs → compose tile → compress DDS.
+    ///
+    /// When night exclusion is active, returns a solid-color fallback tile
+    /// without fetching any satellite imagery.
     pub async fn read_dds(&self, path: &str, offset: u64, size: u32) -> Result<Vec<u8>, FuseError> {
+        // Night exclusion: return fallback tile if active
+        if self
+            .night_exclusion
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            let dds = crate::pipeline::dds::build_fallback_dds(
+                4096,
+                4096,
+                self.format,
+                [20, 25, 15], // dark green for night
+            );
+            return Ok(slice_range(&dds, offset, size));
+        }
+
         let (row, col, maptype, zoom) = self.parser.parse(path)?;
         let tile_key = format!("{}_{}_{}_{}", row, col, maptype, zoom);
 

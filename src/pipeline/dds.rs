@@ -136,6 +136,30 @@ impl MipmapLayout {
     }
 }
 
+/// Build a complete fallback DDS file filled with a solid color.
+///
+/// Creates a valid DDS file (header + all mipmap levels) without needing
+/// an RGBA image. Each mipmap level is filled with solid-color compressed
+/// blocks using `compress::fallback_bytes()`. This is cheap to generate
+/// and suitable for night exclusion or missing-tile placeholders.
+pub fn build_fallback_dds(width: u32, height: u32, format: DdsFormat, color: [u8; 3]) -> Vec<u8> {
+    let layout = MipmapLayout::compute(width, height, format);
+    let mut output = Vec::with_capacity(layout.total_size);
+
+    // Write header using DdsBuilder
+    let builder = DdsBuilder::new(width, height, format);
+    builder
+        .write_header(&mut output)
+        .expect("writing DDS header to Vec should never fail");
+
+    // Fill all mipmap levels with solid-color blocks
+    let body_size = layout.total_size - DDS_HEADER_SIZE;
+    let body = compress::fallback_bytes(body_size, color[0], color[1], color[2], format);
+    output.extend_from_slice(&body);
+
+    output
+}
+
 /// DDS file builder. Generates a complete DDS file from an RGBA image,
 /// including header and all mipmap levels with BC1/BC3 compression.
 pub struct DdsBuilder {
@@ -493,5 +517,30 @@ mod tests {
         let image = crate::pipeline::decode::ImageBuffer::new(64, 64, 3);
         let builder = DdsBuilder::new(64, 64, DdsFormat::BC1);
         assert!(builder.compress(&image).is_err());
+    }
+
+    #[test]
+    fn test_build_fallback_dds_bc3() {
+        let dds = build_fallback_dds(4096, 4096, DdsFormat::BC3, [20, 25, 15]);
+        assert_eq!(&dds[0..4], b"DDS ");
+        assert_eq!(&dds[84..88], b"DXT5");
+        let layout = MipmapLayout::compute(4096, 4096, DdsFormat::BC3);
+        assert_eq!(dds.len(), layout.total_size);
+    }
+
+    #[test]
+    fn test_build_fallback_dds_bc1() {
+        let dds = build_fallback_dds(4096, 4096, DdsFormat::BC1, [20, 25, 15]);
+        assert_eq!(&dds[0..4], b"DDS ");
+        assert_eq!(&dds[84..88], b"DXT1");
+        let layout = MipmapLayout::compute(4096, 4096, DdsFormat::BC1);
+        assert_eq!(dds.len(), layout.total_size);
+    }
+
+    #[test]
+    fn test_build_fallback_dds_small() {
+        let dds = build_fallback_dds(64, 64, DdsFormat::BC3, [66, 77, 55]);
+        let layout = MipmapLayout::compute(64, 64, DdsFormat::BC3);
+        assert_eq!(dds.len(), layout.total_size);
     }
 }

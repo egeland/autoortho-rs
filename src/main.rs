@@ -264,10 +264,37 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     // Start web server
     let stats = Arc::new(StatsStore::new());
     let tracker = Arc::new(DatarefTracker::new());
-    let addr = autoortho_lib::webui::start_server(5847, stats, tracker)
+    let addr = autoortho_lib::webui::start_server(5847, stats.clone(), tracker.clone())
         .await
         .map_err(|e| format!("Web server error: {}", e))?;
     info!("Web UI at http://{}", addr);
+
+    // Night exclusion: poll sun_pitch from the dataref tracker and update the
+    // filesystem's night exclusion flag accordingly.
+    if config.enable_night_exclusion {
+        let night_flag = fs.night_exclusion_flag();
+        let tracker_for_night = tracker.clone();
+        let night_threshold = config.night_threshold;
+        let day_threshold = config.day_threshold;
+        info!(
+            "Night exclusion enabled (night <= {}°, day >= {}°)",
+            night_threshold, day_threshold
+        );
+        tokio::spawn(async move {
+            use autoortho_lib::time_exclusion::TimeExclusion;
+            let te = TimeExclusion::new(night_threshold, day_threshold);
+            loop {
+                let data = tracker_for_night.get_flight_data();
+                if data.data_valid {
+                    let is_night = te.is_night(data.sun_pitch);
+                    night_flag.store(is_night, std::sync::atomic::Ordering::Relaxed);
+                }
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            }
+        });
+    } else {
+        info!("Night exclusion disabled");
+    }
 
     // Create mount point if it doesn't exist
     let mount_path = Path::new(mountpoint);

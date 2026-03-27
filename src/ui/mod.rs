@@ -108,6 +108,11 @@ pub enum Message {
     SetEnableDdsCache(bool),
     ClearDdsCache,
 
+    // Night exclusion
+    SetEnableNightExclusion(bool),
+    SetNightThreshold(i32),
+    SetDayThreshold(i32),
+
     // SimBrief
     SetSimbriefUserId(String),
     SetRouteConsiderationRadius(u32),
@@ -196,6 +201,15 @@ impl AutoOrthoApp {
             }
             Message::SetEnableDdsCache(enabled) => {
                 self.state.config.enable_dds_cache = enabled;
+            }
+            Message::SetEnableNightExclusion(v) => {
+                self.state.config.enable_night_exclusion = v;
+            }
+            Message::SetNightThreshold(v) => {
+                self.state.config.night_threshold = v as f32;
+            }
+            Message::SetDayThreshold(v) => {
+                self.state.config.day_threshold = v as f32;
             }
             Message::ClearDdsCache => {
                 let cache_dir = std::path::PathBuf::from(&self.state.config.cache_dir).join("dds");
