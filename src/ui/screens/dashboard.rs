@@ -110,12 +110,31 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             );
 
             if state.simbrief_show_details && !state.simbrief_fixes.is_empty() {
-                let mut fixes_col = column![].spacing(2);
-                for (ident, alt) in &state.simbrief_fixes {
+                let mut fixes_col = column![].spacing(1);
+                for (ident, fix_type, alt) in &state.simbrief_fixes {
+                    let label = if ident == "TOC" || ident == "TOD" {
+                        format!("[{}]", ident)
+                    } else {
+                        ident.clone()
+                    };
+                    let is_special = ident == "TOC" || ident == "TOD" || fix_type == "apt";
+                    let color = if is_special {
+                        iced::Color::from_rgb(0.8, 0.8, 0.8)
+                    } else {
+                        iced::Color::from_rgb(0.5, 0.5, 0.5)
+                    };
                     fixes_col = fixes_col.push(
-                        text(format!("  {} — {:.0} ft", ident, alt))
-                            .size(12)
-                            .color(iced::Color::from_rgb(0.6, 0.6, 0.6)),
+                        row![
+                            text(label)
+                                .size(12)
+                                .width(Length::Fixed(100.0))
+                                .color(color),
+                            text(format!("{:.0} ft", alt))
+                                .size(12)
+                                .width(Length::Fixed(80.0))
+                                .color(color),
+                        ]
+                        .spacing(8),
                     );
                 }
                 section = section.push(fixes_col);

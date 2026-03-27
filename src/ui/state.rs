@@ -133,7 +133,7 @@ pub struct AppState {
     // SimBrief flight plan
     pub simbrief_fetching: bool,
     pub simbrief_route_summary: Option<String>,
-    pub simbrief_fixes: Vec<(String, f32)>, // (ident, altitude_ft) for display
+    pub simbrief_fixes: Vec<(String, String, f32)>, // (ident, fix_type, altitude_ft) for display
     pub simbrief_show_details: bool,
     pub simbrief_error: Option<String>,
 

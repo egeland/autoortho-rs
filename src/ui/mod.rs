@@ -111,7 +111,7 @@ pub enum Message {
     // SimBrief
     SetSimbriefUserId(String),
     FetchSimbrief,
-    SimbriefLoaded(String, Vec<(String, f32)>), // (summary, fixes)
+    SimbriefLoaded(String, Vec<(String, String, f32)>), // (summary, fixes: ident/type/alt)
     SimbriefFailed(String),
     ToggleSimbriefDetails,
 
@@ -224,10 +224,10 @@ impl AutoOrthoApp {
                                 plan.destination,
                                 alt / 100.0
                             );
-                            let fixes: Vec<(String, f32)> = plan
+                            let fixes: Vec<(String, String, f32)> = plan
                                 .fixes
                                 .iter()
-                                .map(|f| (f.ident.clone(), f.altitude_ft))
+                                .map(|f| (f.ident.clone(), f.fix_type.clone(), f.altitude_ft))
                                 .collect();
                             Message::SimbriefLoaded(summary, fixes)
                         }
