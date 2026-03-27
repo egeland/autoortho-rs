@@ -89,6 +89,54 @@ impl DdsCache {
         }
     }
 
+    /// Open an existing cache directory, rebuilding the index from files on disk.
+    pub fn open(cache_dir: PathBuf, max_size_bytes: u64) -> Result<Self, CacheError> {
+        std::fs::create_dir_all(&cache_dir)?;
+
+        let mut index = HashMap::new();
+        let mut current_size_bytes: u64 = 0;
+
+        for entry in std::fs::read_dir(&cache_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if let Some(name) = path.file_name().and_then(|n| n.to_str())
+                && let Some(key) = name.strip_suffix(".dds.zst")
+            {
+                let size = entry.metadata()?.len();
+                index.insert(key.to_string(), size);
+                current_size_bytes += size;
+            }
+        }
+
+        Ok(Self {
+            cache_dir,
+            max_size_bytes,
+            current_size_bytes,
+            index,
+        })
+    }
+
+    /// Number of entries in the cache index.
+    pub fn entry_count(&self) -> usize {
+        self.index.len()
+    }
+
+    /// Remove all cached `.dds.zst` and `.ddm` files and reset the index.
+    pub fn clear(&mut self) -> Result<(), CacheError> {
+        for entry in std::fs::read_dir(&self.cache_dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if let Some(name) = path.file_name().and_then(|n| n.to_str())
+                && (name.ends_with(".dds.zst") || name.ends_with(".ddm"))
+            {
+                std::fs::remove_file(&path)?;
+            }
+        }
+        self.index.clear();
+        self.current_size_bytes = 0;
+        Ok(())
+    }
+
     /// Generate the cache key for a tile.
     pub fn tile_key(tile_col: u32, tile_row: u32, zoom: u32, maptype: &str) -> String {
         format!("{}_{}_{}_z{}", tile_col, tile_row, maptype, zoom)

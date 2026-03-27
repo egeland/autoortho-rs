@@ -80,6 +80,61 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .spacing(8);
 
+    // -- Cache section --
+    let cache_size_mb = state.dds_cache_size_bytes / (1024 * 1024);
+    let cache_max_mb = state.config.dds_cache_size_mb;
+    let cache_section = column![
+        text("Cache").size(18),
+        rule::horizontal(1),
+        row![
+            text(format!(
+                "DDS Cache: {} / {} MB",
+                cache_size_mb, cache_max_mb
+            ))
+            .width(Length::Fixed(260.0)),
+            button(text(format!("{} Clear", crate::ui::helpers::ICON_TRASH)).size(14))
+                .padding([6, 16])
+                .style(button::danger)
+                .on_press(Message::ClearDdsCache),
+        ]
+        .spacing(12)
+        .align_y(iced::Alignment::Center),
+        row![
+            text(format!(
+                "Max Cache Size: {} GB",
+                state.config.dds_cache_size_mb / 1024
+            ))
+            .width(Length::Fixed(260.0)),
+            slider(256u32..=16384, state.config.dds_cache_size_mb as u32, |v| {
+                Message::SetDdsCacheSizeMb(v as u64)
+            })
+            .width(Length::Fixed(200.0)),
+        ]
+        .spacing(12)
+        .align_y(iced::Alignment::Center),
+        row![
+            text("Enable DDS Cache:").width(Length::Fixed(160.0)),
+            button(
+                text(if state.config.enable_dds_cache {
+                    "Enabled"
+                } else {
+                    "Disabled"
+                })
+                .size(14)
+            )
+            .padding([6, 16])
+            .style(if state.config.enable_dds_cache {
+                button::success
+            } else {
+                button::secondary
+            })
+            .on_press(Message::SetEnableDdsCache(!state.config.enable_dds_cache)),
+        ]
+        .spacing(12)
+        .align_y(iced::Alignment::Center),
+    ]
+    .spacing(8);
+
     // -- Advanced section --
     let advanced = column![
         text("Advanced").size(18),
@@ -160,6 +215,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         network,
         space::vertical().height(16),
         tiles,
+        space::vertical().height(16),
+        cache_section,
         space::vertical().height(16),
         advanced,
         space::vertical().height(16),

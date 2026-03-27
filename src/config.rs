@@ -32,10 +32,22 @@ pub struct AutoOrthoConfig {
     pub window_width: Option<f32>,
     #[serde(default)]
     pub window_height: Option<f32>,
+    #[serde(default = "default_dds_cache_size_mb")]
+    pub dds_cache_size_mb: u64,
+    #[serde(default = "default_enable_dds_cache")]
+    pub enable_dds_cache: bool,
 }
 
 fn default_ui_scale() -> f64 {
     1.0
+}
+
+fn default_dds_cache_size_mb() -> u64 {
+    4096
+}
+
+fn default_enable_dds_cache() -> bool {
+    true
 }
 
 impl Default for AutoOrthoConfig {
@@ -84,6 +96,8 @@ impl Default for AutoOrthoConfig {
             window_y: None,
             window_width: None,
             window_height: None,
+            dds_cache_size_mb: 4096,
+            enable_dds_cache: true,
         }
     }
 }

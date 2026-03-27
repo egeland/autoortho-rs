@@ -105,6 +105,11 @@ pub enum Message {
     WindowResized(iced::Size),
     WindowCloseRequested,
 
+    // Cache management
+    SetDdsCacheSizeMb(u64),
+    SetEnableDdsCache(bool),
+    ClearDdsCache,
+
     // UI refresh
     Tick,
 
@@ -171,6 +176,24 @@ impl AutoOrthoApp {
             }
             Message::SetUIScale(scale) => {
                 self.state.config.ui_scale = scale;
+            }
+            Message::SetDdsCacheSizeMb(mb) => {
+                self.state.config.dds_cache_size_mb = mb;
+            }
+            Message::SetEnableDdsCache(enabled) => {
+                self.state.config.enable_dds_cache = enabled;
+            }
+            Message::ClearDdsCache => {
+                let cache_dir = std::path::PathBuf::from(&self.state.config.cache_dir).join("dds");
+                if cache_dir.exists() {
+                    if let Err(e) = std::fs::remove_dir_all(&cache_dir) {
+                        log::warn!("Failed to clear DDS cache: {}", e);
+                        self.state.error_message = Some(format!("Failed to clear cache: {}", e));
+                    } else {
+                        log::info!("DDS cache cleared");
+                        self.state.dds_cache_size_bytes = 0;
+                    }
+                }
             }
             Message::SaveConfiguration => {
                 self.state.save_config();

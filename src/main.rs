@@ -3,12 +3,14 @@
 
 use autoortho_lib::config::AutoOrthoConfig;
 use autoortho_lib::fuse::filesystem::DdsFileSystem;
+use autoortho_lib::pipeline::cache::DdsCache;
 use autoortho_lib::stats::StatsStore;
 use autoortho_lib::tiles::fetcher::TileFetcher;
 use autoortho_lib::tiles::provider::ProviderFactory;
 use autoortho_lib::xplane::dataref::DatarefTracker;
-use log::info;
+use log::{info, warn};
 use std::error::Error;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -226,7 +228,36 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     info!("Provider: {} ({})", provider.name(), config.tile_provider);
 
     let fetcher = Arc::new(TileFetcher::new(provider));
-    let fs = Arc::new(DdsFileSystem::new(fetcher));
+
+    let dds_cache = if config.enable_dds_cache {
+        let cache_dir = PathBuf::from(&config.cache_dir).join("dds");
+        match DdsCache::open(cache_dir, config.dds_cache_size_mb * 1024 * 1024) {
+            Ok(cache) => {
+                info!(
+                    "DDS cache: {} entries, {} MB",
+                    cache.entry_count(),
+                    cache.size_bytes() / (1024 * 1024)
+                );
+                Some(Arc::new(std::sync::Mutex::new(cache)))
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to open DDS cache: {}. Running without disk cache.",
+                    e
+                );
+                None
+            }
+        }
+    } else {
+        info!("DDS disk cache disabled");
+        None
+    };
+
+    let fs = if let Some(dc) = dds_cache {
+        Arc::new(DdsFileSystem::with_disk_cache(fetcher, dc))
+    } else {
+        Arc::new(DdsFileSystem::new(fetcher))
+    };
 
     // Start web server
     let stats = Arc::new(StatsStore::new());
@@ -282,7 +313,36 @@ async fn run_server() -> Result<(), Box<dyn Error>> {
     info!("Initialized {} provider", provider.name());
 
     let fetcher = Arc::new(TileFetcher::new(provider));
-    let _fs = DdsFileSystem::new(fetcher);
+
+    let dds_cache = if config.enable_dds_cache {
+        let cache_dir = PathBuf::from(&config.cache_dir).join("dds");
+        match DdsCache::open(cache_dir, config.dds_cache_size_mb * 1024 * 1024) {
+            Ok(cache) => {
+                info!(
+                    "DDS cache: {} entries, {} MB",
+                    cache.entry_count(),
+                    cache.size_bytes() / (1024 * 1024)
+                );
+                Some(Arc::new(std::sync::Mutex::new(cache)))
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to open DDS cache: {}. Running without disk cache.",
+                    e
+                );
+                None
+            }
+        }
+    } else {
+        info!("DDS disk cache disabled");
+        None
+    };
+
+    let _fs = if let Some(dc) = dds_cache {
+        DdsFileSystem::with_disk_cache(fetcher, dc)
+    } else {
+        DdsFileSystem::new(fetcher)
+    };
 
     let stats = Arc::new(StatsStore::new());
     let tracker = Arc::new(DatarefTracker::new());

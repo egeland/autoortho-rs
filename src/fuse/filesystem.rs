@@ -5,8 +5,9 @@
 //! It handles path parsing, DDS generation, caching, and directory structure.
 
 use crate::fuse::{DdsPathParser, FuseError, MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
+use crate::pipeline::cache::{DdsCache, DdsCacheMetadata};
 use crate::pipeline::dds::DdsFormat;
-use crate::tiles::assembler::{AssemblyConfig, assemble_tile};
+use crate::tiles::assembler::{AssemblyConfig, AssemblyResult, assemble_tile};
 use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::zoom::ChunkGrid;
 use log::{debug, warn};
@@ -25,6 +26,8 @@ pub struct DdsFileSystem {
     format: DdsFormat,
     /// In-memory cache of generated DDS tiles (tile_key → DDS bytes)
     dds_cache: Mutex<HashMap<String, Arc<Vec<u8>>>>,
+    /// Persistent disk cache for DDS tiles (compressed with zstd)
+    disk_cache: Option<Arc<std::sync::Mutex<DdsCache>>>,
     /// Scenery root directory (for pass-through of real files)
     root: Option<std::path::PathBuf>,
 }
@@ -36,6 +39,7 @@ impl DdsFileSystem {
             fetcher,
             format: DdsFormat::BC3,
             dds_cache: Mutex::new(HashMap::new()),
+            disk_cache: None,
             root: None,
         }
     }
@@ -47,7 +51,23 @@ impl DdsFileSystem {
             fetcher,
             format: DdsFormat::BC3,
             dds_cache: Mutex::new(HashMap::new()),
+            disk_cache: None,
             root: Some(root),
+        }
+    }
+
+    /// Create with a persistent disk cache for DDS tiles.
+    pub fn with_disk_cache(
+        fetcher: Arc<TileFetcher>,
+        disk_cache: Arc<std::sync::Mutex<DdsCache>>,
+    ) -> Self {
+        Self {
+            parser: DdsPathParser::new(),
+            fetcher,
+            format: DdsFormat::BC3,
+            dds_cache: Mutex::new(HashMap::new()),
+            disk_cache: Some(disk_cache),
+            root: None,
         }
     }
 
@@ -118,10 +138,60 @@ impl DdsFileSystem {
             }
         }
 
-        // Not cached — generate the DDS tile
-        let dds_data = self.generate_tile(row, col, &maptype, zoom).await?;
+        // Check disk cache
+        if let Some(ref dc) = self.disk_cache
+            && let Ok(cache) = dc.lock()
+            && let Ok((dds_data, _meta)) = cache.get(&tile_key)
+        {
+            debug!("DDS disk cache hit: {}", tile_key);
+            let arc = Arc::new(dds_data);
+            let mut mem_cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
+            mem_cache.insert(tile_key, arc.clone());
+            return Ok(slice_range(&arc, offset, size));
+        }
 
-        // Cache it
+        // Not cached — generate the DDS tile
+        let result = self.generate_tile(row, col, &maptype, zoom).await?;
+        let dds_data = result.dds_data;
+
+        // Write to disk cache
+        if let Some(ref dc) = self.disk_cache
+            && let Ok(mut cache) = dc.lock()
+        {
+            let config = AssemblyConfig {
+                chunks_per_side: 16,
+                chunk_size: 256,
+                format: self.format,
+                missing_color: [66, 77, 55],
+            };
+            let metadata = DdsCacheMetadata {
+                v: 3,
+                w: config.tile_size(),
+                h: config.tile_size(),
+                mm: result.mipmap_count,
+                zl: zoom,
+                max_zl: zoom,
+                fmt: format!("{:?}", self.format),
+                map: maptype.to_string(),
+                built: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs_f64(),
+                tile_row: row,
+                tile_col: col,
+                populated_mipmaps: (0..result.mipmap_count).collect(),
+                missing_indices: vec![],
+                fallback_indices: vec![],
+                disk_compression: "zstd".to_string(),
+            };
+            if let Err(e) = cache.put(tile_key.clone(), &dds_data, &metadata) {
+                warn!("Failed to write DDS disk cache: {}", e);
+            } else {
+                debug!("DDS disk cache write: {}", tile_key);
+            }
+        }
+
+        // Cache it in memory
         let dds_arc = {
             let mut cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
             let arc = Arc::new(dds_data);
@@ -139,7 +209,7 @@ impl DdsFileSystem {
         col: u32,
         maptype: &str,
         zoom: u32,
-    ) -> Result<Vec<u8>, FuseError> {
+    ) -> Result<AssemblyResult, FuseError> {
         let start = Instant::now();
         let config = AssemblyConfig {
             chunks_per_side: 16,
@@ -197,7 +267,16 @@ impl DdsFileSystem {
             );
         }
 
-        Ok(result.dds_data)
+        Ok(result)
+    }
+
+    /// Get the current size of the disk cache in bytes.
+    pub fn disk_cache_size_bytes(&self) -> u64 {
+        self.disk_cache
+            .as_ref()
+            .and_then(|dc| dc.lock().ok())
+            .map(|c| c.size_bytes())
+            .unwrap_or(0)
     }
 
     /// List directory contents.
@@ -250,12 +329,18 @@ impl DdsFileSystem {
         Err(FuseError::InvalidPath)
     }
 
-    /// Clear the in-memory DDS cache.
+    /// Clear the in-memory DDS cache and the disk cache.
     pub fn clear_cache(&self) {
         self.dds_cache
             .lock()
             .expect("dds cache mutex poisoned")
             .clear();
+        if let Some(ref dc) = self.disk_cache
+            && let Ok(mut cache) = dc.lock()
+            && let Err(e) = cache.clear()
+        {
+            warn!("Failed to clear DDS disk cache: {}", e);
+        }
     }
 
     /// Number of DDS tiles currently cached in memory.
