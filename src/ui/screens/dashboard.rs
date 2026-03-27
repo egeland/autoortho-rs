@@ -37,13 +37,25 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         }
 
         btns.wrap().into()
-    } else {
+    } else if state.scenery_dir_valid() {
         row![
             button(text(format!("{} Start AutoOrtho", ICON_PLAY)).size(16))
                 .padding([12, 32])
                 .style(button::success)
                 .on_press(Message::StartServices),
         ]
+        .into()
+    } else {
+        column![
+            button(text(format!("{} Start AutoOrtho", ICON_PLAY)).size(16)).padding([12, 32]),
+            text(format!(
+                "{} Scenery Install directory does not contain scenery_packs.ini — check Settings",
+                ICON_WARNING
+            ))
+            .size(13)
+            .color(iced::Color::from_rgb(0.9, 0.7, 0.0)),
+        ]
+        .spacing(8)
         .into()
     };
 

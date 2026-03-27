@@ -201,6 +201,15 @@ impl AppState {
         self.web_server.is_running() || self.xplane_tracker.is_running()
     }
 
+    /// Whether the scenery install directory looks like X-Plane's Custom Scenery folder
+    pub fn scenery_dir_valid(&self) -> bool {
+        if self.scenery_install_dir.is_empty() {
+            return false;
+        }
+        let path = std::path::Path::new(&self.scenery_install_dir);
+        path.join("scenery_packs.ini").exists()
+    }
+
     /// Persist configuration to file
     pub fn save_config(&mut self) {
         // Sync scenery dirs into config before saving
