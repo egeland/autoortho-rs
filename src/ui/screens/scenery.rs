@@ -18,7 +18,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let dirs_section = column![
         tooltip(
             row![
-                text("Temp Downloads:").width(Length::Fixed(130.0)),
+                text("Scenery Downloads:").width(Length::Fixed(150.0)),
                 text_input("", &state.scenery_download_dir)
                     .on_input(Message::SetSceneryDownloadDir),
                 button(text(format!("{} Browse", helpers::ICON_FOLDER)).size(13))
@@ -29,7 +29,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .spacing(8)
             .align_y(iced::Alignment::Center),
             container(
-                text("Temporary storage for scenery pack zip files during download. Can be cleaned up after installation.")
+                text("Downloaded scenery pack zip files are kept here as a cache. Re-installing won't need to re-download. Use Clean to reclaim space.")
                     .size(12),
             )
             .padding(8)
@@ -38,7 +38,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         ),
         tooltip(
             row![
-                text("Scenery Install:").width(Length::Fixed(130.0)),
+                text("Scenery Install:").width(Length::Fixed(150.0)),
                 text_input("", &state.scenery_install_dir)
                     .on_input(Message::SetSceneryInstallDir),
                 button(text(format!("{} Browse", helpers::ICON_FOLDER)).size(13))
