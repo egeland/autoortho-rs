@@ -12,6 +12,24 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let title = text("Settings").size(28);
 
     // -- Paths section --
+    let ini_warning: Element<'_, Message> = if !state.config.xplane_path.is_empty()
+        && !state
+            .config
+            .custom_scenery_path()
+            .join("scenery_packs.ini")
+            .exists()
+    {
+        text(format!(
+            "{} No scenery_packs.ini found — is this the correct X-Plane installation folder?",
+            crate::ui::helpers::ICON_WARNING
+        ))
+        .size(13)
+        .color(iced::Color::from_rgb(0.9, 0.7, 0.0))
+        .into()
+    } else {
+        space::vertical().height(0).into()
+    };
+
     let paths = column![
         text("Paths").size(18),
         rule::horizontal(1),
@@ -27,6 +45,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .style(container::rounded_box),
             tooltip::Position::Bottom,
         ),
+        ini_warning,
         tooltip(
             labeled_path_input(
                 "Tile Cache:",
@@ -53,25 +72,6 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         ),
     ]
     .spacing(8);
-
-    // Warn if scenery_packs.ini is not found in the Custom Scenery dir
-    let ini_warning: Element<'_, Message> = if !state.config.xplane_path.is_empty()
-        && !state
-            .config
-            .custom_scenery_path()
-            .join("scenery_packs.ini")
-            .exists()
-    {
-        text(format!(
-            "{} No scenery_packs.ini found in Custom Scenery folder — is this the correct X-Plane directory?",
-            crate::ui::helpers::ICON_WARNING
-        ))
-        .size(13)
-        .color(iced::Color::from_rgb(0.9, 0.7, 0.0))
-        .into()
-    } else {
-        space::vertical().height(0).into()
-    };
 
     // -- Network section --
     let network = column![
@@ -254,7 +254,6 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         title,
         space::vertical().height(16),
         paths,
-        ini_warning,
         space::vertical().height(16),
         network,
         space::vertical().height(16),

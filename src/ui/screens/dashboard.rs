@@ -49,7 +49,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         column![
             button(text(format!("{} Start AutoOrtho", ICON_PLAY)).size(16)).padding([12, 32]),
             text(format!(
-                "{} Scenery Install directory does not contain scenery_packs.ini — check Settings",
+                "{} X-Plane folder does not appear valid (no scenery_packs.ini found) — check Settings",
                 ICON_WARNING
             ))
             .size(13)
