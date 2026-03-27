@@ -18,14 +18,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let dirs_section = column![
         tooltip(
             row![
-                text("Temp Downloads:").size(13).width(Length::Fixed(120.0)),
+                text("Temp Downloads:").width(Length::Fixed(130.0)),
                 text_input("", &state.scenery_download_dir)
-                    .on_input(Message::SetSceneryDownloadDir)
-                    .size(13),
-                button(text(format!("{} Browse", helpers::ICON_FOLDER)).size(12))
+                    .on_input(Message::SetSceneryDownloadDir),
+                button(text(format!("{} Browse", helpers::ICON_FOLDER)).size(13))
                     .padding([4, 10])
                     .on_press(Message::BrowseSceneryDownloadDir),
-                text(dl_space).size(12),
+                text(dl_space).size(13),
             ]
             .spacing(8)
             .align_y(iced::Alignment::Center),
@@ -39,14 +38,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         ),
         tooltip(
             row![
-                text("Scenery Install:").size(13).width(Length::Fixed(120.0)),
+                text("Scenery Install:").width(Length::Fixed(130.0)),
                 text_input("", &state.scenery_install_dir)
-                    .on_input(Message::SetSceneryInstallDir)
-                    .size(13),
-                button(text(format!("{} Browse", helpers::ICON_FOLDER)).size(12))
+                    .on_input(Message::SetSceneryInstallDir),
+                button(text(format!("{} Browse", helpers::ICON_FOLDER)).size(13))
                     .padding([4, 10])
                     .on_press(Message::BrowseSceneryInstallDir),
-                text(inst_space).size(12),
+                text(inst_space).size(13),
             ]
             .spacing(8)
             .align_y(iced::Alignment::Center),
