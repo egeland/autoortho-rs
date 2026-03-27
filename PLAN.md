@@ -22,7 +22,7 @@
 - [x] `rayon` parallel JPEG decode in tile assembler
 - [ ] **Persistent disk caching** — See [docs/caching-plan.md](docs/caching-plan.md)
 - [ ] **texpresso BCn** — Replace hand-rolled BC1/BC3 compression with `texpresso` crate (pure Rust, 3-10x faster, rayon-parallelized) — see [docs/caching-plan.md](docs/caching-plan.md)
-- [ ] **Pure Rust TLS** — Switch `reqwest` from `default-tls` (native-tls/OpenSSL) to `rustls-tls` (pure Rust) — one-line Cargo.toml change
+- [x] **Pure Rust TLS** — Switch `reqwest` from `default-tls` (native-tls/OpenSSL) to `rustls` (pure Rust)
 
 ### Phase 3 — Tile Engine ✅
 - [x] `tiles/coords.rs` — Slippy tile math, quadkey encoding, lat/lon conversions
