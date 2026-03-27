@@ -1,6 +1,6 @@
 # AutoOrtho Rust Rewrite - Implementation Plan
 
-## Overall Progress: Phases 1-8b Complete, Phase 9-10 Remaining
+## Overall Progress: Phases 1-9 mostly complete, Phase 10-11 remaining
 
 ### Phase 1 — Project Bootstrap ✅
 - [x] Cargo workspace with binary + library crates
@@ -9,7 +9,7 @@
 - [x] Port `aoconfig.py` → `config.rs` with cross-platform defaults via `dirs` crate
 - [x] Config persistence: TOML file at platform config dir, atomic save/load
 - [x] Proper logging with `log` + `env_logger` (RUST_LOG=debug for verbose)
-- [ ] CI matrix (Phase 9)
+- [x] CI matrix (Phase 9) — GitHub Actions: format, lint, test, multi-platform build
 
 ### Phase 2 — Native Image Pipeline ✅
 - [x] `pipeline/decode.rs` — JPEG decode via `image` crate
@@ -20,7 +20,8 @@
 - [x] `pipeline/image.rs` — RGBA buffer with paste, fill, reduce_half (mipmap), crop, upscale
 - [x] 4096×4096 BC1 size = 11,184,952 bytes (verified match with Python)
 - [x] `rayon` parallel JPEG decode in tile assembler
-- [ ] **Persistent disk caching** — See [docs/caching-plan.md](docs/caching-plan.md)
+- [x] **Persistent DDS disk caching** — DdsCache wired into DdsFileSystem with zstd compression, index rebuild on startup, Settings UI (size slider, clear button, enable toggle)
+- [ ] **JPEG chunk disk caching** — Raw downloaded chunks not yet persisted (lower priority, independent work)
 - [ ] **texpresso BCn** — Replace hand-rolled BC1/BC3 compression with `texpresso` crate (pure Rust, 3-10x faster, rayon-parallelized) — see [docs/caching-plan.md](docs/caching-plan.md)
 - [x] **Pure Rust TLS** — Switch `reqwest` from `default-tls` (native-tls/OpenSSL) to `rustls` (pure Rust)
 
@@ -34,14 +35,14 @@
 - [x] `tiles/assembler.rs` — 16×16 JPEG → 4096×4096 DDS with rayon parallel decode
 - [x] `tiles/zoom.rs` — Zoom-level coordinate math, parent_chunk for fallback resolution
 
-### Phase 4 — FUSE Virtual Filesystem ✅ (code complete, needs live testing)
-- [x] `fuse/filesystem.rs` — Platform-independent VFS, DDS generation + in-memory cache
+### Phase 4 — FUSE Virtual Filesystem ✅
+- [x] `fuse/filesystem.rs` — Platform-independent VFS, DDS generation + in-memory cache + persistent disk cache
 - [x] `fuse/mod.rs` — Path parser, poison pill, virtual directories
 - [x] `fuse/mount.rs` — `fuser` Filesystem trait impl (behind `fuse` feature flag)
 - [x] `fuse/platform.rs` — Runtime platform detection
-- [x] `--mount` CLI flag to run with FUSE
+- [x] `--mount` CLI flag to run with FUSE (default mount derived from X-Plane path)
 - [x] macFUSE installed, `cargo build --features fuse` compiles
-- [ ] **macFUSE live mount testing (requires reboot to load kext) ← NEXT**
+- [x] **FUSE live-tested in Podman container** — mount, ls, stat, poison pill all verified
 - [ ] Windows WinFsp implementation
 
 ### Phase 5 — X-Plane Integration ✅
@@ -79,7 +80,10 @@
 - [x] Status bar on every screen (services, provider, downloads, web URL)
 - [x] Dashboard: Start/Stop services, Open Web UI / Flight Map / Map Editor in browser
 - [x] Scenery: browse GitHub releases, parallel downloads with progress bars, cancel/resume/clean, SHA256 verification, install/uninstall, update detection
-- [x] Settings: paths with Browse + disk space, network, tiles with zoom sliders, advanced, UI scale slider, scrollable
+- [x] Settings: X-Plane folder + derived paths, tile cache, scenery downloads, network, tiles, cache management, UI scale
+- [x] Tooltips on all path inputs explaining their purpose
+- [x] scenery_packs.ini validation warning under X-Plane Folder input
+- [x] Dashboard Start button disabled when X-Plane folder invalid
 - [x] Developer: test tile fetch with inline image preview, provider picker, zoom slider, city presets
 - [x] Config persistence: TOML save/load, survives restarts
 - [x] Native folder picker dialogs (rfd crate) on all path inputs
@@ -97,9 +101,12 @@
 - [ ] tokio-tungstenite 0.26 → 0.29 (defer until WebSocket used)
 - [ ] criterion 0.5 → 0.8 (defer until benchmarks written)
 
-### Phase 9 — Packaging & Distribution 🔄
-- [ ] GitHub Actions CI: ubuntu-latest, macos-latest arm64, windows-latest
-- [ ] `cargo build --release` + packaging
+### Phase 9 — Packaging & Distribution ✅ (mostly)
+- [x] GitHub Actions CI: format, lint, test (ubuntu), build (ubuntu, macos arm64, windows)
+- [x] release-please for conventional-commit semver + changelog
+- [x] Release workflow builds and uploads binaries for Linux, macOS, Windows
+- [x] Dockerfile.fuse-test for container-based FUSE testing
+- [x] `.dockerignore` for clean builds
 - [ ] Bundle libispc_texcomp pre-built binaries (optional perf upgrade)
 - [ ] scenery_packs.ini auto-configuration
 
@@ -147,13 +154,13 @@
 ### Responsiveness & Accessibility
 - [x] Window 900×900 default, 700×500 minimum, centered
 - [x] Settings screen scrollable
-- [ ] Tooltips on complex options
+- [x] Tooltips on all path inputs
 - [ ] Improve contrast ratios for status colors
 
 ### Missing Features
 - [x] Custom Map Editor (web-based, reused from Python AutoOrtho)
-- [ ] **Persistent disk caching** — JPEG chunks + DDS tiles (partial: structs exist, not wired up) — see docs/caching-plan.md
-- [ ] Automatic cache cleanup/management UI
+- [x] **Persistent DDS disk caching** — wired into runtime with Settings UI (size slider, clear, enable toggle)
+- [x] Cache management UI — size display, clear button, size slider in Settings
 - [ ] X-Plane connection diagnostics (last packet time, packet rate)
 - [ ] Auto-save config on field change (currently requires Save button)
 - [ ] In-flight provider switching
@@ -173,7 +180,7 @@
 
 ## Test Summary
 
-307 tests passing (295 unit + 12 integration)
+308 tests passing (296 unit + 12 integration)
 
 ---
 
@@ -188,23 +195,24 @@
 7. ~~iced 0.13 outdated~~ → Upgraded to 0.14
 8. ~~Window position not persisting~~ → Save on every move/resize, multi-DPI compensation
 9. ~~CloseRequested not firing on macOS~~ → Save on every event instead of on close
+10. ~~Too many path settings~~ → Simplified to X-Plane Folder + Tile Cache + Scenery Downloads; mount and install dirs derived automatically
 
 ## Remaining Known Issues
 
-1. **macFUSE kext not loaded** — Requires reboot to activate, then live testing
+1. ~~macFUSE kext not loaded~~ → Tested via Podman container (macFUSE blocked by corporate MDM)
 2. **Windows FUSE** — WinFsp implementation not started
 3. **Google Maps auth** — May still block under heavy use (ARC/BI recommended)
 4. **iced Position::Specific broken on macOS** — Workaround: use move_to() after WindowOpened
 
 ---
 
-## After Reboot — Next Steps
+## Next Steps
 
-1. **Test FUSE mount**: `cargo run --features fuse -- --mount /tmp/autoortho_test`
-   - Verify: `ls /tmp/autoortho_test/` shows `textures/` and `terrain/`
-   - Allow macFUSE in System Settings → Privacy & Security if prompted
-2. **Phase 9**: Set up GitHub Actions CI for cross-platform builds
-3. **Test on Windows**: Build and test with X-Plane on the Windows machine
+1. **Test on Windows**: Build and test with X-Plane on a Windows machine
+2. **texpresso BCn** compression upgrade
+3. **JPEG chunk disk caching** (lower priority)
+4. **SimBrief full integration**
+5. **Night exclusion wiring**
 
 ---
 
@@ -302,7 +310,7 @@ Source: https://github.com/ProgrammingDinosaur/autoortho4xplane/tree/develop/doc
 - [ ] **Performance presets UI** — Fast/Balanced/Quality/Custom dropdown in Settings that sets all tuning params at once
 - [ ] **Early-build DDS** — Two-phase tile building: build at 90% chunks with placeholder, heal when remaining arrive (reduces first-texture latency)
 - [ ] **Stall detection** — Log warnings at 60s and 180s when downloads appear stalled (server throttling indicator)
-- [ ] **Disk cache cleanup UI** — Show cache size, clear cache button
+- [x] **Disk cache cleanup UI** — Cache size, clear button, size slider in Settings
 - [ ] **X-Plane diagnostics** — Show last packet time, packet rate in status bar
 
 ### Medium Priority
