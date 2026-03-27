@@ -49,7 +49,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .spacing(8)
             .align_y(iced::Alignment::Center),
             container(
-                text("Where scenery mesh packs are extracted. Should be inside or symlinked into X-Plane's Custom Scenery folder.")
+                text("Point this to X-Plane's Custom Scenery folder. Packs are installed into z_autoortho/ subfolders inside it.")
                     .size(12),
             )
             .padding(8)
@@ -58,6 +58,22 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         ),
     ]
     .spacing(6);
+
+    // Warn if scenery_packs.ini is not found in the install dir
+    let ini_path = std::path::Path::new(&state.scenery_install_dir).join("scenery_packs.ini");
+    let ini_warning: Element<'_, Message> = if !state.scenery_install_dir.is_empty()
+        && !ini_path.exists()
+    {
+        text(format!(
+            "{} No scenery_packs.ini found in this folder — is this X-Plane's Custom Scenery directory?",
+            helpers::ICON_WARNING
+        ))
+        .size(13)
+        .color(iced::Color::from_rgb(0.9, 0.7, 0.0))
+        .into()
+    } else {
+        space::vertical().height(0).into()
+    };
 
     // --- Refresh + status ---
     let refresh_row = {
@@ -118,6 +134,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         title,
         space::vertical().height(10),
         dirs_section,
+        ini_warning,
         space::vertical().height(6),
         refresh_row,
         space::vertical().height(10),
