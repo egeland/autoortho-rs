@@ -62,6 +62,10 @@ pub struct FlightPlan {
     pub origin: String,
     /// ICAO code of destination airport
     pub destination: String,
+    /// Origin field elevation in feet
+    pub origin_elevation_ft: f32,
+    /// Destination field elevation in feet
+    pub destination_elevation_ft: f32,
     /// Cruise altitude in feet
     pub cruise_altitude_ft: f32,
     /// All waypoints in order (departure → arrival)
@@ -291,11 +295,23 @@ pub async fn fetch_flight_plan(user_id: &str) -> Result<FlightPlan, SimbriefErro
         .as_ref()
         .map(|o| o.icao_code.clone())
         .unwrap_or_default();
+    let origin_elevation_ft = body
+        .origin
+        .as_ref()
+        .and_then(|o| o.elevation.as_ref())
+        .and_then(|e| e.parse::<f32>().ok())
+        .unwrap_or(0.0);
     let destination = body
         .destination
         .as_ref()
         .map(|d| d.icao_code.clone())
         .unwrap_or_default();
+    let destination_elevation_ft = body
+        .destination
+        .as_ref()
+        .and_then(|d| d.elevation.as_ref())
+        .and_then(|e| e.parse::<f32>().ok())
+        .unwrap_or(0.0);
     let cruise_alt = body
         .general
         .as_ref()
@@ -333,6 +349,8 @@ pub async fn fetch_flight_plan(user_id: &str) -> Result<FlightPlan, SimbriefErro
     Ok(FlightPlan {
         origin,
         destination,
+        origin_elevation_ft,
+        destination_elevation_ft,
         cruise_altitude_ft: cruise_alt,
         fixes,
     })
@@ -352,6 +370,7 @@ struct SimbriefResponse {
 #[derive(Debug, Deserialize)]
 struct SimbriefAirport {
     icao_code: String,
+    elevation: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -482,6 +501,8 @@ mod tests {
         FlightPlan {
             origin: "KLAX".into(),
             destination: "KLAS".into(),
+            origin_elevation_ft: 126.0,
+            destination_elevation_ft: 2181.0,
             cruise_altitude_ft: 35000.0,
             fixes: sample_fixes(),
         }
@@ -586,6 +607,8 @@ mod tests {
         let plan = FlightPlan {
             origin: "".into(),
             destination: "".into(),
+            origin_elevation_ft: 0.0,
+            destination_elevation_ft: 0.0,
             cruise_altitude_ft: 0.0,
             fixes: vec![],
         };

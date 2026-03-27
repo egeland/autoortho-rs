@@ -227,7 +227,16 @@ impl AutoOrthoApp {
                             let fixes: Vec<(String, String, f32)> = plan
                                 .fixes
                                 .iter()
-                                .map(|f| (f.ident.clone(), f.fix_type.clone(), f.altitude_ft))
+                                .map(|f| {
+                                    let alt = if f.ident == plan.origin {
+                                        plan.origin_elevation_ft
+                                    } else if f.ident == plan.destination {
+                                        plan.destination_elevation_ft
+                                    } else {
+                                        f.altitude_ft
+                                    };
+                                    (f.ident.clone(), f.fix_type.clone(), alt)
+                                })
                                 .collect();
                             Message::SimbriefLoaded(summary, fixes)
                         }
