@@ -1,79 +1,12 @@
 use crate::ui::Message;
 use crate::ui::helpers;
 use crate::ui::state::AppState;
-use iced::widget::{
-    button, column, container, progress_bar, row, rule, scrollable, space, text, text_input,
-    tooltip,
-};
+use iced::widget::{button, column, container, progress_bar, row, rule, scrollable, space, text};
 use iced::{Element, Fill, Length};
 
 /// Scenery pack management screen
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let title = text("Scenery Packs").size(28);
-
-    // --- Directories with disk space ---
-    let dl_space = helpers::disk_space_label(&state.scenery_download_dir);
-    let inst_space = helpers::disk_space_label(&state.scenery_install_dir);
-
-    let dirs_section = column![
-        tooltip(
-            row![
-                text("Scenery Downloads:").width(Length::Fixed(150.0)),
-                text_input("", &state.scenery_download_dir)
-                    .on_input(Message::SetSceneryDownloadDir),
-                button(text(format!("{} Browse", helpers::ICON_FOLDER)).size(13))
-                    .padding([4, 10])
-                    .on_press(Message::BrowseSceneryDownloadDir),
-                text(dl_space).size(13),
-            ]
-            .spacing(8)
-            .align_y(iced::Alignment::Center),
-            container(
-                text("Downloaded scenery pack zip files are kept here as a cache. Re-installing won't need to re-download. Use Clean to reclaim space.")
-                    .size(12),
-            )
-            .padding(8)
-            .style(container::rounded_box),
-            tooltip::Position::Bottom,
-        ),
-        tooltip(
-            row![
-                text("Scenery Install:").width(Length::Fixed(150.0)),
-                text_input("", &state.scenery_install_dir)
-                    .on_input(Message::SetSceneryInstallDir),
-                button(text(format!("{} Browse", helpers::ICON_FOLDER)).size(13))
-                    .padding([4, 10])
-                    .on_press(Message::BrowseSceneryInstallDir),
-                text(inst_space).size(13),
-            ]
-            .spacing(8)
-            .align_y(iced::Alignment::Center),
-            container(
-                text("Point this to X-Plane's Custom Scenery folder. Packs are installed into z_autoortho/ subfolders inside it.")
-                    .size(12),
-            )
-            .padding(8)
-            .style(container::rounded_box),
-            tooltip::Position::Bottom,
-        ),
-    ]
-    .spacing(6);
-
-    // Warn if scenery_packs.ini is not found in the install dir
-    let ini_path = std::path::Path::new(&state.scenery_install_dir).join("scenery_packs.ini");
-    let ini_warning: Element<'_, Message> = if !state.scenery_install_dir.is_empty()
-        && !ini_path.exists()
-    {
-        text(format!(
-            "{} No scenery_packs.ini found in this folder — is this X-Plane's Custom Scenery directory?",
-            helpers::ICON_WARNING
-        ))
-        .size(13)
-        .color(iced::Color::from_rgb(0.9, 0.7, 0.0))
-        .into()
-    } else {
-        space::vertical().height(0).into()
-    };
 
     // --- Refresh + status ---
     let refresh_row = {
@@ -133,9 +66,6 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let content = column![
         title,
         space::vertical().height(10),
-        dirs_section,
-        ini_warning,
-        space::vertical().height(6),
         refresh_row,
         space::vertical().height(10),
         region_list,

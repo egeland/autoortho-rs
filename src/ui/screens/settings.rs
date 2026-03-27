@@ -39,8 +39,49 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .style(container::rounded_box),
             tooltip::Position::Bottom,
         ),
+        tooltip(
+            labeled_path_input(
+                "Scenery Downloads:",
+                &state.scenery_download_dir,
+                Message::SetSceneryDownloadDir,
+                Message::BrowseSceneryDownloadDir
+            ),
+            container(text("Downloaded scenery pack zip files are kept here as a cache. Re-installing won't need to re-download. Use Clean to reclaim space.").size(12))
+                .padding(8)
+                .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
+        tooltip(
+            labeled_path_input(
+                "Scenery Install:",
+                &state.scenery_install_dir,
+                Message::SetSceneryInstallDir,
+                Message::BrowseSceneryInstallDir
+            ),
+            container(text("Point this to X-Plane's Custom Scenery folder. Packs are installed into z_autoortho/ subfolders inside it.").size(12))
+                .padding(8)
+                .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
     ]
     .spacing(8);
+
+    // Warn if scenery_packs.ini is not found in the install dir
+    let ini_warning: Element<'_, Message> = if !state.scenery_install_dir.is_empty()
+        && !std::path::Path::new(&state.scenery_install_dir)
+            .join("scenery_packs.ini")
+            .exists()
+    {
+        text(format!(
+            "{} No scenery_packs.ini found in Scenery Install folder — is this X-Plane's Custom Scenery directory?",
+            crate::ui::helpers::ICON_WARNING
+        ))
+        .size(13)
+        .color(iced::Color::from_rgb(0.9, 0.7, 0.0))
+        .into()
+    } else {
+        space::vertical().height(0).into()
+    };
 
     // -- Network section --
     let network = column![
@@ -223,6 +264,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         title,
         space::vertical().height(16),
         paths,
+        ini_warning,
         space::vertical().height(16),
         network,
         space::vertical().height(16),
