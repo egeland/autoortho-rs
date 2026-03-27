@@ -13,6 +13,7 @@ use log::{info, warn};
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Default to info level, RUST_LOG=debug for verbose output
@@ -264,6 +265,10 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     // Start web server
     let stats = Arc::new(StatsStore::new());
     let tracker = Arc::new(DatarefTracker::new());
+
+    // Shutdown channel for graceful termination of background tasks
+    let (shutdown_tx, _) = broadcast::channel(1);
+
     let addr = autoortho_lib::webui::start_server(5847, stats.clone(), tracker.clone())
         .await
         .map_err(|e| format!("Web server error: {}", e))?;
@@ -297,6 +302,10 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     }
 
     // SimBrief route prefetch: if user_id is configured, fetch flight plan and start prefetch
+    const PREFETCH_SPACING_NM: f64 = 10.0;
+    const PREFETCH_MAX_LOOKAHEAD_NM: f32 = 99999.0;
+    const PREFETCH_POLL_INTERVAL_SECS: u64 = 30;
+
     if !config.simbrief_user_id.is_empty() {
         info!("Fetching SimBrief flight plan for route prefetching...");
         let simbrief_user_id = config.simbrief_user_id.clone();
@@ -311,6 +320,7 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
                 let fetcher_for_prefetch = fetcher.clone();
                 let tracker_for_prefetch = tracker.clone();
                 let config_for_prefetch = config.clone();
+                let mut shutdown_rx = shutdown_tx.subscribe();
 
                 tokio::spawn(async move {
                     let mut prefetcher = SpatialPrefetcher::new();
@@ -323,6 +333,16 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
                     };
 
                     loop {
+                        tokio::select! {
+                            _ = shutdown_rx.recv() => {
+                                info!("Route prefetch shutting down");
+                                break;
+                            }
+                            _ = tokio::time::sleep(std::time::Duration::from_secs(PREFETCH_POLL_INTERVAL_SECS)) => {
+                                // Continue with prefetch logic
+                            }
+                        };
+
                         let flight_data = tracker_for_prefetch.get_flight_data();
 
                         if flight_data.data_valid {
@@ -338,8 +358,8 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
                                 // Get prefetch points along route
                                 let points = plan.get_prefetch_points(
                                     lat, lon,
-                                    10.0,    // spacing_nm - fill gaps between waypoints
-                                    99999.0, // max lookahead - get all points
+                                    PREFETCH_SPACING_NM,
+                                    PREFETCH_MAX_LOOKAHEAD_NM,
                                 );
 
                                 if !points.is_empty() {
@@ -358,20 +378,21 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
 
                                     // Trigger fetches for queued tiles
                                     while let Some((row, col)) = prefetcher.next_tile() {
-                                        let _ = fetcher_for_prefetch
+                                        if let Err(e) = fetcher_for_prefetch
                                             .get_chunk_data(
                                                 row,
                                                 col,
                                                 &config_for_prefetch.tile_provider,
                                                 config_for_prefetch.max_zoom,
                                             )
-                                            .await;
+                                            .await
+                                        {
+                                            log::debug!("Prefetch failed for tile ({}, {}): {}", row, col, e);
+                                        }
                                     }
                                 }
                             }
                         }
-
-                        tokio::time::sleep(std::time::Duration::from_secs(30)).await;
                     }
                 });
             }
@@ -391,6 +412,20 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
         "Or stat {}/.poison to trigger graceful shutdown.",
         mountpoint
     );
+
+    // Listen for Ctrl+C to trigger graceful shutdown
+    let shutdown_tx_clone = shutdown_tx.clone();
+    tokio::spawn(async move {
+        match tokio::signal::ctrl_c().await {
+            Ok(()) => {
+                info!("Ctrl+C received, initiating shutdown...");
+                let _ = shutdown_tx_clone.send(());
+            }
+            Err(e) => {
+                warn!("Failed to listen for Ctrl+C: {}", e);
+            }
+        }
+    });
 
     // Mount blocks until unmounted
     let runtime_handle = tokio::runtime::Handle::current();

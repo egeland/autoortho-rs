@@ -1,4 +1,8 @@
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
+
+fn create_test_rgba_data(width: u32, height: u32) -> Vec<u8> {
+    (0..width * height * 4).map(|i| (i % 256) as u8).collect()
+}
 
 fn bench_dds_compression_bc1(c: &mut Criterion) {
     use autoortho_lib::pipeline::compress::compress_image;
@@ -6,7 +10,7 @@ fn bench_dds_compression_bc1(c: &mut Criterion) {
 
     let width = 256u32;
     let height = 256u32;
-    let data: Vec<u8> = (0..width * height * 4).map(|i| (i % 256) as u8).collect();
+    let data = create_test_rgba_data(width, height);
 
     c.bench_function("compress_image BC1 256x256", |b| {
         b.iter(|| {
@@ -26,7 +30,7 @@ fn bench_dds_compression_bc3(c: &mut Criterion) {
 
     let width = 256u32;
     let height = 256u32;
-    let data: Vec<u8> = (0..width * height * 4).map(|i| (i % 256) as u8).collect();
+    let data = create_test_rgba_data(width, height);
 
     c.bench_function("compress_image BC3 256x256", |b| {
         b.iter(|| {
@@ -140,13 +144,18 @@ fn bench_route_distance(c: &mut Criterion) {
         ],
     };
 
+    let lat = 33.9425;
+    let lon = -118.4081;
+    let spacing_nm = 10.0;
+    let max_lookahead = 99999.0;
+
     c.bench_function("get_prefetch_points full route", |b| {
         b.iter(|| {
             plan.get_prefetch_points(
-                black_box(33.9425),
-                black_box(-118.4081),
-                black_box(10.0),
-                black_box(99999.0),
+                black_box(lat),
+                black_box(lon),
+                black_box(spacing_nm),
+                black_box(max_lookahead),
             )
         });
     });

@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 use std::time::{Duration, Instant};
 
 use crate::tiles::coords::TileCoords;
@@ -126,6 +126,8 @@ impl SpatialPrefetcher {
         radius_nm: f64,
         zoom: u32,
     ) {
+        // Convert NM to tiles: 360 degrees = 2^zoom tiles, 1 degree = 60 NM
+        // tiles_per_nm = 2^zoom / (360 * 60)
         let tiles_per_nm = 2_f64.powi(zoom as i32) / 360.0 / 60.0;
         let radius_tiles = (radius_nm * tiles_per_nm).ceil() as i32;
 
@@ -175,8 +177,8 @@ impl TimeBudget {
 /// Track tile completion status
 #[derive(Default)]
 pub struct TileCompletionTracker {
-    completed: std::collections::HashSet<String>,
-    pending: std::collections::HashSet<String>,
+    completed: HashSet<String>,
+    pending: HashSet<String>,
 }
 
 impl TileCompletionTracker {
