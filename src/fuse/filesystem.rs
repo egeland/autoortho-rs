@@ -58,7 +58,11 @@ impl DdsFileSystem {
     }
 
     /// Create with a scenery root for real file pass-through.
-    pub fn with_root(fetcher: Arc<TileFetcher>, root: std::path::PathBuf, provider_id: &str) -> Self {
+    pub fn with_root(
+        fetcher: Arc<TileFetcher>,
+        root: std::path::PathBuf,
+        provider_id: &str,
+    ) -> Self {
         Self {
             parser: DdsPathParser::new(),
             fetcher,
@@ -97,7 +101,11 @@ impl DdsFileSystem {
     }
 
     /// Create a new filesystem with custom map support.
-    pub fn new_with_custom_map(fetcher: Arc<TileFetcher>, custom_map: Arc<CustomMapStore>, provider_id: &str) -> Self {
+    pub fn new_with_custom_map(
+        fetcher: Arc<TileFetcher>,
+        custom_map: Arc<CustomMapStore>,
+        provider_id: &str,
+    ) -> Self {
         Self {
             parser: DdsPathParser::new(),
             fetcher,
@@ -283,19 +291,23 @@ impl DdsFileSystem {
 
         // Try upserving: check if higher-zoom DDS is cached
         if let Some(ref dc) = self.disk_cache
-            && let Ok(cache) = dc.lock() {
-                for higher_zoom in (zoom + 1)..=22 {
-                    let upserve_key = format!("{}_{}_{}_{}", row, col, maptype, higher_zoom);
-                    if let Ok((dds_data, _meta)) = cache.get(&upserve_key) {
-                        debug!("DDS upserving from zoom {} to {}: {}", higher_zoom, zoom, upserve_key);
-                        let arc = Arc::new(dds_data);
-                        let mut mem_cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
-                        // Store at the requested zoom key so future requests work
-                        mem_cache.insert(tile_key, arc.clone());
-                        return Ok(slice_range(&arc, offset, size));
-                    }
+            && let Ok(cache) = dc.lock()
+        {
+            for higher_zoom in (zoom + 1)..=22 {
+                let upserve_key = format!("{}_{}_{}_{}", row, col, maptype, higher_zoom);
+                if let Ok((dds_data, _meta)) = cache.get(&upserve_key) {
+                    debug!(
+                        "DDS upserving from zoom {} to {}: {}",
+                        higher_zoom, zoom, upserve_key
+                    );
+                    let arc = Arc::new(dds_data);
+                    let mut mem_cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
+                    // Store at the requested zoom key so future requests work
+                    mem_cache.insert(tile_key, arc.clone());
+                    return Ok(slice_range(&arc, offset, size));
                 }
             }
+        }
 
         // Not cached — generate the DDS tile
         let result = self.generate_tile(row, col, &maptype, zoom).await?;
@@ -383,7 +395,7 @@ impl DdsFileSystem {
         for (chunk_col, chunk_row) in grid.iter_chunks() {
             // Get the provider for this specific chunk based on custom map overrides
             let provider_id = self.get_provider_for_tile(chunk_row, chunk_col, zoom);
-            
+
             let result = self
                 .fetcher
                 .get_chunk_data_with_provider(chunk_row, chunk_col, maptype, zoom, &provider_id)

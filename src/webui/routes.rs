@@ -484,10 +484,11 @@ async fn cache_tiles() -> Json<Vec<CachedTile>> {
         let size_bytes = dds_path.metadata().map(|m| m.len()).unwrap_or(0);
 
         // Calculate bounds
-        let (lat_n, lon_w, lat_s, lon_e) = match crate::tiles::coords::TileCoords::tile_bounds(col, row, zoom) {
-            Ok(b) => b,
-            Err(_) => continue,
-        };
+        let (lat_n, lon_w, lat_s, lon_e) =
+            match crate::tiles::coords::TileCoords::tile_bounds(col, row, zoom) {
+                Ok(b) => b,
+                Err(_) => continue,
+            };
 
         tiles.push(CachedTile {
             col,
@@ -517,12 +518,20 @@ async fn cache_stats() -> Json<CacheStats> {
 
     let cache_dir = std::path::PathBuf::from(&config.cache_dir).join("dds");
     if !cache_dir.exists() {
-        return Json(CacheStats { entry_count: 0, size_bytes: 0 });
+        return Json(CacheStats {
+            entry_count: 0,
+            size_bytes: 0,
+        });
     }
 
     let entries = match std::fs::read_dir(&cache_dir) {
         Ok(e) => e,
-        Err(_) => return Json(CacheStats { entry_count: 0, size_bytes: 0 }),
+        Err(_) => {
+            return Json(CacheStats {
+                entry_count: 0,
+                size_bytes: 0,
+            });
+        }
     };
 
     let mut count = 0usize;

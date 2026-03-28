@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn create_test_rgba_data(width: u32, height: u32) -> Vec<u8> {
     (0..width * height * 4).map(|i| (i % 256) as u8).collect()

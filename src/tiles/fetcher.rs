@@ -1,5 +1,5 @@
 use crate::tiles::chunk::{Chunk, ChunkError, ChunkState};
-use crate::tiles::provider::{TileProvider, ProviderFactory};
+use crate::tiles::provider::{ProviderFactory, TileProvider};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -138,7 +138,10 @@ impl TileFetcher {
                     if let Some(chunk) = chunks.get_mut(&key) {
                         chunk.set_error()?;
                     }
-                    return Err(ChunkError::DownloadFailed(format!("Unknown provider: {}", provider_id)));
+                    return Err(ChunkError::DownloadFailed(format!(
+                        "Unknown provider: {}",
+                        provider_id
+                    )));
                 }
             };
 
@@ -182,9 +185,10 @@ impl TileFetcher {
         for zoom in (min_zoom..=max_zoom).rev() {
             let key = format!("{}_{}_{}_{}_{}", row, col, maptype, zoom, provider_id);
             if let Some(chunk) = chunks.get(&key)
-                && let Some(data) = chunk.data() {
-                    return Some((data.to_vec(), zoom));
-                }
+                && let Some(data) = chunk.data()
+            {
+                return Some((data.to_vec(), zoom));
+            }
         }
 
         None

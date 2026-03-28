@@ -4,8 +4,8 @@
 use iced::{Element, Font, Subscription, Task};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 use std::sync::Mutex;
+use std::sync::atomic::Ordering;
 use tokio::sync::{oneshot, watch};
 
 use crate::tiles::provider;
@@ -136,8 +136,8 @@ pub enum Message {
     SetAirportRadius(u32),
     FetchSimbrief,
     SimbriefLoaded(
-        String, // summary
-        Vec<(String, String, f32)>, // fixes
+        String,                                               // summary
+        Vec<(String, String, f32)>,                           // fixes
         std::sync::Arc<std::sync::Mutex<Option<FlightPlan>>>, // flight plan
     ),
     SimbriefCoverageChecked(Option<String>), // warning message if coverage issue
@@ -210,21 +210,27 @@ impl AutoOrthoApp {
                 self.state.simbrief_coverage_warning = None;
 
                 // Re-check coverage with new provider if we have an active flight plan
-                let (olat, olon, dlat, dlon, origin_code, dest_code): (Option<f64>, Option<f64>, Option<f64>, Option<f64>, String, String) = 
-                    if let Some(ref fp) = self.state.simbrief_flight_plan {
-                        let ofix = FlightPlan::origin_fix(fp);
-                        let dfix = FlightPlan::destination_fix(fp);
-                        (
-                            ofix.map(|f| f.lat),
-                            ofix.map(|f| f.lon),
-                            dfix.map(|f| f.lat),
-                            dfix.map(|f| f.lon),
-                            fp.origin.clone(),
-                            fp.destination.clone(),
-                        )
-                    } else {
-                        (None, None, None, None, String::new(), String::new())
-                    };
+                let (olat, olon, dlat, dlon, origin_code, dest_code): (
+                    Option<f64>,
+                    Option<f64>,
+                    Option<f64>,
+                    Option<f64>,
+                    String,
+                    String,
+                ) = if let Some(ref fp) = self.state.simbrief_flight_plan {
+                    let ofix = FlightPlan::origin_fix(fp);
+                    let dfix = FlightPlan::destination_fix(fp);
+                    (
+                        ofix.map(|f| f.lat),
+                        ofix.map(|f| f.lon),
+                        dfix.map(|f| f.lat),
+                        dfix.map(|f| f.lon),
+                        fp.origin.clone(),
+                        fp.destination.clone(),
+                    )
+                } else {
+                    (None, None, None, None, String::new(), String::new())
+                };
 
                 let zoom = self.state.config.near_airport_zoom;
 
@@ -240,25 +246,38 @@ impl AutoOrthoApp {
                     return iced::Task::perform(
                         async move {
                             let mut warnings = Vec::new();
-                            
-                            let origin_cell = format!("{},{}", olat.floor() as i32, olon.floor() as i32);
-                            let dest_cell = format!("{},{}", dlat.floor() as i32, dlon.floor() as i32);
-                            
+
+                            let origin_cell =
+                                format!("{},{}", olat.floor() as i32, olon.floor() as i32);
+                            let dest_cell =
+                                format!("{},{}", dlat.floor() as i32, dlon.floor() as i32);
+
                             let origin_has_custom = custom_cells.contains_key(&origin_cell);
-                            if !origin_has_custom && provider::test_provider_coverage(&provider, olat, olon, zoom).await.is_err() {
+                            if !origin_has_custom
+                                && provider::test_provider_coverage(&provider, olat, olon, zoom)
+                                    .await
+                                    .is_err()
+                            {
                                 warnings.push(format!("origin ({})", origin_code));
                             }
-                            
+
                             let dest_has_custom = custom_cells.contains_key(&dest_cell);
-                            if !dest_has_custom && provider::test_provider_coverage(&provider, dlat, dlon, zoom).await.is_err() {
+                            if !dest_has_custom
+                                && provider::test_provider_coverage(&provider, dlat, dlon, zoom)
+                                    .await
+                                    .is_err()
+                            {
                                 warnings.push(format!("destination ({})", dest_code));
                             }
-                            
+
                             if warnings.is_empty() {
                                 None
                             } else {
-                                Some(format!("Provider {} may not have coverage for your route: {}. Consider using ArcGIS for global coverage.", 
-                                    provider, warnings.join(" and ")))
+                                Some(format!(
+                                    "Provider {} may not have coverage for your route: {}. Consider using ArcGIS for global coverage.",
+                                    provider,
+                                    warnings.join(" and ")
+                                ))
                             }
                         },
                         Message::SimbriefCoverageChecked,
@@ -369,7 +388,11 @@ impl AutoOrthoApp {
                                     (f.ident.clone(), f.fix_type.clone(), alt)
                                 })
                                 .collect();
-                            Message::SimbriefLoaded(summary, fixes, Arc::new(Mutex::new(Some(plan))))
+                            Message::SimbriefLoaded(
+                                summary,
+                                fixes,
+                                Arc::new(Mutex::new(Some(plan))),
+                            )
                         }
                         Err(e) => Message::SimbriefFailed(e.to_string()),
                     },
@@ -381,11 +404,21 @@ impl AutoOrthoApp {
                 self.state.simbrief_fixes = fixes;
                 self.state.simbrief_show_details = false;
                 self.state.simbrief_error = None;
-                
+
                 // Extract coordinates and store plan first
-                let flight_plan_opt = { let guard = plan.lock().unwrap(); guard.clone() };
-                
-                let (origin_lat, origin_lon, dest_lat, dest_lon, origin_code, dest_code): (Option<f64>, Option<f64>, Option<f64>, Option<f64>, String, String) = if let Some(ref fp) = flight_plan_opt {
+                let flight_plan_opt = {
+                    let guard = plan.lock().unwrap();
+                    guard.clone()
+                };
+
+                let (origin_lat, origin_lon, dest_lat, dest_lon, origin_code, dest_code): (
+                    Option<f64>,
+                    Option<f64>,
+                    Option<f64>,
+                    Option<f64>,
+                    String,
+                    String,
+                ) = if let Some(ref fp) = flight_plan_opt {
                     let ofix: Option<&FlightFix> = FlightPlan::origin_fix(fp);
                     let dfix: Option<&FlightFix> = FlightPlan::destination_fix(fp);
                     (
@@ -399,13 +432,13 @@ impl AutoOrthoApp {
                 } else {
                     (None, None, None, None, String::new(), String::new())
                 };
-                
+
                 self.state.simbrief_flight_plan = flight_plan_opt;
-                
+
                 // Check provider coverage for the flight route
                 let provider = self.state.config.tile_provider.clone();
                 let zoom = self.state.config.near_airport_zoom;
-                
+
                 // Load custom map to check for cell overrides
                 let custom_map_path = dirs::config_dir()
                     .unwrap_or_else(|| std::path::PathBuf::from("."))
@@ -413,33 +446,48 @@ impl AutoOrthoApp {
                     .join("custom_map.json");
                 let custom_map = CustomMapStore::load(custom_map_path);
                 let custom_cells = custom_map.get_cells();
-                
-                if let (Some(olat), Some(olon), Some(dlat), Some(dlon)) = (origin_lat, origin_lon, dest_lat, dest_lon) {
+
+                if let (Some(olat), Some(olon), Some(dlat), Some(dlon)) =
+                    (origin_lat, origin_lon, dest_lat, dest_lon)
+                {
                     return iced::Task::perform(
                         async move {
                             let mut warnings = Vec::new();
-                            
+
                             // Compute cell keys for origin and destination
-                            let origin_cell = format!("{},{}", olat.floor() as i32, olon.floor() as i32);
-                            let dest_cell = format!("{},{}", dlat.floor() as i32, dlon.floor() as i32);
-                            
+                            let origin_cell =
+                                format!("{},{}", olat.floor() as i32, olon.floor() as i32);
+                            let dest_cell =
+                                format!("{},{}", dlat.floor() as i32, dlon.floor() as i32);
+
                             // Test origin coverage (skip if custom map override exists)
                             let origin_has_custom = custom_cells.contains_key(&origin_cell);
-                            if !origin_has_custom && provider::test_provider_coverage(&provider, olat, olon, zoom).await.is_err() {
+                            if !origin_has_custom
+                                && provider::test_provider_coverage(&provider, olat, olon, zoom)
+                                    .await
+                                    .is_err()
+                            {
                                 warnings.push(format!("origin ({})", origin_code));
                             }
-                            
+
                             // Test destination coverage (skip if custom map override exists)
                             let dest_has_custom = custom_cells.contains_key(&dest_cell);
-                            if !dest_has_custom && provider::test_provider_coverage(&provider, dlat, dlon, zoom).await.is_err() {
+                            if !dest_has_custom
+                                && provider::test_provider_coverage(&provider, dlat, dlon, zoom)
+                                    .await
+                                    .is_err()
+                            {
                                 warnings.push(format!("destination ({})", dest_code));
                             }
-                            
+
                             if warnings.is_empty() {
                                 None
                             } else {
-                                Some(format!("Provider {} may not have coverage for your route: {}. Consider using ArcGIS for global coverage.", 
-                                    provider, warnings.join(" and ")))
+                                Some(format!(
+                                    "Provider {} may not have coverage for your route: {}. Consider using ArcGIS for global coverage.",
+                                    provider,
+                                    warnings.join(" and ")
+                                ))
                             }
                         },
                         Message::SimbriefCoverageChecked,

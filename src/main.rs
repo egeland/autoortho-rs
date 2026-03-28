@@ -224,8 +224,8 @@ async fn test_tile_generation() -> Result<(), Box<dyn Error>> {
 
 /// Run with FUSE mount — serves DDS tiles at the mount point.
 async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
-    use std::path::Path;
     use autoortho_lib::webui::custommap::CustomMapStore;
+    use std::path::Path;
 
     info!("AutoOrtho Rust v0.1.0 starting with FUSE mount");
 
@@ -235,7 +235,10 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
 
     let dynamic_zoom = DynamicZoom::new(config.zoom_rules.clone(), &config.tile_provider);
     if config.enable_dynamic_zoom {
-        info!("Dynamic zoom enabled with {} rules", dynamic_zoom.zoom_rules().len());
+        info!(
+            "Dynamic zoom enabled with {} rules",
+            dynamic_zoom.zoom_rules().len()
+        );
     }
 
     let custom_map_path = dirs::config_dir()
@@ -273,10 +276,17 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
 
     let fs = if let Some(dc) = dds_cache {
         Arc::new(DdsFileSystem::with_disk_cache_and_custom_map(
-            fetcher.clone(), dc, custom_map, &config.tile_provider))
+            fetcher.clone(),
+            dc,
+            custom_map,
+            &config.tile_provider,
+        ))
     } else {
         Arc::new(DdsFileSystem::new_with_custom_map(
-            fetcher.clone(), custom_map, &config.tile_provider))
+            fetcher.clone(),
+            custom_map,
+            &config.tile_provider,
+        ))
     };
 
     // Start web server
@@ -379,7 +389,8 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
                             ) {
                                 // Get prefetch points along route
                                 let points = plan.get_prefetch_points(
-                                    lat, lon,
+                                    lat,
+                                    lon,
                                     PREFETCH_SPACING_NM,
                                     PREFETCH_MAX_LOOKAHEAD_NM,
                                 );
@@ -406,13 +417,16 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
                                             let mut closest_dist = f64::MAX;
                                             let mut best_alt_agl = 0.0f32;
                                             for point in &points {
-                                                let dist = ((point.lat - lat).powi(2) + (point.lon - lon).powi(2)).sqrt();
+                                                let dist = ((point.lat - lat).powi(2)
+                                                    + (point.lon - lon).powi(2))
+                                                .sqrt();
                                                 if dist < closest_dist {
                                                     closest_dist = dist;
                                                     best_alt_agl = point.altitude_agl_ft();
                                                 }
                                             }
-                                            dynamic_zoom_for_prefetch.zoom_for_altitude_agl(best_alt_agl)
+                                            dynamic_zoom_for_prefetch
+                                                .zoom_for_altitude_agl(best_alt_agl)
                                         } else {
                                             config_for_prefetch.max_zoom
                                         };
@@ -426,7 +440,13 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
                                             )
                                             .await
                                         {
-                                            log::debug!("Prefetch failed for tile ({}, {}) at zoom {}: {}", row, col, zoom, e);
+                                            log::debug!(
+                                                "Prefetch failed for tile ({}, {}) at zoom {}: {}",
+                                                row,
+                                                col,
+                                                zoom,
+                                                e
+                                            );
                                         }
                                     }
                                 }
@@ -484,7 +504,6 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
 }
 
 async fn run_server() -> Result<(), Box<dyn Error>> {
-    
     use autoortho_lib::webui::custommap::CustomMapStore;
 
     info!("AutoOrtho Rust v0.1.0 starting");
@@ -530,7 +549,12 @@ async fn run_server() -> Result<(), Box<dyn Error>> {
     };
 
     let _fs = if let Some(dc) = dds_cache {
-        DdsFileSystem::with_disk_cache_and_custom_map(fetcher, dc, custom_map, &config.tile_provider)
+        DdsFileSystem::with_disk_cache_and_custom_map(
+            fetcher,
+            dc,
+            custom_map,
+            &config.tile_provider,
+        )
     } else {
         DdsFileSystem::new_with_custom_map(fetcher, custom_map, &config.tile_provider)
     };

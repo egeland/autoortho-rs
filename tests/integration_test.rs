@@ -170,7 +170,11 @@ async fn test_provider_arcgis() {
     let provider = ProviderFactory::create("ARC").expect("ARC provider should exist");
     // Sydney at zoom 10: row ~768, col ~614
     let result = provider.fetch(768, 614, 10).await;
-    assert!(result.is_ok(), "ARC provider should fetch tile: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "ARC provider should fetch tile: {:?}",
+        result.err()
+    );
     let data = result.unwrap();
     assert!(!data.is_empty(), "ARC should return non-empty data");
     assert!(data.len() > 1000, "ARC should return image data (>1KB)");
@@ -181,7 +185,11 @@ async fn test_provider_bing() {
     let provider = ProviderFactory::create("BI").expect("BI provider should exist");
     // Sydney at zoom 10: row ~768, col ~614
     let result = provider.fetch(768, 614, 10).await;
-    assert!(result.is_ok(), "BI provider should fetch tile: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "BI provider should fetch tile: {:?}",
+        result.err()
+    );
     let data = result.unwrap();
     assert!(!data.is_empty(), "BI should return non-empty data");
 }
@@ -195,7 +203,10 @@ async fn test_provider_google() {
     // Just verify it doesn't panic and returns some response
     if result.is_ok() {
         let data = result.unwrap();
-        assert!(!data.is_empty(), "GO2 should return non-empty data if successful");
+        assert!(
+            !data.is_empty(),
+            "GO2 should return non-empty data if successful"
+        );
     }
 }
 
@@ -207,7 +218,10 @@ async fn test_provider_naip() {
     // NAIP may not have coverage everywhere, but should return a response (even if 404)
     if result.is_ok() {
         let data = result.unwrap();
-        assert!(!data.is_empty(), "NAIP should return non-empty data if successful");
+        assert!(
+            !data.is_empty(),
+            "NAIP should return non-empty data if successful"
+        );
     }
 }
 
@@ -219,7 +233,10 @@ async fn test_provider_usgs() {
     // USGS may have limited coverage or return 404
     if result.is_ok() {
         let data = result.unwrap();
-        assert!(!data.is_empty(), "USGS should return non-empty data if successful");
+        assert!(
+            !data.is_empty(),
+            "USGS should return non-empty data if successful"
+        );
     }
 }
 
@@ -231,7 +248,10 @@ async fn test_provider_eox() {
     // EOX may have rate limiting
     if result.is_ok() {
         let data = result.unwrap();
-        assert!(!data.is_empty(), "EOX should return non-empty data if successful");
+        assert!(
+            !data.is_empty(),
+            "EOX should return non-empty data if successful"
+        );
     }
 }
 
@@ -243,6 +263,9 @@ async fn test_provider_firefly() {
     // Firefly may have limited coverage
     if result.is_ok() {
         let data = result.unwrap();
-        assert!(!data.is_empty(), "FIREFLY should return non-empty data if successful");
+        assert!(
+            !data.is_empty(),
+            "FIREFLY should return non-empty data if successful"
+        );
     }
 }
