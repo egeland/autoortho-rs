@@ -1,6 +1,6 @@
 # AutoOrtho Rust Rewrite - Implementation Plan
 
-## Overall Progress: Phases 1-9 complete, Phase 10-11 remaining
+## Overall Progress: Phases 1-10 mostly complete
 
 ### Phase 1 — Project Bootstrap ✅
 - [x] Cargo workspace with binary + library crates
@@ -96,7 +96,7 @@
 - [x] `seasons.rs` — Seasonal saturation with HSL conversion
 - [x] `time_exclusion.rs` — Sun elevation thresholds with hysteresis
 - [x] **Night exclusion wired** — FUSE returns fallback DDS at night, uses X-Plane sun_pitch dataref, editable Settings (toggle + threshold sliders)
-- [x] `dynamic_zoom.rs` — Altitude-based zoom selection, wired with SimBrief altitude when on-route
+- [ ] `dynamic_zoom.rs` — Altitude-based zoom selection (defined but not wired into runtime)
 - [x] `altitude_predictor.rs` — Route altitude interpolation
 - [x] `stats.rs` — Thread-safe metrics accumulation
 - [x] `scenery/` — Scenery pack discovery, download, install, uninstall, INI management
@@ -111,6 +111,7 @@
   - REST API: GET/POST/DELETE cells, clear, maptypes, tiles, export, import
   - DSF tile scanning from installed scenery packs
   - Persisted as custom_map.json
+- [x] `/cache` — Cache viewer to visualize cached DDS tiles
 - [ ] WebSocket push (currently polling)
 
 ### Phase 8 — Desktop UI ✅
@@ -138,23 +139,21 @@
 - [x] reqwest 0.12 → 0.13, config 0.14 → 0.15, lru 0.12 → 0.16
 - [x] rfd 0.15 → 0.17, sha2 0.10 → 0.11, mockall 0.13 → 0.14
 - [x] fuser 0.14 → 0.17
+- [x] criterion benchmarks — benches/bench.rs with DDS compression benchmarks
 - [ ] tokio-tungstenite 0.26 → 0.29 (defer until WebSocket used)
-- [ ] criterion 0.5 → 0.8 (defer until benchmarks written)
 
-### Phase 9 — Packaging & Distribution ✅ (mostly)
+### Phase 9 — Packaging & Distribution ✅
 - [x] GitHub Actions CI: format, lint, test (ubuntu), build (ubuntu, macos arm64, windows)
 - [x] release-please for conventional-commit semver + changelog
 - [x] Release workflow builds and uploads binaries for Linux, macOS, Windows
 - [x] Dockerfile.fuse-test for container-based FUSE testing
 - [x] `.dockerignore` for clean builds
-- [ ] Bundle libispc_texcomp pre-built binaries (optional perf upgrade)
-- [ ] scenery_packs.ini auto-configuration
 
 ### Phase 10 — Final 🔄
-- [ ] Benchmarks with criterion
-- [ ] Performance profiling with `cargo-flamegraph` and/or `cargo-profiler`
+- [x] Benchmarks with criterion (benches/bench.rs)
+- [ ] Performance profiling with `cargo-flamegraph`
 - [ ] End-to-end integration test: mount, request DDS, byte-compare
-- [ ] Documentation pass
+- [ ] Documentation (see section above)
 
 ### Phase 11 — X-Plane Plugin 🔄
 - [ ] **X-Plane Plugin** — Thin plugin in Rust (xplm crate) replacing UDP dataref polling with direct XPLM SDK calls. See [docs/xplane-plugin-plan.md](docs/xplane-plugin-plan.md)
@@ -248,129 +247,39 @@
 
 ## Next Steps
 
-1. **Test on Windows**: Build and test with X-Plane on a Windows machine
-2. **texpresso BCn** compression upgrade (optional perf improvement)
-3. **JPEG chunk disk caching** (lower priority)
-4. **SimBrief runtime wiring** — connect prefetcher to FUSE filesystem (future work)
-5. **Fallack system** — Add fallback levels for missing tiles
+1. **Fallback system** — Add fallback levels for missing tiles (cache lookup, scale from mipmaps, download lower-detail)
+2. **DynamicZoom wiring** — Wire existing dynamic_zoom.rs into runtime
+3. **Windows Dokan** — Implement Windows FUSE support (deferred - no Windows test machine)
+4. **WebSocket** — Replace polling with WebSocket push
+5. **Documentation** — Write user docs
 
 ---
 
-## Documentation Plan (mirroring autoortho4xplane/docs)
+## Documentation (Future Work)
 
-Source: https://github.com/ProgrammingDinosaur/autoortho4xplane/tree/develop/docs
-
-### docs/README.md — Landing / Quick Start
-- [ ] Overview of project (Rust rewrite of autoortho4xplane)
-- [ ] Feature comparison vs Python original
-- [ ] Quick start for each OS: Linux (FUSE), Windows (WinFsp), macOS (macFUSE/Fuse-T)
-- [ ] Requirements and compatibility
-- [ ] Known issues and limits
-- [ ] Links: docs, FAQ, GitHub Discussions, releases
-- [ ] License (Apache 2.0 OR GPL-3.0)
-- [ ] Donation link (if applicable)
-
-### docs/install.md — Platform Installation Guides
-- [ ] **Linux**: FUSE setup, `user_allow_other` in `/etc/fuse.conf`, download + chmod + run
-- [ ] **Windows**: WinFsp/Dokan setup, zip extract, run exe, experimental installer
-- [ ] **macOS**: MacFUSE or Fuse-T, quarantine removal (`xattr -d com.apple.quarantine`), signed binary note
-- [ ] scenery_packs.ini ordering guide (image reference)
-- [ ] Build from source instructions (cargo build --release, `cargo install` options)
-
-### docs/config.md — Configuration Reference
-- [ ] Scenery install path (custom location, external drives, space requirements)
-- [ ] X-Plane install path (must be correct — Custom Scenery dir detection)
-- [ ] Download directory (temp storage, Windows Defender exception recommendation)
-- [ ] Config file location (`~/.autoortho` or platform equivalent)
-- [ ] **Performance tuning settings** (tile time budget, fallback level, spatial prefetching, dynamic zoom)
-- [ ] **Native pipeline settings** (ephemeral DDS cache, thread count)
-- [ ] SimBrief integration config
-- [ ] Dynamic zoom quality steps
-- [ ] Time exclusion settings
-
-### docs/details.md — How It Works
-- [ ] High-level approach: virtual filesystem intercepting DDS reads
-- [ ] X-Plane scenery structure: Custom Scenery, DSF files, mipmaps
-- [ ] How this project intercepts and serves imagery on-demand
-- [ ] Caching strategy (in-memory LRU, disk cache)
-- [ ] Expert usage: custom scenery, Ortho4XP usage tips, skip_downloads config
-
-### docs/faq.md — FAQ & Troubleshooting
-- [ ] **Application file structure** (don't delete bundled files)
-- [ ] Missing color/green tiles: causes + solutions (lower zoom, increase budget, fallbacks)
-- [ ] Long loading at startup: zoom level impact, startup suspend_maxwait
-- [ ] Stuttering: time budget, cache-only fallbacks, prefetch tuning
-- [ ] Changed settings but no effect (restart, clear cache, fly new area)
-- [ ] maxwait vs tile_time_budget difference
-- [ ] Time exclusion re-activation after scenery reload (already fixed)
-- [ ] X-Plane "Failed to find resource" error (AutoOrtho not running, broken symlinks)
-- [ ] Reinstall scenery pack (delete \_info.json)
-- [ ] X-Plane doesn't auto-start (must start separately, after AutoOrtho)
-- [ ] **Linux**: Too Many Open Files (ulimit -n 8192), FUSE error (user_allow_other), mount cleanup after crash
-- [ ] **Windows**: Python version issues, Windows Defender slowness (exclude directory), false positive AV detection, non-NTFS/local drive error
-- [ ] **macOS**: Flight crash during loading (disable multithreaded FUSE)
-- [ ] Base mesh package issues (redirect to kubilus scenery issues)
-- [ ] How to submit bug reports (screenshots, logs, OS, versions)
-
-### docs/info.md — Attributions
-- [ ] Ortho4XP attribution
-- [ ] Slippy Map Tilenames (OpenStreetMap wiki)
-- [ ] Icon attribution (Vital Gorbachev / icons8)
-- [ ] 7-Zip / LZMA SDK (GNU LGPL) for DSF compression
-- [ ] Rust crate attributions (list key crates)
-
-### docs/performance.md — Performance Tuning Guide
-- [ ] Performance presets (Fast / Balanced / Quality / Custom)
-- [ ] Zoom level as critical factor (table: ZL vs chunks vs relative resources)
-- [ ] Time budget system (use_time_budget, tile_time_budget, how it works)
-- [ ] Fallback system (none / cache / full, fallback chain explained, extends_budget)
-- [ ] Extended fallback timeout
-- [ ] Startup loading behavior (suspend_maxwait, 10× multiplier, stall detection)
-- [ ] Dynamic zoom (AGL vs MSL, quality steps table, altitude prediction)
-- [ ] Spatial prefetching (prefetch_enabled, lookahead, velocity-based vs SimBrief)
-- [ ] Per-chunk timeout (maxwait, when time budget is disabled)
-- [ ] Recommended configurations (stutter-free, max quality, slow internet, weak CPU)
-- [ ] Statistics reference (mm_count, chunk_budget_skipped, chunk_missing_count)
-- [ ] Tile creation time breakdown (download+compose vs compression)
-- [ ] Time exclusion (sun elevation, safety features, decision preservation during reload)
-- [ ] SimBrief integration deep dive (route consideration radius, deviation threshold, prefetch radius)
-- [ ] **Native pipeline architecture** (our Rust pipeline replaces the C aopipeline — document rayon, reqwest, ISPC texcomp equivalent)
-
-### docs/scenery.md — Scenery Setup
-- [ ] Using provided scenery packs (must use config utility, don't manually move)
-- [ ] scenery_packs.ini ordering (with example: landmarks → yAutoOrtho_Overlays → z_ao_* → z_autoortho → zzz_global_scenery)
-- [ ] Installing in custom directories (manual symlinks/shortcuts, scenery_packs.ini editing)
+Documentation is needed but tracked separately. See [autoortho4xplane docs](https://github.com/ProgrammingDinosaur/autoortho4xplane/tree/develop/docs) for reference material. Key areas:
+- README / Quick Start / Installation guides for each OS
+- Configuration reference
+- FAQ & Troubleshooting
+- Performance tuning guide
+- Attributions
 
 ---
 
-## Ideas from autoortho4xplane to Consider
+## Future Feature Ideas
 
 ### High Priority
-- [ ] **X-Plane Plugin** — Thin Rust plugin replacing UDP dataref polling with direct XPLM SDK calls (zero latency, no drops) + scenery pack management. See [docs/xplane-plugin-plan.md](docs/xplane-plugin-plan.md)
-- [ ] **Performance presets UI** — Fast/Balanced/Quality/Custom dropdown in Settings that sets all tuning params at once
-- [ ] **Early-build DDS** — Two-phase tile building: build at 90% chunks with placeholder, heal when remaining arrive (reduces first-texture latency)
-- [ ] **Stall detection** — Log warnings at 60s and 180s when downloads appear stalled (server throttling indicator)
-- [x] **Disk cache cleanup UI** — Cache size, clear button, size slider in Settings
-- [ ] **X-Plane diagnostics** — Show last packet time, packet rate in status bar
+- **Fallback system** — Missing tiles fallback (cache lookup, scale from mipmaps, download lower-detail)
+- **X-Plane Plugin** — Thin Rust plugin with direct XPLM SDK calls (zero latency) + scenery pack management
 
 ### Medium Priority
-- [ ] **Tile caching monitoring** — Visual view of which tiles are cached (mentioned in autoortho4xplane backlog)
-- [ ] **Windows installer** — Experimental NSIS or WiX installer for Windows (like autoortho4xplane's .exe installer)
-- [ ] **SimBrief route deviation threshold** — Warn or fall back when 40nm+ off route
-- [ ] **Automatic cache eviction** — OS temp directory for ephemeral DDS, OS file cache for hot files (our cache.rs already uses temp)
-- [ ] **Seasonal ortho support** — Merge hotbso/autoortho changes for seasonal imagery (in autoortho4xplane backlog)
+- Performance presets UI — Fast/Balanced/Quality dropdown in Settings
+- Early-build DDS — Two-phase tile building for faster first-texture
+- Stall detection — Log warnings when downloads appear stalled
+- X-Plane diagnostics — Show packet rate in status bar
 
 ### Lower Priority
-- [ ] **Custom mesh packages** — Rebuild base mesh with newer Ortho4XP for XP12 3D water support (autoortho4xplane planned)
-- [ ] **New imagery sources** — Yandex Maps (YNDX), Apple Maps (APPLE — Python fallback required for auth), Firefly (FIREFLY), USGS/NAIP
-- [ ] **macOS Fuse-T support** — Alternative to macFUSE (autoortho4xplane tested with both)
-- [ ] **Multi-threaded FUSE toggle** — macOS workaround: disable for stability during scenery loading
-- [ ] **Windows: prefer WinFsp config** — Override Dokan preference via config file
-- [ ] **Ortho4XP export mode** — `skip_downloads = True` for generating scenery without photos
-- [ ] **"Reload Scenery" state preservation** — Already implemented for time exclusion, could generalize
-
-### Not Applicable (our Rust approach differs)
-- [ ] ~~PyInstaller bundling~~ — We use standard `cargo build --release`
-- [ ] ~~C aopipeline~~ — Our Rust pipeline replaces this natively
-- [ ] ~~libcurl native HTTP~~ — reqwest handles connection pooling, HTTP/2 natively in Rust
-- [ ] ~~ISPC texcomp~~ — We use Rust BCn crate, but could optionally bundle ISPC binaries for faster compression
+- Windows installer (NSIS/WiX)
+- New imagery sources (Yandex, Apple, etc.)
+- macOS Fuse-T support
+- Seasonal ortho support
