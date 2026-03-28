@@ -43,7 +43,29 @@
 - [x] `--mount` CLI flag to run with FUSE (default mount derived from X-Plane path)
 - [x] macFUSE installed, `cargo build --features fuse` compiles
 - [x] **FUSE live-tested in Podman container** — mount, ls, stat, poison pill all verified
-- [ ] Windows WinFsp implementation
+
+### Phase 4b — Windows Dokan FUSE (Deferred)
+- [ ] Windows Dokan implementation (deferred - no Windows test machine available)
+- [ ] Add `dokan` crate for Windows
+- [ ] Create `fuse/dokan.rs` implementing DokanFileSystem trait
+- [ ] Add config option `prefer_dokan` (default true)
+
+### Phase 4c — 7z Extraction ✅
+- [x] Add `sevenz-rust` crate
+- [x] Implement `extract_7z()` in `downloader.rs`
+- [x] Also implemented `extract_zip()` and `extract_zip_from_memory()`
+
+### Phase 4d — Seasonal Adjustment UI ✅
+- [x] Add Season enum to config: Disabled, Spring, Summer, Autumn, Winter
+- [x] Add saturation values for each season (Spring=100%, Summer=100%, Autumn=95%, Winter=85%)
+- [x] Add seasonal adjustment to pipeline (assembler.rs with apply_saturation)
+- [x] Add UI: pick_list for season selection, saturation sliders (0-200%)
+
+### Phase 4e — Fallback System
+- [ ] Add FallbackLevel enum: None, Cache, Full
+- [ ] Level 1 (Cache): Check disk cache for lower-zoom version
+- [ ] Level 2 (Scale): Scale from lower mipmap
+- [ ] Level 3 (Network): Download lower-detail imagery on-demand
 
 ### Phase 5 — X-Plane Integration ✅
 - [x] `xplane/mod.rs` — RREF codec, FlightDataAverager, HeadingAverager

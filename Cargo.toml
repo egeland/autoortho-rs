@@ -48,6 +48,7 @@ uuid = { version = "1.16", features = ["v4", "serde"] }
 # JPEG/image
 image = "0.25"
 zip = "8.4"
+sevenz-rust = "0.6"
 futures-lite = "2.6"
 libloading = "0.8"
 

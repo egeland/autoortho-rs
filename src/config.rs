@@ -5,6 +5,17 @@ use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
+/// Season selection for seasonal adjustment
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum Season {
+    #[default]
+    Disabled,
+    Spring,
+    Summer,
+    Autumn,
+    Winter,
+}
+
 /// All persistent configuration for AutoOrtho.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AutoOrthoConfig {
@@ -51,6 +62,16 @@ pub struct AutoOrthoConfig {
     pub airport_radius_nm: u32,
     #[serde(default = "default_near_airport_zoom")]
     pub near_airport_zoom: u32,
+    #[serde(default)]
+    pub season: Season,
+    #[serde(default = "default_spring_saturation")]
+    pub spring_saturation: f32,
+    #[serde(default = "default_summer_saturation")]
+    pub summer_saturation: f32,
+    #[serde(default = "default_autumn_saturation")]
+    pub autumn_saturation: f32,
+    #[serde(default = "default_winter_saturation")]
+    pub winter_saturation: f32,
 }
 
 fn default_ui_scale() -> f64 {
@@ -87,6 +108,22 @@ fn default_prefetch_airports() -> bool {
 
 fn default_airport_radius_nm() -> u32 {
     60
+}
+
+fn default_spring_saturation() -> f32 {
+    0.70
+}
+
+fn default_summer_saturation() -> f32 {
+    1.0
+}
+
+fn default_autumn_saturation() -> f32 {
+    0.80
+}
+
+fn default_winter_saturation() -> f32 {
+    0.55
 }
 
 fn default_near_airport_zoom() -> u32 {
@@ -137,6 +174,11 @@ impl Default for AutoOrthoConfig {
             prefetch_airports: true,
             airport_radius_nm: 60,
             near_airport_zoom: 19,
+            season: Season::Disabled,
+            spring_saturation: 0.70,
+            summer_saturation: 1.0,
+            autumn_saturation: 0.80,
+            winter_saturation: 0.55,
         }
     }
 }

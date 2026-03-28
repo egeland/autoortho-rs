@@ -113,6 +113,13 @@ pub enum Message {
     SetNightThreshold(i32),
     SetDayThreshold(i32),
 
+    // Seasonal adjustment
+    SetSeason(crate::config::Season),
+    SetSpringSaturation(u32),
+    SetSummerSaturation(u32),
+    SetAutumnSaturation(u32),
+    SetWinterSaturation(u32),
+
     // SimBrief
     SetSimbriefUserId(String),
     SetRouteConsiderationRadius(u32),
@@ -217,6 +224,21 @@ impl AutoOrthoApp {
             }
             Message::SetDayThreshold(v) => {
                 self.state.config.day_threshold = v as f32;
+            }
+            Message::SetSeason(season) => {
+                self.state.config.season = season;
+            }
+            Message::SetSpringSaturation(v) => {
+                self.state.config.spring_saturation = (v as f32) / 100.0;
+            }
+            Message::SetSummerSaturation(v) => {
+                self.state.config.summer_saturation = (v as f32) / 100.0;
+            }
+            Message::SetAutumnSaturation(v) => {
+                self.state.config.autumn_saturation = (v as f32) / 100.0;
+            }
+            Message::SetWinterSaturation(v) => {
+                self.state.config.winter_saturation = (v as f32) / 100.0;
             }
             Message::ClearDdsCache => {
                 let cache_dir = std::path::PathBuf::from(&self.state.config.cache_dir).join("dds");
@@ -1031,6 +1053,7 @@ async fn fetch_test_tile(
         chunk_size: 256,
         format: DdsFormat::BC3,
         missing_color: [66, 77, 55],
+        seasonal_saturation: 1.0,
     };
 
     let start = std::time::Instant::now();

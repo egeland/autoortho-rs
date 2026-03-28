@@ -38,6 +38,8 @@ pub struct AssemblyConfig {
     pub format: DdsFormat,
     /// Fallback color for missing/failed chunks (R, G, B)
     pub missing_color: [u8; 3],
+    /// Seasonal saturation adjustment (1.0 = no change)
+    pub seasonal_saturation: f32,
 }
 
 impl Default for AssemblyConfig {
@@ -47,6 +49,7 @@ impl Default for AssemblyConfig {
             chunk_size: 256,
             format: DdsFormat::BC1,
             missing_color: [66, 77, 55], // Matches Python default
+            seasonal_saturation: 1.0,
         }
     }
 }
@@ -131,6 +134,11 @@ pub fn assemble_tile(
                 chunks_failed += 1;
             }
         }
+    }
+
+    // Step 2b: Apply seasonal saturation if enabled
+    if config.seasonal_saturation != 1.0 {
+        tile.apply_saturation(config.seasonal_saturation);
     }
 
     // Step 3: Build complete DDS with mipmap chain
@@ -230,6 +238,7 @@ mod tests {
             chunk_size: 8,
             format: DdsFormat::BC1,
             missing_color: [66, 77, 55],
+            seasonal_saturation: 1.0,
         };
 
         let chunks: Vec<Option<Vec<u8>>> = vec![None; 16];
@@ -257,6 +266,7 @@ mod tests {
             chunk_size: 256,
             format: DdsFormat::BC3,
             missing_color: [66, 77, 55],
+            seasonal_saturation: 1.0,
         };
 
         // 2x2 grid: 3 valid + 1 missing
@@ -282,6 +292,7 @@ mod tests {
             chunk_size: 8,
             format: DdsFormat::BC1,
             missing_color: [0, 0, 0],
+            seasonal_saturation: 1.0,
         };
 
         let img1 = Image::new_filled(8, 8, [255, 0, 0, 255]);
@@ -301,6 +312,7 @@ mod tests {
             chunk_size: 8,
             format: DdsFormat::BC1,
             missing_color: [0, 0, 0],
+            seasonal_saturation: 1.0,
         };
 
         let chunks: Vec<Option<Vec<u8>>> = vec![None; 16];

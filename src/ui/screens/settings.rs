@@ -1,11 +1,20 @@
-use crate::ui::Message;
+use crate::config::Season;
 use crate::ui::state::AppState;
+use crate::ui::Message;
 use iced::widget::{
     button, column, container, pick_list, row, rule, slider, space, text, text_input, tooltip,
 };
 use iced::{Element, Fill, Length};
 
 const PROVIDERS: &[&str] = &["GO2", "BI", "ARC", "NAIP", "USGS", "EOX", "FIREFLY"];
+const SEASONS: &[Season] = &[
+    Season::Disabled,
+    Season::Spring,
+    Season::Summer,
+    Season::Autumn,
+    Season::Winter,
+];
+const SEASON_LABELS: &[&str] = &["Disabled", "Spring", "Summer", "Autumn", "Winter"];
 
 /// Settings screen — full configuration management
 pub fn view(state: &AppState) -> Element<'_, Message> {
@@ -212,9 +221,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 text("Prefetch around airports:").width(Length::Fixed(260.0)),
                 button(
                     text(if state.config.prefetch_airports {
-                        "Yes"
+                        "Enabled"
                     } else {
-                        "No"
+                        "Disabled"
                     })
                     .size(14)
                 )
@@ -403,6 +412,67 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .spacing(8);
 
+    // -- Seasonal section --
+    let season_index = match state.config.season {
+        Season::Disabled => 0,
+        Season::Spring => 1,
+        Season::Summer => 2,
+        Season::Autumn => 3,
+        Season::Winter => 4,
+    };
+    let spring_pct = (state.config.spring_saturation * 100.0).round() as u32;
+    let summer_pct = (state.config.summer_saturation * 100.0).round() as u32;
+    let autumn_pct = (state.config.autumn_saturation * 100.0).round() as u32;
+    let winter_pct = (state.config.winter_saturation * 100.0).round() as u32;
+
+    let seasonal = column![
+        text("Seasonal Adjustment").size(18),
+        rule::horizontal(1),
+        row![
+            text("Season:").width(Length::Fixed(160.0)),
+            pick_list(
+                SEASON_LABELS,
+                Some(SEASON_LABELS[season_index]),
+                |s: &str| {
+                    let idx = SEASON_LABELS.iter().position(|&x| x == s).unwrap_or(0);
+                    Message::SetSeason(SEASONS[idx])
+                },
+            )
+            .width(Length::Fixed(120.0)),
+        ]
+        .spacing(12)
+        .align_y(iced::Alignment::Center),
+        row![
+            text(format!("Spring: {}%", spring_pct)).width(Length::Fixed(160.0)),
+            slider(0..=200u32, spring_pct, Message::SetSpringSaturation)
+                .width(Length::Fixed(200.0)),
+        ]
+        .spacing(12)
+        .align_y(iced::Alignment::Center),
+        row![
+            text(format!("Summer: {}%", summer_pct)).width(Length::Fixed(160.0)),
+            slider(0..=200u32, summer_pct, Message::SetSummerSaturation)
+                .width(Length::Fixed(200.0)),
+        ]
+        .spacing(12)
+        .align_y(iced::Alignment::Center),
+        row![
+            text(format!("Autumn: {}%", autumn_pct)).width(Length::Fixed(160.0)),
+            slider(0..=200u32, autumn_pct, Message::SetAutumnSaturation)
+                .width(Length::Fixed(200.0)),
+        ]
+        .spacing(12)
+        .align_y(iced::Alignment::Center),
+        row![
+            text(format!("Winter: {}%", winter_pct)).width(Length::Fixed(160.0)),
+            slider(0..=200u32, winter_pct, Message::SetWinterSaturation)
+                .width(Length::Fixed(200.0)),
+        ]
+        .spacing(12)
+        .align_y(iced::Alignment::Center),
+    ]
+    .spacing(8);
+
     // -- UI section --
     // Scale slider: 50% to 150%, stored as f64 (0.5 to 1.5)
     // Slider works with integers, so we use 50..150 and divide by 100
@@ -462,6 +532,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         cache_section,
         space::vertical().height(16),
         advanced,
+        space::vertical().height(16),
+        seasonal,
         space::vertical().height(16),
         ui_section,
         space::vertical().height(16),

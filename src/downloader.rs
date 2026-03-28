@@ -12,6 +12,8 @@ pub enum DownloadError {
     ExtractFailed(String),
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
+    #[error("Zip error: {0}")]
+    ZipError(#[from] zip::result::ZipError),
 }
 
 /// Scenery pack download manager
@@ -58,13 +60,67 @@ impl SceneryDownloader {
         }
     }
 
-    fn extract_zip(&self, _archive: &Path, _extract_to: &Path) -> Result<(), DownloadError> {
-        // TODO: Implement with zip crate
+    fn extract_zip(&self, archive: &Path, extract_to: &Path) -> Result<(), DownloadError> {
+        use std::fs::File;
+        use zip::ZipArchive;
+
+        let file = File::open(archive)?;
+        let mut archive = ZipArchive::new(file)?;
+
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i)?;
+            let outpath = extract_to.join(file.name());
+
+            if file.name().ends_with('/') {
+                std::fs::create_dir_all(&outpath)?;
+            } else {
+                if let Some(p) = outpath.parent() {
+                    if !p.exists() {
+                        std::fs::create_dir_all(p)?;
+                    }
+                }
+                let mut outfile = File::create(&outpath)?;
+                std::io::copy(&mut file, &mut outfile)?;
+            }
+        }
+
         Ok(())
     }
 
-    fn extract_7z(&self, _archive: &Path, _extract_to: &Path) -> Result<(), DownloadError> {
-        // TODO: Implement with subprocess to 7zz
+    #[allow(dead_code)]
+    fn extract_zip_from_memory(&self, data: &[u8], extract_to: &Path) -> Result<(), DownloadError> {
+        use std::io::Cursor;
+        use zip::ZipArchive;
+
+        let cursor = Cursor::new(data);
+        let mut archive = ZipArchive::new(cursor)?;
+
+        for i in 0..archive.len() {
+            let mut file = archive.by_index(i)?;
+            let outpath = extract_to.join(file.name());
+
+            if file.name().ends_with('/') {
+                std::fs::create_dir_all(&outpath)?;
+            } else {
+                if let Some(p) = outpath.parent() {
+                    if !p.exists() {
+                        std::fs::create_dir_all(p)?;
+                    }
+                }
+                let mut outfile = std::fs::File::create(&outpath)?;
+                std::io::copy(&mut file, &mut outfile)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn extract_7z(&self, archive: &Path, extract_to: &Path) -> Result<(), DownloadError> {
+        use sevenz_rust::decompress_file;
+
+        decompress_file(archive, extract_to)
+            .map_err(|e| DownloadError::ExtractFailed(e.to_string()))?;
+
         Ok(())
     }
 

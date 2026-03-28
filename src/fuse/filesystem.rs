@@ -194,6 +194,7 @@ impl DdsFileSystem {
                 chunk_size: 256,
                 format: self.format,
                 missing_color: [66, 77, 55],
+                seasonal_saturation: 1.0,
             };
             let metadata = DdsCacheMetadata {
                 v: 3,
@@ -247,6 +248,7 @@ impl DdsFileSystem {
             chunk_size: 256,
             format: self.format,
             missing_color: [66, 77, 55],
+            seasonal_saturation: 1.0,
         };
 
         // Calculate chunk grid for this tile

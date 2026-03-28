@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
 // Copyright (c) 2024 the AutoOrtho contributors
 
+use crate::config::Season;
 use chrono::{Datelike, Local};
 
 /// Seasonal color saturation adjustment
 pub struct SeasonalAdjustment {
+    enabled: bool,
+    season: Season,
     spring_sat: f32,
     summer_sat: f32,
     autumn_sat: f32,
@@ -14,17 +17,22 @@ pub struct SeasonalAdjustment {
 impl Default for SeasonalAdjustment {
     fn default() -> Self {
         Self {
-            spring_sat: 1.0,
+            enabled: false,
+            season: Season::Disabled,
+            spring_sat: 0.70,
             summer_sat: 1.0,
-            autumn_sat: 0.95,
-            winter_sat: 0.85,
+            autumn_sat: 0.80,
+            winter_sat: 0.55,
         }
     }
 }
 
 impl SeasonalAdjustment {
-    pub fn new(spring: f32, summer: f32, autumn: f32, winter: f32) -> Self {
+    pub fn new(season: Season, spring: f32, summer: f32, autumn: f32, winter: f32) -> Self {
+        let enabled = season != Season::Disabled;
         Self {
+            enabled,
+            season,
             spring_sat: spring.clamp(0.0, 2.0),
             summer_sat: summer.clamp(0.0, 2.0),
             autumn_sat: autumn.clamp(0.0, 2.0),
@@ -32,8 +40,13 @@ impl SeasonalAdjustment {
         }
     }
 
+    /// Check if seasonal adjustment is enabled
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+    }
+
     /// Get current season (0=spring, 1=summer, 2=autumn, 3=winter)
-    fn current_season() -> u32 {
+    fn auto_season() -> u32 {
         let month = Local::now().month();
         match month {
             3..=5 => 0,  // Spring (Mar-May)
@@ -43,19 +56,42 @@ impl SeasonalAdjustment {
         }
     }
 
+    /// Get the effective season (manual override or auto-detected)
+    fn effective_season(&self) -> Season {
+        if self.season != Season::Disabled {
+            self.season
+        } else {
+            match Self::auto_season() {
+                0 => Season::Spring,
+                1 => Season::Summer,
+                2 => Season::Autumn,
+                3 => Season::Winter,
+                _ => Season::Summer,
+            }
+        }
+    }
+
     /// Get saturation multiplier for current season
     pub fn current_saturation(&self) -> f32 {
-        match Self::current_season() {
-            0 => self.spring_sat,
-            1 => self.summer_sat,
-            2 => self.autumn_sat,
-            3 => self.winter_sat,
-            _ => 1.0,
+        if !self.enabled {
+            return 1.0;
+        }
+
+        match self.effective_season() {
+            Season::Spring => self.spring_sat,
+            Season::Summer => self.summer_sat,
+            Season::Autumn => self.autumn_sat,
+            Season::Winter => self.winter_sat,
+            Season::Disabled => 1.0,
         }
     }
 
     /// Get saturation for specific month (1-12)
     pub fn saturation_for_month(&self, month: u32) -> f32 {
+        if !self.enabled {
+            return 1.0;
+        }
+
         match month {
             3..=5 => self.spring_sat,
             6..=8 => self.summer_sat,
@@ -123,20 +159,32 @@ mod tests {
     #[test]
     fn test_seasonal_adjustment_default() {
         let adj = SeasonalAdjustment::default();
-        assert_eq!(adj.spring_sat, 1.0);
+        assert!(!adj.is_enabled());
+        assert_eq!(adj.spring_sat, 0.70);
         assert_eq!(adj.summer_sat, 1.0);
     }
 
     #[test]
     fn test_seasonal_adjustment_clamp() {
-        let adj = SeasonalAdjustment::new(2.5, 0.0, 1.0, 1.0);
+        let adj = SeasonalAdjustment::new(Season::Spring, 2.5, 0.0, 1.0, 1.0);
         assert_eq!(adj.spring_sat, 2.0); // Clamped to max
         assert_eq!(adj.summer_sat, 0.0); // Clamped to min
     }
 
     #[test]
+    fn test_seasonal_adjustment_enabled() {
+        let adj_disabled = SeasonalAdjustment::new(Season::Disabled, 1.0, 1.0, 1.0, 1.0);
+        assert!(!adj_disabled.is_enabled());
+        assert_eq!(adj_disabled.current_saturation(), 1.0);
+
+        let adj_summer = SeasonalAdjustment::new(Season::Summer, 1.0, 0.8, 1.0, 1.0);
+        assert!(adj_summer.is_enabled());
+        assert_eq!(adj_summer.current_saturation(), 0.8);
+    }
+
+    #[test]
     fn test_saturation_for_month_spring() {
-        let adj = SeasonalAdjustment::new(1.1, 1.0, 0.9, 0.8);
+        let adj = SeasonalAdjustment::new(Season::Spring, 1.1, 1.0, 0.9, 0.8);
         assert!((adj.saturation_for_month(3) - 1.1).abs() < 0.01);
         assert!((adj.saturation_for_month(4) - 1.1).abs() < 0.01);
         assert!((adj.saturation_for_month(5) - 1.1).abs() < 0.01);
@@ -144,16 +192,23 @@ mod tests {
 
     #[test]
     fn test_saturation_for_month_all() {
-        let adj = SeasonalAdjustment::default();
+        let adj = SeasonalAdjustment::new(Season::Disabled, 1.0, 1.0, 0.95, 0.85);
+
+        // When disabled, always returns 1.0
+        assert_eq!(adj.saturation_for_month(3), 1.0);
+        assert_eq!(adj.saturation_for_month(6), 1.0);
+        assert_eq!(adj.saturation_for_month(9), 1.0);
+        assert_eq!(adj.saturation_for_month(1), 1.0);
+    }
+
+    #[test]
+    fn test_saturation_enabled_for_month() {
+        let adj = SeasonalAdjustment::new(Season::Spring, 1.1, 1.0, 0.9, 0.8);
 
         // Spring
-        assert_eq!(adj.saturation_for_month(3), 1.0);
-        // Summer
-        assert_eq!(adj.saturation_for_month(6), 1.0);
-        // Autumn
-        assert_eq!(adj.saturation_for_month(9), 0.95);
-        // Winter
-        assert_eq!(adj.saturation_for_month(1), 0.85);
+        assert!((adj.saturation_for_month(3) - 1.1).abs() < 0.01);
+        assert!((adj.saturation_for_month(4) - 1.1).abs() < 0.01);
+        assert!((adj.saturation_for_month(5) - 1.1).abs() < 0.01);
     }
 
     #[test]

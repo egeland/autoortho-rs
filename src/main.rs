@@ -187,6 +187,7 @@ async fn test_tile_generation() -> Result<(), Box<dyn Error>> {
         chunk_size: 256,
         format: DdsFormat::BC3,
         missing_color: [66, 77, 55],
+        seasonal_saturation: 1.0,
     };
 
     let start = std::time::Instant::now();

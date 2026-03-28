@@ -1,6 +1,6 @@
-use crate::ui::Message;
 use crate::ui::helpers::*;
 use crate::ui::state::{AppState, ServiceStatus};
+use crate::ui::Message;
 use iced::widget::{button, column, container, row, rule, space, text, tooltip};
 use iced::{Element, Fill, Length};
 
@@ -10,12 +10,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     // --- Start/Stop controls ---
     let controls: Element<'_, Message> = if state.any_service_running() {
-        let mut btns = row![
-            button(text(format!("{} Stop", ICON_STOP)).size(13))
-                .padding([8, 16])
-                .style(button::danger)
-                .on_press(Message::StopServices),
-        ]
+        let mut btns = row![button(text(format!("{} Stop", ICON_STOP)).size(13))
+            .padding([8, 16])
+            .style(button::danger)
+            .on_press(Message::StopServices),]
         .spacing(8);
 
         if state.web_server.is_running() {
@@ -84,13 +82,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         } else if state.simbrief_fetching {
             section = section.push(button(text("Fetching...").size(14)).padding([8, 16]));
         } else {
-            let mut btn_row = row![
-                button(text(format!("{} Fetch Flight Plan", ICON_GLOBE)).size(14))
-                    .padding([8, 16])
-                    .style(button::success)
-                    .on_press(Message::FetchSimbrief),
-            ]
-            .spacing(8);
+            let mut btn_row =
+                row![
+                    button(text(format!("{} Fetch Flight Plan", ICON_GLOBE)).size(14))
+                        .padding([8, 16])
+                        .style(button::success)
+                        .on_press(Message::FetchSimbrief),
+                ]
+                .spacing(8);
 
             if state.simbrief_route_summary.is_some() {
                 btn_row = btn_row.push(tooltip(
@@ -187,16 +186,24 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 "Disabled".into()
             }
         ),
+        config_row(
+            "Season:",
+            match state.config.season {
+                crate::config::Season::Disabled => "Disabled".into(),
+                crate::config::Season::Spring => "Spring".into(),
+                crate::config::Season::Summer => "Summer".into(),
+                crate::config::Season::Autumn => "Autumn".into(),
+                crate::config::Season::Winter => "Winter".into(),
+            }
+        ),
     ]
     .spacing(6);
 
     // --- Error message ---
     let error_section = if let Some(ref err) = state.error_message {
-        column![
-            text(err.clone())
-                .size(14)
-                .color(iced::Color::from_rgb(0.8, 0.1, 0.1)),
-        ]
+        column![text(err.clone())
+            .size(14)
+            .color(iced::Color::from_rgb(0.8, 0.1, 0.1)),]
     } else {
         column![]
     };

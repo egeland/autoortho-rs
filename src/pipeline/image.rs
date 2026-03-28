@@ -212,6 +212,72 @@ impl Image {
         let cropped = self.crop(x, y, crop_w, crop_h)?;
         Ok(cropped.upscale(scale_factor))
     }
+
+    /// Apply saturation adjustment to the entire image in place.
+    /// saturation: 1.0 = no change, 0.0 = grayscale, 2.0 = doubled saturation
+    pub fn apply_saturation(&mut self, saturation: f32) {
+        if (saturation - 1.0).abs() < 0.01 {
+            return;
+        }
+
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let pixel = self.get_pixel(x, y).unwrap();
+                let r = pixel[0] as f32 / 255.0;
+                let g = pixel[1] as f32 / 255.0;
+                let b = pixel[2] as f32 / 255.0;
+
+                let max = r.max(g).max(b);
+                let min = r.min(g).min(b);
+                let l = (max + min) / 2.0;
+
+                let s = if max == min {
+                    0.0
+                } else if l < 0.5 {
+                    (max - min) / (max + min)
+                } else {
+                    (max - min) / (2.0 - max - min)
+                };
+
+                let h = if max == min {
+                    0.0
+                } else if max == r {
+                    ((g - b) / (max - min) + if g < b { 6.0 } else { 0.0 }) / 6.0
+                } else if max == g {
+                    ((b - r) / (max - min) + 2.0) / 6.0
+                } else {
+                    ((r - g) / (max - min) + 4.0) / 6.0
+                };
+
+                let new_s = (s * saturation).min(1.0);
+
+                let c = (1.0 - (2.0 * l - 1.0).abs()) * new_s;
+                let x_val = c * (1.0 - ((h * 6.0) % 2.0 - 1.0).abs());
+                let m = l - c / 2.0;
+
+                let (r_new, g_new, b_new) = match (h * 6.0) as i32 {
+                    0 => (c, x_val, 0.0),
+                    1 => (x_val, c, 0.0),
+                    2 => (0.0, c, x_val),
+                    3 => (0.0, x_val, c),
+                    4 => (x_val, 0.0, c),
+                    _ => (c, 0.0, x_val),
+                };
+
+                self.set_pixel(
+                    x,
+                    y,
+                    [
+                        ((r_new + m) * 255.0) as u8,
+                        ((g_new + m) * 255.0) as u8,
+                        ((b_new + m) * 255.0) as u8,
+                        pixel[3],
+                    ],
+                )
+                .ok();
+            }
+        }
+    }
 }
 
 #[cfg(test)]
