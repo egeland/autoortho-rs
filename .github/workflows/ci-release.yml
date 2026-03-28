@@ -99,8 +99,7 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: autoortho-windows-x86_64
-            deps: |
-              choco install winfsp -y
+            deps: ""
     steps:
       - uses: actions/checkout@v4
 

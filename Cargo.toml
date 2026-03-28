@@ -52,9 +52,10 @@ sevenz-rust = "0.6"
 futures-lite = "2.6"
 libloading = "0.8"
 
-# Cross-platform FUSE using unifuse (works on Linux/macOS/Windows)
-# Linux/macOS: uses rfuse3
-# Windows: uses winfsp (requires WinFSP runtime installed)
+# FUSE support (Linux/macOS only for now - Windows needs winfsp implementation)
+# On Linux/macOS: uses rfuse3 via unifuse
+# On Windows: disabled (unifuse incompatible with current winfsp version)
+[target.'cfg(not(windows))'.dependencies]
 unifuse = "0.1"
 
 libc = "0.2"

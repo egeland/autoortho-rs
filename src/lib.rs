@@ -5,7 +5,10 @@ pub mod altitude_predictor;
 pub mod config;
 pub mod downloader;
 pub mod dynamic_zoom;
+
+#[cfg(not(windows))]
 pub mod fuse;
+
 pub mod pipeline;
 pub mod scenery;
 pub mod seasons;
