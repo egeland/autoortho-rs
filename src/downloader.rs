@@ -16,6 +16,54 @@ pub enum DownloadError {
     ZipError(#[from] zip::result::ZipError),
 }
 
+/// Validate that an extracted path stays within the target directory.
+/// This prevents ZIP slip attacks where a malicious zip contains paths like "../../../etc/passwd".
+fn validate_extract_path(target_dir: &Path, entry_path: &Path) -> Result<PathBuf, DownloadError> {
+    let canonical_target = target_dir
+        .canonicalize()
+        .map_err(|e| DownloadError::ExtractFailed(format!("Cannot resolve target: {}", e)))?;
+
+    // Check for parent directory traversal
+    for component in entry_path.components() {
+        if let std::path::Component::ParentDir = component {
+            return Err(DownloadError::ExtractFailed(format!(
+                "Path traversal attempt blocked: {}",
+                entry_path.display()
+            )));
+        }
+    }
+
+    let out_path = target_dir.join(entry_path);
+
+    // For existing paths, verify canonicalization
+    if out_path.exists() {
+        let canonical = out_path
+            .canonicalize()
+            .map_err(|_| DownloadError::ExtractFailed(format!(
+                "Path traversal attempt blocked: {}",
+                entry_path.display()
+            )))?;
+
+        if !canonical.starts_with(&canonical_target) {
+            return Err(DownloadError::ExtractFailed(format!(
+                "Path traversal attempt blocked: {}",
+                entry_path.display()
+            )));
+        }
+    } else {
+        // For new paths, verify the path would be inside target
+        let entry_str = entry_path.to_string_lossy();
+        if entry_str.contains("..") {
+            return Err(DownloadError::ExtractFailed(format!(
+                "Path traversal attempt blocked: {}",
+                entry_path.display()
+            )));
+        }
+    }
+
+    Ok(out_path)
+}
+
 /// Scenery pack download manager
 pub struct SceneryDownloader {
     download_dir: PathBuf,
@@ -69,7 +117,10 @@ impl SceneryDownloader {
 
         for i in 0..archive.len() {
             let mut file = archive.by_index(i)?;
-            let outpath = extract_to.join(file.name());
+            let entry_name = file.name();
+
+            // Validate the entry path (blocks path traversal)
+            let outpath = validate_extract_path(extract_to, Path::new(entry_name))?;
 
             if file.name().ends_with('/') {
                 std::fs::create_dir_all(&outpath)?;
@@ -97,7 +148,10 @@ impl SceneryDownloader {
 
         for i in 0..archive.len() {
             let mut file = archive.by_index(i)?;
-            let outpath = extract_to.join(file.name());
+            let entry_name = file.name();
+
+            // Validate the entry path
+            let outpath = validate_extract_path(extract_to, Path::new(entry_name))?;
 
             if file.name().ends_with('/') {
                 std::fs::create_dir_all(&outpath)?;
@@ -189,5 +243,62 @@ mod tests {
 
         let result = dl.extract(&file, &tmp.path().to_path_buf());
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_extract_zip_blocks_path_traversal() {
+        use std::io::Write;
+        use zip::ZipWriter;
+        use zip::write::SimpleFileOptions;
+
+        let tmp = TempDir::new().unwrap();
+        let dl = SceneryDownloader::new(tmp.path().to_path_buf(), tmp.path().to_path_buf());
+
+        let zip_path = tmp.path().join("malicious.zip");
+
+        // Create a zip with path traversal
+        let file = std::fs::File::create(&zip_path).unwrap();
+        let mut zip = ZipWriter::new(file);
+        let options = SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+
+        zip.start_file("../../../etc/evil.txt", options).unwrap();
+        zip.write_all(b"malicious").unwrap();
+        zip.finish().unwrap();
+
+        // Extraction should fail
+        let result = dl.extract(&zip_path, tmp.path());
+        assert!(result.is_err(), "Path traversal should be blocked");
+    }
+
+    #[test]
+    fn test_extract_zip_normal_file() {
+        use std::io::Write;
+        use zip::ZipWriter;
+        use zip::write::SimpleFileOptions;
+
+        let tmp = TempDir::new().unwrap();
+        let dl = SceneryDownloader::new(tmp.path().to_path_buf(), tmp.path().to_path_buf());
+
+        let zip_path = tmp.path().join("normal.zip");
+
+        // Create a normal zip
+        let file = std::fs::File::create(&zip_path).unwrap();
+        let mut zip = ZipWriter::new(file);
+        let options = SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+
+        // Add directory first
+        zip.add_directory("subdir", options).unwrap();
+        zip.start_file("subdir/test.txt", options).unwrap();
+        zip.write_all(b"hello").unwrap();
+        zip.finish().unwrap();
+
+        // Extraction should succeed
+        let result = dl.extract(&zip_path, tmp.path());
+        if let Err(e) = result {
+            panic!("Extract failed: {}", e);
+        }
+        assert!(tmp.path().join("subdir/test.txt").exists());
     }
 }

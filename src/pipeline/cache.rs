@@ -19,7 +19,7 @@ pub enum CacheError {
 
 /// DDM metadata format (v3), matching the Python DynamicDDSCache.
 /// Stored as a JSON sidecar file alongside each cached DDS.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct DdsCacheMetadata {
     /// Schema version (always 3)
     pub v: u32,
@@ -119,6 +119,10 @@ impl DdsCache {
     /// Number of entries in the cache index.
     pub fn entry_count(&self) -> usize {
         self.index.len()
+    }
+
+    pub fn cache_dir(&self) -> &PathBuf {
+        &self.cache_dir
     }
 
     /// Remove all cached `.dds.zst` and `.ddm` files and reset the index.

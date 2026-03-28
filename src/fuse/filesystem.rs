@@ -4,17 +4,20 @@
 //! FUSE mount and any other access method (e.g., direct API for testing).
 //! It handles path parsing, DDS generation, caching, and directory structure.
 
+use crate::config::FallbackConfig;
 use crate::fuse::{DdsPathParser, FuseError, MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
 use crate::pipeline::cache::{DdsCache, DdsCacheMetadata};
 use crate::pipeline::dds::DdsFormat;
 use crate::tiles::assembler::{AssemblyConfig, AssemblyResult, assemble_tile};
 use crate::tiles::coords::TileCoords;
+use crate::tiles::fallback::FallbackSystem;
 use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::zoom::ChunkGrid;
 use crate::webui::custommap::CustomMapStore;
+use lru::LruCache;
 use log::{debug, warn};
-use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
+use std::num::NonZero;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -27,8 +30,9 @@ pub struct DdsFileSystem {
     parser: DdsPathParser,
     fetcher: Arc<TileFetcher>,
     format: DdsFormat,
-    /// In-memory cache of generated DDS tiles (tile_key → DDS bytes)
-    dds_cache: Mutex<HashMap<String, Arc<Vec<u8>>>>,
+    /// In-memory LRU cache of generated DDS tiles (tile_key → DDS bytes)
+    /// Bounded by max_entries to prevent memory exhaustion
+    dds_cache: Mutex<LruCache<String, Arc<Vec<u8>>>>,
     /// Persistent disk cache for DDS tiles (compressed with zstd)
     disk_cache: Option<Arc<std::sync::Mutex<DdsCache>>>,
     /// Scenery root directory (for pass-through of real files)
@@ -40,6 +44,12 @@ pub struct DdsFileSystem {
     custom_map: Option<Arc<CustomMapStore>>,
     /// Default provider from config (fallback when no custom map override)
     default_provider: String,
+    /// Fallback system for missing tiles
+    fallback: Option<Arc<FallbackSystem>>,
+    /// Cache statistics
+    cache_hits: AtomicU64,
+    cache_misses: AtomicU64,
+    cache_evictions: AtomicU64,
 }
 
 impl DdsFileSystem {
@@ -48,12 +58,39 @@ impl DdsFileSystem {
             parser: DdsPathParser::new(),
             fetcher,
             format: DdsFormat::BC3,
-            dds_cache: Mutex::new(HashMap::new()),
+            dds_cache: Mutex::new(LruCache::new(NonZero::new(256).unwrap())),
             disk_cache: None,
             root: None,
             night_exclusion: Arc::new(AtomicBool::new(false)),
             custom_map: None,
             default_provider: provider_id.to_string(),
+            fallback: None,
+            cache_hits: AtomicU64::new(0),
+            cache_misses: AtomicU64::new(0),
+            cache_evictions: AtomicU64::new(0),
+        }
+    }
+
+    /// Create with a specific in-memory cache size (number of tiles).
+    pub fn with_cache_size(
+        fetcher: Arc<TileFetcher>,
+        provider_id: &str,
+        cache_entries: usize,
+    ) -> Self {
+        Self {
+            parser: DdsPathParser::new(),
+            fetcher,
+            format: DdsFormat::BC3,
+            dds_cache: Mutex::new(LruCache::new(NonZero::new(cache_entries.max(1)).unwrap())),
+            disk_cache: None,
+            root: None,
+            night_exclusion: Arc::new(AtomicBool::new(false)),
+            custom_map: None,
+            default_provider: provider_id.to_string(),
+            fallback: None,
+            cache_hits: AtomicU64::new(0),
+            cache_misses: AtomicU64::new(0),
+            cache_evictions: AtomicU64::new(0),
         }
     }
 
@@ -67,12 +104,16 @@ impl DdsFileSystem {
             parser: DdsPathParser::new(),
             fetcher,
             format: DdsFormat::BC3,
-            dds_cache: Mutex::new(HashMap::new()),
+            dds_cache: Mutex::new(LruCache::new(NonZero::new(256).unwrap())),
             disk_cache: None,
             root: Some(root),
             night_exclusion: Arc::new(AtomicBool::new(false)),
             custom_map: None,
             default_provider: provider_id.to_string(),
+            fallback: None,
+            cache_hits: AtomicU64::new(0),
+            cache_misses: AtomicU64::new(0),
+            cache_evictions: AtomicU64::new(0),
         }
     }
 
@@ -86,18 +127,37 @@ impl DdsFileSystem {
             parser: DdsPathParser::new(),
             fetcher,
             format: DdsFormat::BC3,
-            dds_cache: Mutex::new(HashMap::new()),
+            dds_cache: Mutex::new(LruCache::new(NonZero::new(256).unwrap())),
             disk_cache: Some(disk_cache),
             root: None,
             night_exclusion: Arc::new(AtomicBool::new(false)),
             custom_map: None,
             default_provider: provider_id.to_string(),
+            fallback: None,
+            cache_hits: AtomicU64::new(0),
+            cache_misses: AtomicU64::new(0),
+            cache_evictions: AtomicU64::new(0),
         }
     }
 
     /// Set the custom map store for per-cell provider overrides.
     pub fn set_custom_map(&mut self, custom_map: Arc<CustomMapStore>) {
         self.custom_map = Some(custom_map);
+    }
+
+    /// Set the fallback system for missing tiles.
+    pub fn set_fallback(&mut self, fallback: Arc<FallbackSystem>) {
+        self.fallback = Some(fallback);
+    }
+
+    /// Set the fallback system from configuration.
+    pub fn set_fallback_from_config(&mut self, disk_cache: &DdsCache, config: FallbackConfig) {
+        self.fallback = Some(Arc::new(FallbackSystem::from_dds_cache(disk_cache, config)));
+    }
+
+    /// Get a reference to the fallback system if available.
+    pub fn fallback_system(&self) -> Option<&Arc<FallbackSystem>> {
+        self.fallback.as_ref()
     }
 
     /// Create a new filesystem with custom map support.
@@ -110,12 +170,16 @@ impl DdsFileSystem {
             parser: DdsPathParser::new(),
             fetcher,
             format: DdsFormat::BC3,
-            dds_cache: Mutex::new(HashMap::new()),
+            dds_cache: Mutex::new(LruCache::new(NonZero::new(256).unwrap())),
             disk_cache: None,
             root: None,
             night_exclusion: Arc::new(AtomicBool::new(false)),
             custom_map: Some(custom_map),
             default_provider: provider_id.to_string(),
+            fallback: None,
+            cache_hits: AtomicU64::new(0),
+            cache_misses: AtomicU64::new(0),
+            cache_evictions: AtomicU64::new(0),
         }
     }
 
@@ -130,12 +194,16 @@ impl DdsFileSystem {
             parser: DdsPathParser::new(),
             fetcher,
             format: DdsFormat::BC3,
-            dds_cache: Mutex::new(HashMap::new()),
+            dds_cache: Mutex::new(LruCache::new(NonZero::new(256).unwrap())),
             disk_cache: None,
             root: Some(root),
             night_exclusion: Arc::new(AtomicBool::new(false)),
             custom_map: Some(custom_map),
             default_provider: provider_id.to_string(),
+            fallback: None,
+            cache_hits: AtomicU64::new(0),
+            cache_misses: AtomicU64::new(0),
+            cache_evictions: AtomicU64::new(0),
         }
     }
 
@@ -150,12 +218,44 @@ impl DdsFileSystem {
             parser: DdsPathParser::new(),
             fetcher,
             format: DdsFormat::BC3,
-            dds_cache: Mutex::new(HashMap::new()),
+            dds_cache: Mutex::new(LruCache::new(NonZero::new(256).unwrap())),
             disk_cache: Some(disk_cache),
             root: None,
             night_exclusion: Arc::new(AtomicBool::new(false)),
             custom_map: Some(custom_map),
             default_provider: provider_id.to_string(),
+            fallback: None,
+            cache_hits: AtomicU64::new(0),
+            cache_misses: AtomicU64::new(0),
+            cache_evictions: AtomicU64::new(0),
+        }
+    }
+
+    /// Create with a fallback system for missing tiles.
+    pub fn with_fallback(
+        fetcher: Arc<TileFetcher>,
+        disk_cache: Arc<std::sync::Mutex<DdsCache>>,
+        provider_id: &str,
+        fallback_config: FallbackConfig,
+    ) -> Self {
+        let fallback = Arc::new(FallbackSystem::new(
+            disk_cache.lock().unwrap().cache_dir().clone(),
+            fallback_config,
+        ));
+        Self {
+            parser: DdsPathParser::new(),
+            fetcher,
+            format: DdsFormat::BC3,
+            dds_cache: Mutex::new(LruCache::new(NonZero::new(256).unwrap())),
+            disk_cache: Some(disk_cache),
+            root: None,
+            night_exclusion: Arc::new(AtomicBool::new(false)),
+            custom_map: None,
+            default_provider: provider_id.to_string(),
+            fallback: Some(fallback),
+            cache_hits: AtomicU64::new(0),
+            cache_misses: AtomicU64::new(0),
+            cache_evictions: AtomicU64::new(0),
         }
     }
 
@@ -257,12 +357,16 @@ impl DdsFileSystem {
             .night_exclusion
             .load(std::sync::atomic::Ordering::Relaxed)
         {
-            let dds = crate::pipeline::dds::build_fallback_dds(
-                4096,
-                4096,
-                self.format,
-                [20, 25, 15], // dark green for night
-            );
+            let dds = if let Some(fb) = &self.fallback {
+                fb.solid_fallback(4096, self.format)
+            } else {
+                crate::pipeline::dds::build_fallback_dds(
+                    4096,
+                    4096,
+                    self.format,
+                    [20, 25, 15], // dark green for night
+                )
+            };
             return Ok(slice_range(&dds, offset, size));
         }
 
@@ -271,10 +375,12 @@ impl DdsFileSystem {
 
         // Check in-memory cache first
         {
-            let cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
+            let mut cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
             if let Some(dds) = cache.get(&tile_key) {
+                self.cache_hits.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 return Ok(slice_range(dds, offset, size));
             }
+            self.cache_misses.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
 
         // Check disk cache for requested zoom
@@ -285,7 +391,11 @@ impl DdsFileSystem {
             debug!("DDS disk cache hit: {}", tile_key);
             let arc = Arc::new(dds_data);
             let mut mem_cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
-            mem_cache.insert(tile_key, arc.clone());
+            let old_len = mem_cache.len();
+            mem_cache.push(tile_key, arc.clone());
+            if mem_cache.len() > old_len {
+                self.cache_evictions.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
             return Ok(slice_range(&arc, offset, size));
         }
 
@@ -302,16 +412,58 @@ impl DdsFileSystem {
                     );
                     let arc = Arc::new(dds_data);
                     let mut mem_cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
+                    let old_len = mem_cache.len();
                     // Store at the requested zoom key so future requests work
-                    mem_cache.insert(tile_key, arc.clone());
+                    mem_cache.push(tile_key, arc.clone());
+                    if mem_cache.len() > old_len {
+                        self.cache_evictions.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    }
                     return Ok(slice_range(&arc, offset, size));
                 }
             }
         }
 
+        // Try fallback (downserve) if configured and no cache hit
+        if let Some(fb) = &self.fallback
+            && let Some((fallback_data, fallback_zoom)) = fb.find_fallback(row, col, &maptype, zoom)
+        {
+            debug!(
+                "DDS fallback from zoom {} to {}: {}_{}_{}_{}",
+                fallback_zoom, zoom, row, col, maptype, zoom
+            );
+            let dds = fallback_data;
+            let arc = Arc::new(dds);
+            let mut mem_cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
+            let old_len = mem_cache.len();
+            mem_cache.push(tile_key, arc.clone());
+            if mem_cache.len() > old_len {
+                self.cache_evictions.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+            return Ok(slice_range(&arc, offset, size));
+        }
+
         // Not cached — generate the DDS tile
         let result = self.generate_tile(row, col, &maptype, zoom).await?;
         let dds_data = result.dds_data;
+
+        // Check if tile has missing chunks and fallback is configured
+        if result.chunks_failed > 0
+            && let Some(fb) = &self.fallback
+        {
+            debug!(
+                "Tile {}_{}_{}_{} has {} missing chunks, using fallback",
+                row, col, maptype, zoom, result.chunks_failed
+            );
+            let fallback_dds = fb.solid_fallback(4096, self.format);
+            let arc = Arc::new(fallback_dds);
+            let mut mem_cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
+            let old_len = mem_cache.len();
+            mem_cache.push(tile_key, arc.clone());
+            if mem_cache.len() > old_len {
+                self.cache_evictions.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+            return Ok(slice_range(&arc, offset, size));
+        }
 
         // Write to disk cache
         if let Some(ref dc) = self.disk_cache
@@ -351,11 +503,16 @@ impl DdsFileSystem {
             }
         }
 
-        // Cache it in memory
+        // Cache it in memory (LRU will evict oldest entries when full)
         let dds_arc = {
             let mut cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
+            let old_len = cache.len();
             let arc = Arc::new(dds_data);
-            cache.insert(tile_key, arc.clone());
+            cache.push(tile_key, arc.clone());
+            if cache.len() > old_len {
+                // An entry was evicted to make room
+                self.cache_evictions.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
             arc
         };
 
@@ -514,6 +671,25 @@ impl DdsFileSystem {
             .expect("dds cache mutex poisoned")
             .len()
     }
+
+    /// Get cache statistics.
+    pub fn cache_stats(&self) -> DdsCacheStats {
+        DdsCacheStats {
+            hits: self.cache_hits.load(std::sync::atomic::Ordering::Relaxed),
+            misses: self.cache_misses.load(std::sync::atomic::Ordering::Relaxed),
+            evictions: self.cache_evictions.load(std::sync::atomic::Ordering::Relaxed),
+            entries: self.cache_len(),
+        }
+    }
+}
+
+/// DDS cache statistics.
+#[derive(Debug, Clone, Default)]
+pub struct DdsCacheStats {
+    pub hits: u64,
+    pub misses: u64,
+    pub evictions: u64,
+    pub entries: usize,
 }
 
 /// Extract a byte range from a buffer, handling bounds correctly.

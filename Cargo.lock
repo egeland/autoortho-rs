@@ -428,6 +428,7 @@ dependencies = [
  "lru",
  "mockall",
  "open",
+ "parking_lot",
  "rayon",
  "regex",
  "reqwest",

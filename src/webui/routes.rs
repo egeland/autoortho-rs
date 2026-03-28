@@ -288,12 +288,10 @@ async fn custommap_maptypes() -> Json<Vec<&'static str>> {
     ])
 }
 
-async fn custommap_tiles(State(_state): State<Arc<WebState>>) -> Json<Vec<String>> {
+async fn custommap_tiles(State(state): State<Arc<WebState>>) -> Json<Vec<String>> {
     // Scan installed scenery for DSF files and extract lat/lon cell keys
-    let install_dir = crate::config::AutoOrthoConfig::load()
-        .scenery_install_dir()
-        .to_string_lossy()
-        .into_owned();
+    let install_dir = state.config.read().scenery_install_dir();
+    let install_dir = install_dir.to_string_lossy().into_owned();
     let tiles = scan_dsf_tiles(&install_dir);
     Json(tiles)
 }
@@ -417,9 +415,8 @@ struct CachedTile {
     lon_e: f64,
 }
 
-async fn cache_tiles() -> Json<Vec<CachedTile>> {
-    let config = crate::config::AutoOrthoConfig::load();
-
+async fn cache_tiles(State(state): State<Arc<WebState>>) -> Json<Vec<CachedTile>> {
+    let config = state.config.read();
     let cache_dir = std::path::PathBuf::from(&config.cache_dir).join("dds");
     if !cache_dir.exists() {
         return Json(vec![]);
@@ -513,9 +510,8 @@ struct CacheStats {
     size_bytes: u64,
 }
 
-async fn cache_stats() -> Json<CacheStats> {
-    let config = crate::config::AutoOrthoConfig::load();
-
+async fn cache_stats(State(state): State<Arc<WebState>>) -> Json<CacheStats> {
+    let config = state.config.read();
     let cache_dir = std::path::PathBuf::from(&config.cache_dir).join("dds");
     if !cache_dir.exists() {
         return Json(CacheStats {
@@ -579,6 +575,7 @@ mod tests {
             stats: Arc::new(StatsStore::new()),
             tracker: Arc::new(DatarefTracker::new()),
             custom_map: CustomMapStore::load(tmp),
+            config: Arc::new(parking_lot::RwLock::new(crate::config::AutoOrthoConfig::default())),
         })
     }
 

@@ -1,7 +1,7 @@
 use crate::tiles::provider;
 use crate::tiles::provider::PROVIDER_IDS;
-use crate::ui::Message;
 use crate::ui::state::AppState;
+use crate::ui::Message;
 use iced::widget::{
     button, column, container, image as iced_image, pick_list, row, rule, scrollable, slider,
     space, text, text_input,
@@ -90,6 +90,104 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         space::vertical().height(0).into()
     };
 
+    // --- Fallback Test Section ---
+    let fallback_button = if state.test_fallback_running {
+        button(text("Testing...").size(14)).padding([10, 24])
+    } else {
+        button(text("Test Fallback Lookup").size(14))
+            .padding([10, 24])
+            .on_press(Message::TestFallbackLookup)
+    };
+
+    let fallback_result_section: Element<'_, Message> =
+        if let Some(ref result) = state.test_fallback_result {
+            let (found_color, found_text) = if result.found {
+                (iced::Color::from_rgb(0.0, 0.5, 0.0), "Found")
+            } else {
+                (iced::Color::from_rgb(0.8, 0.3, 0.3), "Not Found")
+            };
+
+            let zoom_row: Element<'_, Message> = if let Some(fb_zoom) = result.fallback_zoom {
+                row![
+                    text("Fallback Zoom:").width(Length::Fixed(120.0)),
+                    text(format!(
+                        "{} (requested: {})",
+                        fb_zoom, result.requested_zoom
+                    ))
+                    .size(13),
+                ]
+                .spacing(8)
+                .into()
+            } else {
+                space::vertical().height(0).into()
+            };
+
+            column![
+                space::vertical().height(8),
+                text("Test Results").size(16),
+                rule::horizontal(1),
+                row![
+                    text("Tile:").width(Length::Fixed(120.0)),
+                    text(&result.tile_key).size(13),
+                ]
+                .spacing(8),
+                row![
+                    text("Status:").width(Length::Fixed(120.0)),
+                    text(found_text).size(13).color(found_color),
+                ]
+                .spacing(8),
+                zoom_row,
+                row![
+                    text("Message:").width(Length::Fixed(120.0)),
+                    text(&result.message).size(13),
+                ]
+                .spacing(8),
+            ]
+            .spacing(4)
+            .into()
+        } else {
+            space::vertical().height(0).into()
+        };
+
+    let fallback_config_info = column![
+        text("Current Fallback Settings").size(16),
+        rule::horizontal(1),
+        row![
+            text("Level:").width(Length::Fixed(120.0)),
+            text(format!("{:?}", state.config.fallback.level)).size(13),
+        ]
+        .spacing(8),
+        row![
+            text("Max Zoom Gap:").width(Length::Fixed(120.0)),
+            text(state.config.fallback.max_zoom_gap.to_string()).size(13),
+        ]
+        .spacing(8),
+        row![
+            text("Cache Fallback:").width(Length::Fixed(120.0)),
+            text(if state.config.fallback.cache_fallback {
+                "Enabled"
+            } else {
+                "Disabled"
+            })
+            .size(13),
+        ]
+        .spacing(8),
+    ]
+    .spacing(4);
+
+    let fallback_section = column![
+        space::vertical().height(16),
+        text("Test Fallback System").size(18),
+        rule::horizontal(1),
+        text("Test if the fallback system finds cached tiles at lower zoom levels.").size(13),
+        space::vertical().height(8),
+        fallback_config_info,
+        space::vertical().height(8),
+        fallback_button,
+        fallback_result_section,
+    ]
+    .spacing(6);
+
     // --- Presets ---
     let presets = column![
         space::vertical().height(12),
@@ -127,6 +225,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         space::vertical().height(4),
         status_text,
         preview,
+        fallback_section,
         presets,
         notes,
     ]

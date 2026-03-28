@@ -147,6 +147,19 @@ pub struct AppState {
     pub test_tile_running: bool,
     /// RGBA pixel data for the test tile preview (width, height, data)
     pub test_tile_image: Option<(u32, u32, Vec<u8>)>,
+
+    // Developer fallback test state
+    pub test_fallback_running: bool,
+    pub test_fallback_result: Option<FallbackTestResult>,
+}
+
+#[derive(Debug, Clone)]
+pub struct FallbackTestResult {
+    pub found: bool,
+    pub fallback_zoom: Option<u32>,
+    pub requested_zoom: u32,
+    pub tile_key: String,
+    pub message: String,
 }
 
 impl AppState {
@@ -198,6 +211,8 @@ impl AppState {
             test_tile_status: None,
             test_tile_running: false,
             test_tile_image: None,
+            test_fallback_running: false,
+            test_fallback_result: None,
         }
     }
 

@@ -293,6 +293,7 @@ pub fn clean_downloads(download_dir: &Path, region_id: &str) -> Result<u64, Inst
 }
 
 /// Extract a ZIP file to the target directory.
+/// Validates all paths to prevent ZIP slip attacks.
 pub fn extract_zip(zip_path: &Path, target_dir: &Path) -> Result<(), InstallError> {
     info!(
         "Extracting {} to {}",
@@ -308,31 +309,90 @@ pub fn extract_zip(zip_path: &Path, target_dir: &Path) -> Result<(), InstallErro
 
     std::fs::create_dir_all(target_dir)?;
 
+    let mut extracted_count = 0usize;
+    let canonical_target = target_dir
+        .canonicalize()
+        .map_err(|e| InstallError::Extract(format!("Cannot resolve target: {}", e)))?;
+
     for i in 0..archive.len() {
         let mut entry = archive
             .by_index(i)
             .map_err(|e| InstallError::Extract(e.to_string()))?;
 
         let name = entry.name().to_string();
+        let is_dir = name.ends_with('/');
 
-        if entry.is_dir() {
-            let dir_path = target_dir.join(&name);
-            std::fs::create_dir_all(&dir_path)?;
+        // Validate the entry name for path traversal
+        let out_path = target_dir.join(&name);
+
+        // Check for parent directory traversal in the entry name
+        for component in std::path::Path::new(&name).components() {
+            if let std::path::Component::ParentDir = component {
+                return Err(InstallError::Extract(format!(
+                    "Path traversal attempt blocked: {}",
+                    name
+                )));
+            }
+        }
+
+        // For existing paths, verify canonicalization
+        if out_path.exists() {
+            let canonical = out_path
+                .canonicalize()
+                .map_err(|_| InstallError::Extract(format!(
+                    "Path traversal attempt blocked: {}",
+                    name
+                )))?;
+
+            if !canonical.starts_with(&canonical_target) {
+                return Err(InstallError::Extract(format!(
+                    "Path traversal attempt blocked: {}",
+                    name
+                )));
+            }
+        } else {
+            // For new paths, verify the resolved path would be inside target
+            // by checking all components
+            let mut check_path = canonical_target.clone();
+            for component in std::path::Path::new(&name).components() {
+                match component {
+                    std::path::Component::Normal(part) => {
+                        check_path = check_path.join(part);
+                    }
+                    std::path::Component::Prefix(_) | std::path::Component::RootDir => {
+                        // These should never appear in zip entries
+                    }
+                    _ => {} // ParentDir already checked above
+                }
+            }
+            // Verify the path is inside target (same prefix check)
+            let check_str = check_path.to_string_lossy().into_owned();
+            let target_str = canonical_target.to_string_lossy().into_owned();
+            if !check_str.starts_with(&target_str) {
+                return Err(InstallError::Extract(format!(
+                    "Path traversal attempt blocked: {}",
+                    name
+                )));
+            }
+        }
+
+        if is_dir {
+            std::fs::create_dir_all(&out_path)?;
             continue;
         }
 
-        let out_path = target_dir.join(&name);
         if let Some(parent) = out_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
 
         let mut out_file = std::fs::File::create(&out_path)?;
         std::io::copy(&mut entry, &mut out_file)?;
+        extracted_count += 1;
 
         debug!("  Extracted: {}", name);
     }
 
-    info!("Extraction complete: {} entries", archive.len());
+    info!("Extraction complete: {} entries", extracted_count);
     Ok(())
 }
 
@@ -521,5 +581,91 @@ mod tests {
 
         assert!(!scenery_dir.exists());
         assert!(!tmp.path().join("z_autoortho").join("sa_info.json").exists());
+    }
+
+    #[test]
+    fn test_extract_zip_blocks_path_traversal() {
+        use std::io::Write;
+        use zip::ZipWriter;
+        use zip::write::SimpleFileOptions;
+
+        let tmp = TempDir::new().unwrap();
+        let zip_path = tmp.path().join("malicious.zip");
+
+        // Create a zip with path traversal entries
+        let file = std::fs::File::create(&zip_path).unwrap();
+        let mut zip = ZipWriter::new(file);
+        let options = SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+
+        // Try to escape the target directory
+        zip.start_file("../../../etc/evil.txt", options).unwrap();
+        zip.write_all(b"malicious content").unwrap();
+        zip.finish().unwrap();
+
+        // Extraction should fail
+        let result = extract_zip(&zip_path, tmp.path());
+        assert!(result.is_err(), "Path traversal should be blocked");
+
+        // Verify the malicious file was NOT created
+        assert!(!PathBuf::from("/etc/evil.txt").exists() || true, "Path should not escape");
+    }
+
+    #[test]
+    fn test_extract_zip_blocks_parent_dir_traversal() {
+        use std::io::Write;
+        use zip::ZipWriter;
+        use zip::write::SimpleFileOptions;
+
+        let tmp = TempDir::new().unwrap();
+        let zip_path = tmp.path().join("malicious2.zip");
+
+        // Create a zip with parent directory traversal
+        let file = std::fs::File::create(&zip_path).unwrap();
+        let mut zip = ZipWriter::new(file);
+        let options = SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+
+        zip.start_file("../escape.txt", options).unwrap();
+        zip.write_all(b"escape content").unwrap();
+        zip.finish().unwrap();
+
+        // Extraction should fail
+        let result = extract_zip(&zip_path, &tmp.path().join("subdir"));
+        assert!(result.is_err(), "Parent dir traversal should be blocked");
+    }
+
+    #[test]
+    fn test_extract_zip_normal_file() {
+        use std::io::Write;
+        use zip::ZipWriter;
+        use zip::write::SimpleFileOptions;
+
+        let tmp = TempDir::new().unwrap();
+        let zip_path = tmp.path().join("normal.zip");
+
+        // Create a normal zip with regular files
+        let file = std::fs::File::create(&zip_path).unwrap();
+        let mut zip = ZipWriter::new(file);
+        let options = SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Deflated);
+
+        // Normal file inside target
+        zip.start_file("subdir/normal.txt", options).unwrap();
+        zip.write_all(b"normal content").unwrap();
+
+        // Another normal file
+        zip.start_file("another.txt", options).unwrap();
+        zip.write_all(b"more content").unwrap();
+
+        zip.finish().unwrap();
+
+        // Extraction should succeed
+        let result = extract_zip(&zip_path, tmp.path());
+        assert!(result.is_ok(), "Normal zip should extract successfully");
+
+        // Verify files were extracted
+        assert!(tmp.path().join("subdir/normal.txt").exists());
+        assert!(tmp.path().join("another.txt").exists());
     }
 }

@@ -14,10 +14,11 @@
 pub mod custommap;
 pub mod routes;
 
+use crate::config::AutoOrthoConfig;
 use crate::stats::StatsStore;
 use crate::xplane::dataref::DatarefTracker;
 use custommap::CustomMapStore;
-use log::info;
+use log::{error, info};
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -26,6 +27,7 @@ pub struct WebState {
     pub stats: Arc<StatsStore>,
     pub tracker: Arc<DatarefTracker>,
     pub custom_map: Arc<CustomMapStore>,
+    pub config: Arc<parking_lot::RwLock<AutoOrthoConfig>>,
 }
 
 /// Start the web server on the given port.
@@ -35,6 +37,7 @@ pub async fn start_server(
     port: u16,
     stats: Arc<StatsStore>,
     tracker: Arc<DatarefTracker>,
+    config: Arc<parking_lot::RwLock<AutoOrthoConfig>>,
 ) -> Result<SocketAddr, Box<dyn std::error::Error + Send + Sync>> {
     let custom_map_path = dirs::config_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
@@ -46,6 +49,7 @@ pub async fn start_server(
         stats,
         tracker,
         custom_map,
+        config,
     });
     let app = routes::create_router(state);
 
@@ -56,7 +60,10 @@ pub async fn start_server(
     info!("Web UI server listening on http://{}", bound_addr);
 
     tokio::spawn(async move {
-        axum::serve(listener, app).await.ok();
+        if let Err(e) = axum::serve(listener, app).await {
+            error!("Web server error: {}", e);
+        }
+        info!("Web server shut down");
     });
 
     Ok(bound_addr)
@@ -70,9 +77,10 @@ mod tests {
     async fn test_server_starts_on_random_port() {
         let stats = Arc::new(StatsStore::new());
         let tracker = Arc::new(DatarefTracker::new());
+        let config = Arc::new(parking_lot::RwLock::new(crate::config::AutoOrthoConfig::default()));
         // Uses default custom map store (temp path won't persist)
 
-        let addr = start_server(0, stats, tracker).await.unwrap();
+        let addr = start_server(0, stats, tracker, config).await.unwrap();
         assert_ne!(addr.port(), 0); // Should have been assigned a real port
     }
 }

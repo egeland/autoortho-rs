@@ -258,7 +258,14 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     let custom_map = CustomMapStore::load(custom_map_path);
     info!("Custom map: {} cells defined", custom_map.get_cells().len());
 
-    let fetcher = Arc::new(TileFetcher::new(provider));
+    let chunk_cache_entries = config.chunk_memory_cache_entries();
+    let dds_cache_entries = config.dds_memory_cache_entries();
+    info!(
+        "Memory cache: {} chunk entries, {} DDS tile entries",
+        chunk_cache_entries, dds_cache_entries
+    );
+
+    let fetcher = Arc::new(TileFetcher::with_cache_size(provider, chunk_cache_entries));
 
     let dds_cache = if config.enable_dds_cache {
         let cache_dir = PathBuf::from(&config.cache_dir).join("dds");
@@ -302,11 +309,12 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     // Start web server
     let stats = Arc::new(StatsStore::new());
     let tracker = Arc::new(DatarefTracker::new());
+    let web_config = Arc::new(parking_lot::RwLock::new(config.clone()));
 
     // Shutdown channel for graceful termination of background tasks
     let (shutdown_tx, _) = broadcast::channel(1);
 
-    let addr = autoortho_lib::webui::start_server(5847, stats.clone(), tracker.clone())
+    let addr = autoortho_lib::webui::start_server(5847, stats.clone(), tracker.clone(), web_config.clone())
         .await
         .map_err(|e| format!("Web server error: {}", e))?;
     info!("Web UI at http://{}", addr);
@@ -540,7 +548,14 @@ async fn run_server() -> Result<(), Box<dyn Error>> {
     let custom_map = CustomMapStore::load(custom_map_path);
     info!("Custom map: {} cells defined", custom_map.get_cells().len());
 
-    let fetcher = Arc::new(TileFetcher::new(provider));
+    let chunk_cache_entries = config.chunk_memory_cache_entries();
+    let dds_cache_entries = config.dds_memory_cache_entries();
+    info!(
+        "Memory cache: {} chunk entries, {} DDS tile entries",
+        chunk_cache_entries, dds_cache_entries
+    );
+
+    let fetcher = Arc::new(TileFetcher::with_cache_size(provider, chunk_cache_entries));
 
     let dds_cache = if config.enable_dds_cache {
         let cache_dir = PathBuf::from(&config.cache_dir).join("dds");
@@ -579,7 +594,8 @@ async fn run_server() -> Result<(), Box<dyn Error>> {
 
     let stats = Arc::new(StatsStore::new());
     let tracker = Arc::new(DatarefTracker::new());
-    let addr = autoortho_lib::webui::start_server(5847, stats, tracker)
+    let web_config = Arc::new(parking_lot::RwLock::new(config.clone()));
+    let addr = autoortho_lib::webui::start_server(5847, stats, tracker, web_config)
         .await
         .map_err(|e| format!("Web server error: {}", e))?;
     info!("Web UI at http://{}", addr);

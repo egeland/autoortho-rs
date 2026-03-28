@@ -1,8 +1,8 @@
-use crate::config::Season;
+use crate::config::{FallbackLevel, Season};
 use crate::dynamic_zoom::DynamicZoom;
 use crate::tiles::provider::{PROVIDER_IDS, PROVIDER_INFO};
-use crate::ui::Message;
 use crate::ui::state::AppState;
+use crate::ui::Message;
 use iced::widget::{
     button, column, container, pick_list, row, rule, slider, space, text, text_input, tooltip,
 };
@@ -16,6 +16,14 @@ const SEASONS: &[Season] = &[
     Season::Winter,
 ];
 const SEASON_LABELS: &[&str] = &["Disabled", "Spring", "Summer", "Autumn", "Winter"];
+
+const FALLBACK_LEVELS: &[FallbackLevel] = &[
+    FallbackLevel::Cache,
+    FallbackLevel::Downserve,
+    FallbackLevel::Network,
+    FallbackLevel::Solid,
+];
+const FALLBACK_LABELS: &[&str] = &["Cache", "Downserve", "Network", "Solid"];
 
 /// Settings screen — full configuration management
 pub fn view(state: &AppState) -> Element<'_, Message> {
@@ -413,6 +421,50 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         ]
         .spacing(12)
         .align_y(iced::Alignment::Center),
+        rule::horizontal(1),
+        row![text(format!(
+            "Memory: DDS {} MB, Chunks {} MB",
+            state.config.dds_memory_cache_mb, state.config.chunk_memory_cache_mb
+        ))]
+        .spacing(12),
+        tooltip(
+            row![
+                text("DDS Memory:").width(Length::Fixed(100.0)),
+                slider(64u32..=2048, state.config.dds_memory_cache_mb as u32, |v| {
+                    Message::SetDdsMemoryCacheMb(v as u64)
+                })
+                .width(Length::Fixed(150.0)),
+                text(format!("{} MB", state.config.dds_memory_cache_mb))
+                    .width(Length::Fixed(60.0))
+                    .size(12),
+            ]
+            .spacing(12)
+            .align_y(iced::Alignment::Center),
+            container(text("Max memory for cached DDS tiles (4096x4096 compressed). Higher values improve performance when revisiting areas. Takes effect on restart.").size(12))
+                .padding(8)
+                .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
+        tooltip(
+            row![
+                text("Chunk Memory:").width(Length::Fixed(100.0)),
+                slider(
+                    128u32..=4096,
+                    state.config.chunk_memory_cache_mb as u32,
+                    |v| { Message::SetChunkMemoryCacheMb(v as u64) }
+                )
+                .width(Length::Fixed(150.0)),
+                text(format!("{} MB", state.config.chunk_memory_cache_mb))
+                    .width(Length::Fixed(60.0))
+                    .size(12),
+            ]
+            .spacing(12)
+            .align_y(iced::Alignment::Center),
+            container(text("Max memory for cached JPEG chunks (256x256 tiles). Higher values reduce network requests. Takes effect on restart.").size(12))
+                .padding(8)
+                .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
     ]
     .spacing(8);
 
@@ -532,6 +584,97 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .spacing(8);
 
+    // -- Fallback section --
+    let fallback_level_index = match state.config.fallback.level {
+        FallbackLevel::Cache => 0,
+        FallbackLevel::Downserve => 1,
+        FallbackLevel::Network => 2,
+        FallbackLevel::Solid => 3,
+    };
+    let fallback = column![
+        text("Fallback").size(18),
+        rule::horizontal(1),
+        tooltip(
+            row![
+                text("Fallback Level:").width(Length::Fixed(160.0)),
+                pick_list(
+                    FALLBACK_LABELS,
+                    Some(FALLBACK_LABELS[fallback_level_index]),
+                    |s: &str| {
+                        let idx = FALLBACK_LABELS.iter().position(|&x| x == s).unwrap_or(0);
+                        Message::SetFallbackLevel(FALLBACK_LEVELS[idx])
+                    },
+                )
+                .width(Length::Fixed(120.0)),
+            ]
+            .spacing(12)
+            .align_y(iced::Alignment::Center),
+            container(
+                text("Cache: Use lower-zoom cached tiles. Downserve: Scale from lower-res tile. Network: Download on-demand. Solid: Solid color fallback.")
+                    .size(12),
+            )
+            .padding(8)
+            .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
+        tooltip(
+            row![
+                text(format!(
+                    "Max Zoom Gap: {}",
+                    state.config.fallback.max_zoom_gap
+                ))
+                .width(Length::Fixed(260.0)),
+                slider(
+                    1u32..=8,
+                    state.config.fallback.max_zoom_gap,
+                    Message::SetFallbackMaxZoomGap
+                )
+                .width(Length::Fixed(200.0)),
+            ]
+            .spacing(12)
+            .align_y(iced::Alignment::Center),
+            container(
+                text("Maximum zoom levels to downserve when using cache fallback. Higher values allow more aggressive fallback but lower quality.")
+                    .size(12),
+            )
+            .padding(8)
+            .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
+        tooltip(
+            row![
+                text("Cache Fallback:").width(Length::Fixed(160.0)),
+                button(
+                    text(if state.config.fallback.cache_fallback {
+                        "Enabled"
+                    } else {
+                        "Disabled"
+                    })
+                    .size(14)
+                )
+                .padding([6, 16])
+                .style(if state.config.fallback.cache_fallback {
+                    button::success
+                } else {
+                    button::secondary
+                })
+                .on_press(Message::SetFallbackCacheEnabled(
+                    !state.config.fallback.cache_fallback
+                )),
+            ]
+            .spacing(12)
+            .align_y(iced::Alignment::Center),
+            container(
+                text("Check disk cache for lower-zoom tiles before generating. Reduces network requests for areas with partial coverage.")
+                    .size(12),
+            )
+            .padding(8)
+            .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
+    ]
+    .spacing(8);
+
     // -- UI section --
     // Scale slider: 50% to 150%, stored as f64 (0.5 to 1.5)
     // Slider works with integers, so we use 50..150 and divide by 100
@@ -593,6 +736,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         advanced,
         space::vertical().height(16),
         seasonal,
+        space::vertical().height(16),
+        fallback,
         space::vertical().height(16),
         ui_section,
         space::vertical().height(16),

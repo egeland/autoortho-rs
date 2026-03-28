@@ -16,6 +16,36 @@ pub enum Season {
     Winter,
 }
 
+/// Fallback level for missing tiles
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum FallbackLevel {
+    #[default]
+    Cache, // Check disk cache for lower-zoom tiles
+    Downserve, // Scale from lower-resolution tile
+    Network,   // Download on-demand
+    Solid,     // Solid color fallback
+}
+
+/// Fallback configuration for missing tiles
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FallbackConfig {
+    pub level: FallbackLevel,
+    pub max_zoom_gap: u32,
+    pub solid_color: [u8; 3],
+    pub cache_fallback: bool,
+}
+
+impl Default for FallbackConfig {
+    fn default() -> Self {
+        Self {
+            level: FallbackLevel::Cache,
+            max_zoom_gap: 4,
+            solid_color: [20, 25, 15],
+            cache_fallback: true,
+        }
+    }
+}
+
 /// A zoom rule: at or above this AGL altitude, use this zoom level.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct ZoomRule {
@@ -84,6 +114,10 @@ pub struct AutoOrthoConfig {
     pub enable_dynamic_zoom: bool,
     #[serde(default = "default_zoom_rules")]
     pub zoom_rules: Vec<ZoomRule>,
+    #[serde(default = "default_dds_memory_cache_mb")]
+    pub dds_memory_cache_mb: u64,
+    #[serde(default = "default_chunk_memory_cache_mb")]
+    pub chunk_memory_cache_mb: u64,
     #[serde(default)]
     pub season: Season,
     #[serde(default = "default_spring_saturation")]
@@ -94,6 +128,8 @@ pub struct AutoOrthoConfig {
     pub autumn_saturation: f32,
     #[serde(default = "default_winter_saturation")]
     pub winter_saturation: f32,
+    #[serde(default)]
+    pub fallback: FallbackConfig,
 }
 
 fn default_ui_scale() -> f64 {
@@ -150,6 +186,32 @@ fn default_winter_saturation() -> f32 {
 
 fn default_near_airport_zoom() -> u32 {
     19
+}
+
+fn default_dds_memory_cache_mb() -> u64 {
+    256
+}
+
+fn default_chunk_memory_cache_mb() -> u64 {
+    512
+}
+
+impl AutoOrthoConfig {
+    /// Estimated memory per DDS tile in MB (4096x4096 BC3 compressed).
+    const DDS_TILE_SIZE_MB: u64 = 22;
+
+    /// Estimated memory per chunk in KB (256x256 JPEG).
+    const CHUNK_SIZE_KB: u64 = 30;
+
+    /// Calculate the number of DDS tiles that fit in the configured memory.
+    pub fn dds_memory_cache_entries(&self) -> usize {
+        ((self.dds_memory_cache_mb / Self::DDS_TILE_SIZE_MB).max(1)) as usize
+    }
+
+    /// Calculate the number of chunks that fit in the configured memory.
+    pub fn chunk_memory_cache_entries(&self) -> usize {
+        ((self.chunk_memory_cache_mb * 1024 / Self::CHUNK_SIZE_KB).max(1)) as usize
+    }
 }
 
 fn default_enable_dynamic_zoom() -> bool {
@@ -215,11 +277,14 @@ impl Default for AutoOrthoConfig {
             near_airport_zoom: 19,
             enable_dynamic_zoom: true,
             zoom_rules: default_zoom_rules(),
+            dds_memory_cache_mb: default_dds_memory_cache_mb(),
+            chunk_memory_cache_mb: default_chunk_memory_cache_mb(),
             season: Season::Disabled,
             spring_saturation: 0.70,
             summer_saturation: 1.0,
             autumn_saturation: 0.80,
             winter_saturation: 0.55,
+            fallback: FallbackConfig::default(),
         }
     }
 }

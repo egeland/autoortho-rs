@@ -4,6 +4,7 @@
 pub mod assembler;
 pub mod chunk;
 pub mod coords;
+pub mod fallback;
 pub mod fetcher;
 pub mod prefetch;
 pub mod provider;

@@ -94,6 +94,8 @@ pub enum Message {
     FetchTestTile,
     TestTileComplete(String, Option<(u32, u32, Vec<u8>)>), // status, image RGBA
     TestTileFailed(String),
+    TestFallbackLookup,
+    FallbackTestComplete(Option<crate::ui::state::FallbackTestResult>),
 
     // Folder pickers
     BrowseXPlanePath,
@@ -113,6 +115,8 @@ pub enum Message {
     SetDdsCacheSizeMb(u64),
     SetEnableDdsCache(bool),
     ClearDdsCache,
+    SetDdsMemoryCacheMb(u64),
+    SetChunkMemoryCacheMb(u64),
 
     // Night exclusion
     SetEnableNightExclusion(bool),
@@ -125,6 +129,11 @@ pub enum Message {
     SetSummerSaturation(u32),
     SetAutumnSaturation(u32),
     SetWinterSaturation(u32),
+
+    // Fallback settings
+    SetFallbackLevel(crate::config::FallbackLevel),
+    SetFallbackMaxZoomGap(u32),
+    SetFallbackCacheEnabled(bool),
 
     // SimBrief
     SetSimbriefUserId(String),
@@ -302,6 +311,12 @@ impl AutoOrthoApp {
             Message::SetEnableDdsCache(enabled) => {
                 self.state.config.enable_dds_cache = enabled;
             }
+            Message::SetDdsMemoryCacheMb(mb) => {
+                self.state.config.dds_memory_cache_mb = mb;
+            }
+            Message::SetChunkMemoryCacheMb(mb) => {
+                self.state.config.chunk_memory_cache_mb = mb;
+            }
             Message::SetEnableNightExclusion(v) => {
                 self.state.config.enable_night_exclusion = v;
             }
@@ -325,6 +340,15 @@ impl AutoOrthoApp {
             }
             Message::SetWinterSaturation(v) => {
                 self.state.config.winter_saturation = (v as f32) / 100.0;
+            }
+            Message::SetFallbackLevel(level) => {
+                self.state.config.fallback.level = level;
+            }
+            Message::SetFallbackMaxZoomGap(gap) => {
+                self.state.config.fallback.max_zoom_gap = gap;
+            }
+            Message::SetFallbackCacheEnabled(enabled) => {
+                self.state.config.fallback.cache_fallback = enabled;
             }
             Message::ClearDdsCache => {
                 let cache_dir = std::path::PathBuf::from(&self.state.config.cache_dir).join("dds");
@@ -521,13 +545,14 @@ impl AutoOrthoApp {
 
                 let xplane_host = self.state.config.xplane_host.clone();
                 let xplane_port = self.state.config.xplane_port;
+                let config = self.state.config.clone();
 
                 let (result_tx, result_rx) = oneshot::channel();
                 let rt = self.runtime.clone();
 
                 rt.spawn(async move {
                     let result =
-                        start_all_services(5847, &xplane_host, xplane_port, shutdown_rx).await;
+                        start_all_services(5847, &xplane_host, xplane_port, config, shutdown_rx).await;
                     let _ = result_tx.send(result);
                 });
 
@@ -822,6 +847,31 @@ impl AutoOrthoApp {
                 self.state.test_tile_status = Some(format!("Error: {}", err));
                 self.state.test_tile_image = None;
             }
+            Message::TestFallbackLookup => {
+                self.state.test_fallback_running = true;
+                let lat = self.state.test_tile_lat.parse::<f64>().unwrap_or(-33.86);
+                let lon = self.state.test_tile_lon.parse::<f64>().unwrap_or(151.21);
+                let zoom = self.state.test_tile_zoom;
+                let cache_dir = std::path::PathBuf::from(&self.state.config.cache_dir);
+                let fallback_config = self.state.config.fallback.clone();
+
+                let (tx, rx) = oneshot::channel();
+                let rt = self.runtime.clone();
+
+                rt.spawn(async move {
+                    let result = test_fallback_lookup(lat, lon, zoom, &cache_dir, fallback_config).await;
+                    let _ = tx.send(result);
+                });
+
+                return Task::perform(
+                    async { rx.await.unwrap_or(None) },
+                    Message::FallbackTestComplete,
+                );
+            }
+            Message::FallbackTestComplete(result) => {
+                self.state.test_fallback_running = false;
+                self.state.test_fallback_result = result;
+            }
             Message::BrowseXPlanePath => {
                 return browse_folder("xplane_path", &self.state.config.xplane_path);
             }
@@ -924,7 +974,6 @@ impl AutoOrthoApp {
                 if let Some(tx) = self.shutdown_tx.take() {
                     let _ = tx.send(true);
                 }
-                std::process::exit(0);
             }
             Message::Tick => {
                 // Save config periodically when downloads are active (debounced window saves too)
@@ -952,7 +1001,6 @@ impl AutoOrthoApp {
                 if let Some(tx) = self.shutdown_tx.take() {
                     let _ = tx.send(true);
                 }
-                std::process::exit(0);
             }
         }
         Task::none()
@@ -1098,6 +1146,7 @@ async fn start_all_services(
     web_port: u16,
     xplane_host: &str,
     xplane_port: u16,
+    config: crate::config::AutoOrthoConfig,
     shutdown_rx: watch::Receiver<bool>,
 ) -> Result<String, String> {
     use crate::stats::StatsStore;
@@ -1106,9 +1155,10 @@ async fn start_all_services(
     // Shared state between web server and tracker
     let stats = Arc::new(StatsStore::new());
     let tracker = Arc::new(DatarefTracker::new());
+    let web_config = Arc::new(parking_lot::RwLock::new(config));
 
     // Start web server
-    let addr = crate::webui::start_server(web_port, stats.clone(), tracker.clone())
+    let addr = crate::webui::start_server(web_port, stats.clone(), tracker.clone(), web_config)
         .await
         .map_err(|e| e.to_string())?;
 
@@ -1252,6 +1302,41 @@ async fn fetch_test_tile(
     );
 
     Ok((msg, Some(preview_data)))
+}
+
+/// Test the fallback system for a given tile location.
+async fn test_fallback_lookup(
+    lat: f64,
+    lon: f64,
+    zoom: u32,
+    cache_dir: &std::path::Path,
+    fallback_config: crate::config::FallbackConfig,
+) -> Option<crate::ui::state::FallbackTestResult> {
+    use crate::tiles::coords::TileCoords;
+    use crate::tiles::fallback::FallbackSystem;
+
+    let (row, col) = TileCoords::latlng_to_tile(lat, lon, zoom).ok()?;
+    let maptype = "ARC";
+
+    let fb = FallbackSystem::new(cache_dir.to_path_buf(), fallback_config);
+
+    let result = fb.find_fallback(row, col, maptype, zoom);
+
+    Some(crate::ui::state::FallbackTestResult {
+        found: result.is_some(),
+        fallback_zoom: result.as_ref().map(|r| r.1),
+        requested_zoom: zoom,
+        tile_key: format!("{}_{}_{}_{}", row, col, maptype, zoom),
+        message: if let Some((_data, fb_zoom)) = result {
+            format!(
+                "Fallback found at zoom {} (gap: {})",
+                fb_zoom,
+                zoom.saturating_sub(fb_zoom)
+            )
+        } else {
+            "No fallback available".to_string()
+        },
+    })
 }
 
 /// Open a native folder picker dialog.
