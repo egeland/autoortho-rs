@@ -6,6 +6,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::Ordering;
+use std::sync::OnceLock;
 use tokio::sync::{oneshot, watch};
 
 use crate::tiles::provider;
@@ -20,6 +21,10 @@ static SAVED_WINDOW_GEOM: std::sync::Mutex<
 
 /// Whether saved geometry exists (checked by new() before GEOM is consumed)
 static HAS_SAVED_GEOM: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Shared Tokio runtime for the UI application.
+/// Set once in run() and retrieved by AutoOrthoApp::new().
+static RUNTIME: OnceLock<Arc<tokio::runtime::Runtime>> = OnceLock::new();
 
 /// Embedded FiraCode Nerd Font — includes thousands of icons + programming ligatures
 const FIRA_CODE_NERD: &[u8] = include_bytes!("../../assets/fonts/FiraCodeNerdFont-Regular.ttf");
@@ -41,7 +46,7 @@ use state::{AppState, Screen, ServiceStatus};
 /// Desktop UI application using iced (elm-inspired MVU architecture)
 pub struct AutoOrthoApp {
     state: AppState,
-    /// Dedicated tokio runtime for backend services
+    /// Tokio runtime handle for backend services (shared with main)
     runtime: Arc<tokio::runtime::Runtime>,
     /// Shutdown signal sender — drop or send true to stop services
     shutdown_tx: Option<watch::Sender<bool>>,
@@ -165,11 +170,14 @@ pub enum Message {
 
 impl AutoOrthoApp {
     fn new() -> Self {
-        let runtime = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
+        let runtime = RUNTIME
+            .get()
+            .expect("Runtime not set — call run() instead of constructing directly")
+            .clone();
         let has_saved_geom = HAS_SAVED_GEOM.load(std::sync::atomic::Ordering::Relaxed);
         Self {
             state: AppState::new(),
-            runtime: Arc::new(runtime),
+            runtime,
             shutdown_tx: None,
             window_events_locked_until: if has_saved_geom {
                 // Lock events for 2 seconds to let the restore settle
@@ -1507,8 +1515,13 @@ async fn download_and_install_region(
     ))
 }
 
-/// Run the desktop application
-pub fn run() -> iced::Result {
+/// Run the desktop application with a pre-created Tokio runtime.
+pub fn run(runtime: tokio::runtime::Runtime) -> iced::Result {
+    // Store the runtime globally for AutoOrthoApp::new() to retrieve
+    RUNTIME
+        .set(Arc::new(runtime))
+        .expect("Runtime already set — run() called twice");
+
     // Load saved window geometry from config
     let config = crate::config::AutoOrthoConfig::load();
 
@@ -1588,20 +1601,35 @@ fn boot() -> (AutoOrthoApp, Task<Message>) {
 mod tests {
     use super::*;
 
+    fn setup_test_runtime() {
+        use tokio::runtime::Builder;
+        RUNTIME.get_or_init(|| {
+            Arc::new(
+                Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .expect("Failed to create test runtime"),
+            )
+        });
+    }
+
     #[test]
     fn test_app_creation() {
+        setup_test_runtime();
         let app = AutoOrthoApp::new();
         assert_eq!(app.title(), "AutoOrtho - Satellite Imagery for X-Plane");
     }
 
     #[test]
     fn test_initial_screen_depends_on_config() {
+        setup_test_runtime();
         let app = AutoOrthoApp::new();
         assert_eq!(app.state.current_screen, Screen::Dashboard);
     }
 
     #[test]
     fn test_screen_navigation() {
+        setup_test_runtime();
         let mut app = AutoOrthoApp::new();
         let _ = app.update(Message::GoToScreen(Screen::SetupWizard));
         assert_eq!(app.state.current_screen, Screen::SetupWizard);
@@ -1609,6 +1637,7 @@ mod tests {
 
     #[test]
     fn test_config_update() {
+        setup_test_runtime();
         let mut app = AutoOrthoApp::new();
         let _ = app.update(Message::SetXPlanePath("/home/user/X-Plane 12".to_string()));
         assert_eq!(app.state.config.xplane_path, "/home/user/X-Plane 12");
@@ -1616,6 +1645,7 @@ mod tests {
 
     #[test]
     fn test_services_started() {
+        setup_test_runtime();
         let mut app = AutoOrthoApp::new();
         let _ = app.update(Message::ServicesStarted(
             "http://127.0.0.1:5847".to_string(),
@@ -1630,6 +1660,7 @@ mod tests {
 
     #[test]
     fn test_services_failed() {
+        setup_test_runtime();
         let mut app = AutoOrthoApp::new();
         let _ = app.update(Message::ServicesFailed("port in use".to_string()));
         assert_eq!(app.state.web_server, ServiceStatus::Error);
@@ -1638,6 +1669,7 @@ mod tests {
 
     #[test]
     fn test_stop_services() {
+        setup_test_runtime();
         let mut app = AutoOrthoApp::new();
         let _ = app.update(Message::ServicesStarted(
             "http://127.0.0.1:5847".to_string(),
@@ -1651,6 +1683,7 @@ mod tests {
 
     #[test]
     fn test_title_changes_when_running() {
+        setup_test_runtime();
         let mut app = AutoOrthoApp::new();
         assert!(!app.title().contains("[Running]"));
 
@@ -1662,6 +1695,7 @@ mod tests {
 
     #[test]
     fn test_stop_sends_shutdown() {
+        setup_test_runtime();
         let mut app = AutoOrthoApp::new();
         let (tx, rx) = watch::channel(false);
         app.shutdown_tx = Some(tx);

@@ -33,7 +33,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     if args.iter().any(|a| a == "--gui") {
         info!("Launching desktop UI");
-        autoortho_lib::ui::run().map_err(|e| format!("GUI error: {}", e))?;
+        let runtime = autoortho_lib::create_runtime();
+        autoortho_lib::ui::run(runtime).map_err(|e| format!("GUI error: {}", e))?;
         return Ok(());
     }
 
