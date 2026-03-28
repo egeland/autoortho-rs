@@ -16,9 +16,10 @@ use crate::tiles::zoom::ChunkGrid;
 use crate::webui::custommap::CustomMapStore;
 use lru::LruCache;
 use log::{debug, warn};
+use parking_lot::RwLock;
 use std::num::NonZero;
 use std::sync::atomic::{AtomicBool, AtomicU64};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Instant;
 
 /// Virtual DDS filesystem implementation.
@@ -32,7 +33,8 @@ pub struct DdsFileSystem {
     format: DdsFormat,
     /// In-memory LRU cache of generated DDS tiles (tile_key → DDS bytes)
     /// Bounded by max_entries to prevent memory exhaustion
-    dds_cache: Mutex<LruCache<String, Arc<Vec<u8>>>>,
+    /// Uses RwLock for concurrent reads with exclusive writes
+    dds_cache: RwLock<LruCache<String, Arc<Vec<u8>>>>,
     /// Persistent disk cache for DDS tiles (compressed with zstd)
     disk_cache: Option<Arc<std::sync::Mutex<DdsCache>>>,
     /// Scenery root directory (for pass-through of real files)
@@ -58,7 +60,7 @@ impl DdsFileSystem {
             parser: DdsPathParser::new(),
             fetcher,
             format: DdsFormat::BC3,
-            dds_cache: Mutex::new(LruCache::new(NonZero::new(256).unwrap())),
+            dds_cache: RwLock::new(LruCache::new(NonZero::new(256).unwrap())),
             disk_cache: None,
             root: None,
             night_exclusion: Arc::new(AtomicBool::new(false)),
@@ -81,7 +83,7 @@ impl DdsFileSystem {
             parser: DdsPathParser::new(),
             fetcher,
             format: DdsFormat::BC3,
-            dds_cache: Mutex::new(LruCache::new(NonZero::new(cache_entries.max(1)).unwrap())),
+            dds_cache: RwLock::new(LruCache::new(NonZero::new(cache_entries.max(1)).unwrap())),
             disk_cache: None,
             root: None,
             night_exclusion: Arc::new(AtomicBool::new(false)),
@@ -104,7 +106,7 @@ impl DdsFileSystem {
             parser: DdsPathParser::new(),
             fetcher,
             format: DdsFormat::BC3,
-            dds_cache: Mutex::new(LruCache::new(NonZero::new(256).unwrap())),
+            dds_cache: RwLock::new(LruCache::new(NonZero::new(256).unwrap())),
             disk_cache: None,
             root: Some(root),
             night_exclusion: Arc::new(AtomicBool::new(false)),
@@ -127,7 +129,7 @@ impl DdsFileSystem {
             parser: DdsPathParser::new(),
             fetcher,
             format: DdsFormat::BC3,
-            dds_cache: Mutex::new(LruCache::new(NonZero::new(256).unwrap())),
+            dds_cache: RwLock::new(LruCache::new(NonZero::new(256).unwrap())),
             disk_cache: Some(disk_cache),
             root: None,
             night_exclusion: Arc::new(AtomicBool::new(false)),
@@ -170,7 +172,7 @@ impl DdsFileSystem {
             parser: DdsPathParser::new(),
             fetcher,
             format: DdsFormat::BC3,
-            dds_cache: Mutex::new(LruCache::new(NonZero::new(256).unwrap())),
+            dds_cache: RwLock::new(LruCache::new(NonZero::new(256).unwrap())),
             disk_cache: None,
             root: None,
             night_exclusion: Arc::new(AtomicBool::new(false)),
@@ -194,7 +196,7 @@ impl DdsFileSystem {
             parser: DdsPathParser::new(),
             fetcher,
             format: DdsFormat::BC3,
-            dds_cache: Mutex::new(LruCache::new(NonZero::new(256).unwrap())),
+            dds_cache: RwLock::new(LruCache::new(NonZero::new(256).unwrap())),
             disk_cache: None,
             root: Some(root),
             night_exclusion: Arc::new(AtomicBool::new(false)),
@@ -218,7 +220,7 @@ impl DdsFileSystem {
             parser: DdsPathParser::new(),
             fetcher,
             format: DdsFormat::BC3,
-            dds_cache: Mutex::new(LruCache::new(NonZero::new(256).unwrap())),
+            dds_cache: RwLock::new(LruCache::new(NonZero::new(256).unwrap())),
             disk_cache: Some(disk_cache),
             root: None,
             night_exclusion: Arc::new(AtomicBool::new(false)),
@@ -246,7 +248,7 @@ impl DdsFileSystem {
             parser: DdsPathParser::new(),
             fetcher,
             format: DdsFormat::BC3,
-            dds_cache: Mutex::new(LruCache::new(NonZero::new(256).unwrap())),
+            dds_cache: RwLock::new(LruCache::new(NonZero::new(256).unwrap())),
             disk_cache: Some(disk_cache),
             root: None,
             night_exclusion: Arc::new(AtomicBool::new(false)),
@@ -375,7 +377,7 @@ impl DdsFileSystem {
 
         // Check in-memory cache first
         {
-            let mut cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
+            let mut cache = self.dds_cache.write();
             if let Some(dds) = cache.get(&tile_key) {
                 self.cache_hits.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 return Ok(slice_range(dds, offset, size));
@@ -390,7 +392,7 @@ impl DdsFileSystem {
         {
             debug!("DDS disk cache hit: {}", tile_key);
             let arc = Arc::new(dds_data);
-            let mut mem_cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
+            let mut mem_cache = self.dds_cache.write();
             let old_len = mem_cache.len();
             mem_cache.push(tile_key, arc.clone());
             if mem_cache.len() > old_len {
@@ -411,7 +413,7 @@ impl DdsFileSystem {
                         higher_zoom, zoom, upserve_key
                     );
                     let arc = Arc::new(dds_data);
-                    let mut mem_cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
+                    let mut mem_cache = self.dds_cache.write();
                     let old_len = mem_cache.len();
                     // Store at the requested zoom key so future requests work
                     mem_cache.push(tile_key, arc.clone());
@@ -433,7 +435,7 @@ impl DdsFileSystem {
             );
             let dds = fallback_data;
             let arc = Arc::new(dds);
-            let mut mem_cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
+            let mut mem_cache = self.dds_cache.write();
             let old_len = mem_cache.len();
             mem_cache.push(tile_key, arc.clone());
             if mem_cache.len() > old_len {
@@ -456,7 +458,7 @@ impl DdsFileSystem {
             );
             let fallback_dds = fb.solid_fallback(4096, self.format);
             let arc = Arc::new(fallback_dds);
-            let mut mem_cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
+            let mut mem_cache = self.dds_cache.write();
             let old_len = mem_cache.len();
             mem_cache.push(tile_key, arc.clone());
             if mem_cache.len() > old_len {
@@ -505,7 +507,7 @@ impl DdsFileSystem {
 
         // Cache it in memory (LRU will evict oldest entries when full)
         let dds_arc = {
-            let mut cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
+            let mut cache = self.dds_cache.write();
             let old_len = cache.len();
             let arc = Arc::new(dds_data);
             cache.push(tile_key, arc.clone());
@@ -652,10 +654,7 @@ impl DdsFileSystem {
 
     /// Clear the in-memory DDS cache and the disk cache.
     pub fn clear_cache(&self) {
-        self.dds_cache
-            .lock()
-            .expect("dds cache mutex poisoned")
-            .clear();
+        self.dds_cache.write().clear();
         if let Some(ref dc) = self.disk_cache
             && let Ok(mut cache) = dc.lock()
             && let Err(e) = cache.clear()
@@ -666,10 +665,7 @@ impl DdsFileSystem {
 
     /// Number of DDS tiles currently cached in memory.
     pub fn cache_len(&self) -> usize {
-        self.dds_cache
-            .lock()
-            .expect("dds cache mutex poisoned")
-            .len()
+        self.dds_cache.read().len()
     }
 
     /// Get cache statistics.
