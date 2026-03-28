@@ -269,7 +269,7 @@ impl DdsFileSystem {
             }
         }
 
-        // Check disk cache
+        // Check disk cache for requested zoom
         if let Some(ref dc) = self.disk_cache
             && let Ok(cache) = dc.lock()
             && let Ok((dds_data, _meta)) = cache.get(&tile_key)
@@ -280,6 +280,22 @@ impl DdsFileSystem {
             mem_cache.insert(tile_key, arc.clone());
             return Ok(slice_range(&arc, offset, size));
         }
+
+        // Try upserving: check if higher-zoom DDS is cached
+        if let Some(ref dc) = self.disk_cache
+            && let Ok(cache) = dc.lock() {
+                for higher_zoom in (zoom + 1)..=22 {
+                    let upserve_key = format!("{}_{}_{}_{}", row, col, maptype, higher_zoom);
+                    if let Ok((dds_data, _meta)) = cache.get(&upserve_key) {
+                        debug!("DDS upserving from zoom {} to {}: {}", higher_zoom, zoom, upserve_key);
+                        let arc = Arc::new(dds_data);
+                        let mut mem_cache = self.dds_cache.lock().expect("dds cache mutex poisoned");
+                        // Store at the requested zoom key so future requests work
+                        mem_cache.insert(tile_key, arc.clone());
+                        return Ok(slice_range(&arc, offset, size));
+                    }
+                }
+            }
 
         // Not cached — generate the DDS tile
         let result = self.generate_tile(row, col, &maptype, zoom).await?;

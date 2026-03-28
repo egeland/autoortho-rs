@@ -62,6 +62,7 @@ pub enum Message {
     SetTileProvider(String),
     SetMinZoom(u32),
     SetMaxZoom(u32),
+    SetEnableDynamicZoom(bool),
     SetUIScale(f64),
 
     // Configuration persistence
@@ -269,6 +270,9 @@ impl AutoOrthoApp {
             }
             Message::SetMaxZoom(zoom) => {
                 self.state.config.max_zoom = zoom;
+            }
+            Message::SetEnableDynamicZoom(enabled) => {
+                self.state.config.enable_dynamic_zoom = enabled;
             }
             Message::SetUIScale(scale) => {
                 self.state.config.ui_scale = scale;

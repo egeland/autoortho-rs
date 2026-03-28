@@ -1,5 +1,6 @@
 use crate::config::Season;
-use crate::tiles::provider::PROVIDER_IDS;
+use crate::dynamic_zoom::DynamicZoom;
+use crate::tiles::provider::{PROVIDER_IDS, PROVIDER_INFO};
 use crate::ui::state::AppState;
 use crate::ui::Message;
 use iced::widget::{
@@ -313,6 +314,50 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         ]
         .spacing(12)
         .align_y(iced::Alignment::Center),
+        // Dynamic Zoom section
+        {
+            let dz = DynamicZoom::new(state.config.zoom_rules.clone(), &state.config.tile_provider);
+            let provider_max = dz.provider_max_zoom();
+            let provider_name = PROVIDER_INFO
+                .iter()
+                .find(|p| p.id == state.config.tile_provider)
+                .map(|p| p.display_name)
+                .unwrap_or(&state.config.tile_provider);
+
+            column![
+                text("").size(8),
+                text("Dynamic Zoom").size(16),
+                rule::horizontal(1),
+                row![
+                    text("Enable:").width(Length::Fixed(80.0)),
+                    button(text(if state.config.enable_dynamic_zoom {
+                        "Enabled"
+                    } else {
+                        "Disabled"
+                    }))
+                    .on_press(Message::SetEnableDynamicZoom(
+                        !state.config.enable_dynamic_zoom
+                    )),
+                    text(format!(
+                        "  Provider: {} (max zoom: {})",
+                        provider_name, provider_max
+                    ))
+                    .size(13)
+                ]
+                .spacing(12)
+                .align_y(iced::Alignment::Center),
+                if !state.config.enable_dynamic_zoom {
+                    text("Dynamic zoom is disabled").size(13)
+                } else {
+                    text(format!(
+                        "{} zoom rule(s) configured",
+                        state.config.zoom_rules.len()
+                    ))
+                    .size(13)
+                },
+            ]
+            .spacing(4)
+        }
     ]
     .spacing(8);
 

@@ -136,7 +136,7 @@ fn test_seasons() {
     use autoortho_lib::config::Season;
     use autoortho_lib::seasons::SeasonalAdjustment;
 
-    let sa = SeasonalAdjustment::new(Season::Summer, 1.0, 1.2, 1.1, 0.9);
+    let _sa = SeasonalAdjustment::new(Season::Summer, 1.0, 1.2, 1.1, 0.9);
     let result = SeasonalAdjustment::apply_to_rgb((127, 127, 127), 1.1);
     assert_eq!(
         result.0.min(result.1).min(result.2),

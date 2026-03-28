@@ -164,6 +164,31 @@ impl TileFetcher {
         let chunks = self.chunks.read().await;
         Ok(chunks.get(&key).and_then(|c| c.data().map(|d| d.to_vec())))
     }
+
+    /// Try to get chunk data at optimal zoom level (upserving).
+    /// Tries from max_zoom down to min_zoom, returns first found in cache.
+    /// Returns (data, actual_zoom_level) if found, None if not cached at any zoom.
+    pub async fn get_chunk_data_with_upserving(
+        &self,
+        row: u32,
+        col: u32,
+        maptype: &str,
+        min_zoom: u32,
+        max_zoom: u32,
+        provider_id: &str,
+    ) -> Option<(Vec<u8>, u32)> {
+        let chunks = self.chunks.read().await;
+
+        for zoom in (min_zoom..=max_zoom).rev() {
+            let key = format!("{}_{}_{}_{}_{}", row, col, maptype, zoom, provider_id);
+            if let Some(chunk) = chunks.get(&key)
+                && let Some(data) = chunk.data() {
+                    return Some((data.to_vec(), zoom));
+                }
+        }
+
+        None
+    }
 }
 
 #[cfg(test)]

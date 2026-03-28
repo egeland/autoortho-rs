@@ -1,56 +1,85 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
 // Copyright (c) 2024 the AutoOrtho contributors
 
-/// Altitude-based dynamic zoom level selection
+use crate::config::ZoomRule;
+use crate::tiles::provider::PROVIDER_INFO;
+
+/// Altitude-based dynamic zoom level selection using rules.
 pub struct DynamicZoom {
-    min_zoom: u32,
-    max_zoom: u32,
-    near_airport_zoom: u32,
+    zoom_rules: Vec<ZoomRule>,
+    provider_max_zoom: u32,
 }
 
 impl DynamicZoom {
-    pub fn new(min_zoom: u32, max_zoom: u32, near_airport_zoom: u32) -> Self {
+    pub fn new(zoom_rules: Vec<ZoomRule>, provider_id: &str) -> Self {
+        let provider_max_zoom = PROVIDER_INFO
+            .iter()
+            .find(|p| p.id == provider_id)
+            .map(|p| p.max_zoom)
+            .unwrap_or(19);
+
+        let mut rules = zoom_rules;
+        rules.sort_by(|a, b| a.min_altitude_ft.partial_cmp(&b.min_altitude_ft).unwrap());
+
         Self {
-            min_zoom: min_zoom.min(28),
-            max_zoom: max_zoom.min(28),
-            near_airport_zoom: near_airport_zoom.min(28),
+            zoom_rules: rules,
+            provider_max_zoom,
         }
     }
 
-    /// Get zoom level based on altitude in feet
-    /// Linear scaling from min_zoom at high altitude to max_zoom at low altitude
-    pub fn zoom_for_altitude(&self, altitude_ft: f32) -> u32 {
-        let altitude_m = altitude_ft * 0.3048;
-
-        // Scale: 30000m -> min_zoom, 100m -> max_zoom
-        let min_alt = 100.0;
-        let max_alt = 30000.0;
-
-        let t = ((max_alt - altitude_m) / (max_alt - min_alt)).clamp(0.0, 1.0);
-
-        let zoom_range = (self.max_zoom - self.min_zoom) as f32;
-        let zoom = self.min_zoom as f32 + t * zoom_range;
-
-        zoom.round() as u32
-    }
-
-    /// Get zoom level when near airport (lower altitude threshold)
-    pub fn zoom_for_near_airport(&self) -> u32 {
-        self.near_airport_zoom
-    }
-
-    /// Check if aircraft is "near airport" (below 1000 ft AGL)
-    pub fn is_near_airport(&self, altitude_agl_ft: f32) -> bool {
-        altitude_agl_ft < 1000.0
-    }
-
-    /// Get recommended zoom with airport consideration
-    pub fn recommended_zoom(&self, altitude_ft: f32, altitude_agl_ft: f32) -> u32 {
-        if self.is_near_airport(altitude_agl_ft) {
-            self.near_airport_zoom
-        } else {
-            self.zoom_for_altitude(altitude_ft)
+    pub fn zoom_for_altitude_agl(&self, altitude_agl_ft: f32) -> u32 {
+        let mut result = 16u32;
+        for rule in &self.zoom_rules {
+            if altitude_agl_ft >= rule.min_altitude_ft {
+                result = rule.zoom_level;
+            }
         }
+        result.min(self.provider_max_zoom)
+    }
+
+    pub fn max_zoom(&self) -> u32 {
+        self.provider_max_zoom
+    }
+
+    pub fn zoom_rules(&self) -> &[ZoomRule] {
+        &self.zoom_rules
+    }
+
+    pub fn provider_max_zoom(&self) -> u32 {
+        self.provider_max_zoom
+    }
+
+    pub fn validate_rules(&self) -> Vec<String> {
+        let mut errors = Vec::new();
+
+        for rule in &self.zoom_rules {
+            if rule.zoom_level > self.provider_max_zoom {
+                errors.push(format!(
+                    "Zoom level {} exceeds provider max {}",
+                    rule.zoom_level, self.provider_max_zoom
+                ));
+            }
+        }
+
+        errors
+    }
+}
+
+impl Default for DynamicZoom {
+    fn default() -> Self {
+        Self::new(
+            vec![
+                ZoomRule {
+                    min_altitude_ft: 0.0,
+                    zoom_level: 19,
+                },
+                ZoomRule {
+                    min_altitude_ft: 10000.0,
+                    zoom_level: 16,
+                },
+            ],
+            "ARC",
+        )
     }
 }
 
@@ -59,62 +88,61 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_dynamic_zoom_creation() {
-        let dz = DynamicZoom::new(12, 16, 18);
-        assert_eq!(dz.min_zoom, 12);
-        assert_eq!(dz.max_zoom, 16);
-        assert_eq!(dz.near_airport_zoom, 18);
+    fn test_dynamic_zoom_default() {
+        let dz = DynamicZoom::default();
+        assert_eq!(dz.provider_max_zoom, 19);
+        assert_eq!(dz.zoom_rules.len(), 2);
     }
 
     #[test]
-    fn test_dynamic_zoom_clamping() {
-        let dz = DynamicZoom::new(50, 0, 40);
-        assert_eq!(dz.min_zoom, 28);
-        assert_eq!(dz.max_zoom, 0);
-        assert_eq!(dz.near_airport_zoom, 28);
+    fn test_zoom_for_altitude_agl_low() {
+        let dz = DynamicZoom::default();
+        assert_eq!(dz.zoom_for_altitude_agl(0.0), 19);
+        assert_eq!(dz.zoom_for_altitude_agl(5000.0), 19);
     }
 
     #[test]
-    fn test_zoom_for_altitude_high() {
-        let dz = DynamicZoom::new(12, 16, 18);
-        let zoom = dz.zoom_for_altitude(30000.0 * 3.28084); // 30km in feet
-        assert_eq!(zoom, 12); // Minimum zoom
+    fn test_zoom_for_altitude_agl_high() {
+        let dz = DynamicZoom::default();
+        assert_eq!(dz.zoom_for_altitude_agl(15000.0), 16);
     }
 
     #[test]
-    fn test_zoom_for_altitude_low() {
-        let dz = DynamicZoom::new(12, 16, 18);
-        let zoom = dz.zoom_for_altitude(328.0); // ~100m in feet
-        assert_eq!(zoom, 16); // Maximum zoom
+    fn test_zoom_for_altitude_agl_boundary() {
+        let dz = DynamicZoom::default();
+        assert_eq!(dz.zoom_for_altitude_agl(9999.0), 19);
+        assert_eq!(dz.zoom_for_altitude_agl(10000.0), 16);
     }
 
     #[test]
-    fn test_zoom_for_altitude_mid() {
-        let dz = DynamicZoom::new(12, 16, 18);
-        let zoom = dz.zoom_for_altitude(5000.0); // 5000 feet
-        assert!(zoom >= 12 && zoom <= 16);
+    fn test_rules_are_sorted() {
+        let rules = vec![
+            ZoomRule {
+                min_altitude_ft: 15000.0,
+                zoom_level: 14,
+            },
+            ZoomRule {
+                min_altitude_ft: 0.0,
+                zoom_level: 19,
+            },
+            ZoomRule {
+                min_altitude_ft: 5000.0,
+                zoom_level: 17,
+            },
+        ];
+        let dz = DynamicZoom::new(rules, "ARC");
+        let rules = dz.zoom_rules();
+        assert_eq!(rules[0].min_altitude_ft, 0.0);
+        assert_eq!(rules[1].min_altitude_ft, 5000.0);
+        assert_eq!(rules[2].min_altitude_ft, 15000.0);
     }
 
     #[test]
-    fn test_is_near_airport() {
-        let dz = DynamicZoom::new(12, 16, 18);
-        assert!(dz.is_near_airport(500.0));
-        assert!(dz.is_near_airport(999.0));
-        assert!(!dz.is_near_airport(1000.0));
-        assert!(!dz.is_near_airport(5000.0));
-    }
+    fn test_provider_max_zoom() {
+        let dz = DynamicZoom::new(vec![], "BI");
+        assert_eq!(dz.provider_max_zoom(), 19);
 
-    #[test]
-    fn test_recommended_zoom_near_airport() {
-        let dz = DynamicZoom::new(12, 16, 18);
-        let zoom = dz.recommended_zoom(10000.0, 500.0); // Near airport
-        assert_eq!(zoom, 18);
-    }
-
-    #[test]
-    fn test_recommended_zoom_high_altitude() {
-        let dz = DynamicZoom::new(12, 16, 18);
-        let zoom = dz.recommended_zoom(30000.0 * 3.28084, 29500.0 * 3.28084);
-        assert_eq!(zoom, 12);
+        let dz = DynamicZoom::new(vec![], "GO2");
+        assert_eq!(dz.provider_max_zoom(), 21);
     }
 }

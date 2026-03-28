@@ -2,6 +2,7 @@
 // Copyright (c) 2024 the AutoOrtho contributors
 
 use autoortho_lib::config::AutoOrthoConfig;
+use autoortho_lib::dynamic_zoom::DynamicZoom;
 use autoortho_lib::fuse::filesystem::DdsFileSystem;
 use autoortho_lib::pipeline::cache::DdsCache;
 use autoortho_lib::stats::StatsStore;
@@ -232,6 +233,11 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     let provider = ProviderFactory::create(&config.tile_provider).expect("Unknown tile provider");
     info!("Provider: {} ({})", provider.name(), config.tile_provider);
 
+    let dynamic_zoom = DynamicZoom::new(config.zoom_rules.clone(), &config.tile_provider);
+    if config.enable_dynamic_zoom {
+        info!("Dynamic zoom enabled with {} rules", dynamic_zoom.zoom_rules().len());
+    }
+
     let custom_map_path = dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("autoortho")
@@ -343,6 +349,11 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
                         zoom: config_for_prefetch.max_zoom,
                     };
 
+                    let dynamic_zoom_for_prefetch = DynamicZoom::new(
+                        config_for_prefetch.zoom_rules.clone(),
+                        &config_for_prefetch.tile_provider,
+                    );
+
                     loop {
                         tokio::select! {
                             _ = shutdown_rx.recv() => {
@@ -389,16 +400,33 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
 
                                     // Trigger fetches for queued tiles
                                     while let Some((row, col)) = prefetcher.next_tile() {
+                                        // Find the closest prefetch point to determine zoom
+                                        let zoom = if config_for_prefetch.enable_dynamic_zoom {
+                                            // Find point closest to this tile position
+                                            let mut closest_dist = f64::MAX;
+                                            let mut best_alt_agl = 0.0f32;
+                                            for point in &points {
+                                                let dist = ((point.lat - lat).powi(2) + (point.lon - lon).powi(2)).sqrt();
+                                                if dist < closest_dist {
+                                                    closest_dist = dist;
+                                                    best_alt_agl = point.altitude_agl_ft();
+                                                }
+                                            }
+                                            dynamic_zoom_for_prefetch.zoom_for_altitude_agl(best_alt_agl)
+                                        } else {
+                                            config_for_prefetch.max_zoom
+                                        };
+
                                         if let Err(e) = fetcher_for_prefetch
                                             .get_chunk_data(
                                                 row,
                                                 col,
                                                 &config_for_prefetch.tile_provider,
-                                                config_for_prefetch.max_zoom,
+                                                zoom,
                                             )
                                             .await
                                         {
-                                            log::debug!("Prefetch failed for tile ({}, {}): {}", row, col, e);
+                                            log::debug!("Prefetch failed for tile ({}, {}) at zoom {}: {}", row, col, zoom, e);
                                         }
                                     }
                                 }

@@ -16,6 +16,24 @@ pub enum Season {
     Winter,
 }
 
+/// A zoom rule: at or above this AGL altitude, use this zoom level.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct ZoomRule {
+    /// Minimum AGL altitude in feet for this rule
+    pub min_altitude_ft: f32,
+    /// Zoom level to use at this altitude
+    pub zoom_level: u32,
+}
+
+impl Default for ZoomRule {
+    fn default() -> Self {
+        Self {
+            min_altitude_ft: 0.0,
+            zoom_level: 19,
+        }
+    }
+}
+
 /// All persistent configuration for AutoOrtho.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AutoOrthoConfig {
@@ -62,6 +80,10 @@ pub struct AutoOrthoConfig {
     pub airport_radius_nm: u32,
     #[serde(default = "default_near_airport_zoom")]
     pub near_airport_zoom: u32,
+    #[serde(default = "default_enable_dynamic_zoom")]
+    pub enable_dynamic_zoom: bool,
+    #[serde(default = "default_zoom_rules")]
+    pub zoom_rules: Vec<ZoomRule>,
     #[serde(default)]
     pub season: Season,
     #[serde(default = "default_spring_saturation")]
@@ -130,6 +152,23 @@ fn default_near_airport_zoom() -> u32 {
     19
 }
 
+fn default_enable_dynamic_zoom() -> bool {
+    true
+}
+
+fn default_zoom_rules() -> Vec<ZoomRule> {
+    vec![
+        ZoomRule {
+            min_altitude_ft: 0.0,
+            zoom_level: 19,
+        },
+        ZoomRule {
+            min_altitude_ft: 10000.0,
+            zoom_level: 16,
+        },
+    ]
+}
+
 fn default_xplane_path() -> String {
     dirs::home_dir()
         .map(|p| p.join("X-Plane 12").to_string_lossy().into_owned())
@@ -174,6 +213,8 @@ impl Default for AutoOrthoConfig {
             prefetch_airports: true,
             airport_radius_nm: 60,
             near_airport_zoom: 19,
+            enable_dynamic_zoom: true,
+            zoom_rules: default_zoom_rules(),
             season: Season::Disabled,
             spring_saturation: 0.70,
             summer_saturation: 1.0,
