@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Cache Viewer - AutoOrtho</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A==" crossorigin=""/>
-<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA==" crossorigin=""></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha384-sHL9NAb7lN7rfvG5lfpm643Xkcjzp4jFvuavGOndn6pjVqVqOo79InVPK4XocZFBHCcxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTHcxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH" crossorigin=""></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; display: flex; flex-direction: column; height: 100vh; }
@@ -75,6 +75,19 @@
 <div id="status">Loading...</div>
 
 <script>
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
 const MAPTYPE_COLORS = {
   'BI':      '#4285F4',
   'NAIP':   '#34A853',
@@ -132,6 +145,9 @@ async function loadTiles() {
       fetch('/api/cache/tiles'),
       fetch('/api/cache/stats')
     ]);
+    
+    if (!tilesRes.ok) throw new Error('Failed to fetch tiles: ' + tilesRes.status);
+    if (!statsRes.ok) throw new Error('Failed to fetch stats: ' + statsRes.status);
     
     allTiles = await tilesRes.json();
     const stats = await statsRes.json();
@@ -191,11 +207,11 @@ function filterTiles() {
     );
     
     const popupContent = `
-      <b>Provider:</b> ${tile.provider}<br>
-      <b>Zoom:</b> ${tile.zoom}<br>
-      <b>Tile:</b> ${tile.col}, ${tile.row}<br>
-      <b>Size:</b> ${formatSize(tile.size_bytes)}<br>
-      <b>Built:</b> ${new Date(tile.built * 1000).toLocaleString()}
+      <b>Provider:</b> ${escapeHtml(tile.provider)}<br>
+      <b>Zoom:</b> ${escapeHtml(String(tile.zoom))}<br>
+      <b>Tile:</b> ${escapeHtml(String(tile.col))}, ${escapeHtml(String(tile.row))}<br>
+      <b>Size:</b> ${escapeHtml(formatSize(tile.size_bytes))}<br>
+      <b>Built:</b> ${escapeHtml(new Date(tile.built * 1000).toLocaleString())}
     `;
     rect.bindPopup(popupContent);
     
@@ -207,13 +223,6 @@ function filterTiles() {
   const zoomFilterDisplay = zoomFilter === 'all' ? 'All' : zoomFilter;
   const providerFilterDisplay = providerFilter === 'all' ? 'All' : providerFilter;
   updateStatus(`Showing ${count} tiles (Zoom: ${zoomFilterDisplay}, Provider: ${providerFilterDisplay})`);
-}
-
-function formatSize(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
 }
 
 function updateStatus(msg) {
