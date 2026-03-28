@@ -6,7 +6,13 @@ use regex::Regex;
 use thiserror::Error;
 
 pub mod filesystem;
+
+#[cfg(not(windows))]
 pub mod mount;
+
+#[cfg(windows)]
+pub mod mount_win;
+
 pub mod platform;
 
 #[derive(Debug, Error)]

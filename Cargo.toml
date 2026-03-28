@@ -52,14 +52,17 @@ sevenz-rust = "0.6"
 futures-lite = "2.6"
 libloading = "0.8"
 
-# FUSE support (Linux/macOS only for now - Windows needs winfsp implementation)
-# On Linux/macOS: uses rfuse3 via unifuse
-# On Windows: disabled (unifuse incompatible with current winfsp version)
+# FUSE support
+# Linux/macOS: uses rfuse3 via unifuse
+# Windows: uses winfsp directly
 [target.'cfg(not(windows))'.dependencies]
 unifuse = "0.1"
 
 libc = "0.2"
 texpresso = { version = "2.0.2", features = ["rayon"] }
+
+[target.'cfg(windows)'.dependencies]
+winfsp = "0.12"
 
 [dev-dependencies]
 tempfile = "3"
