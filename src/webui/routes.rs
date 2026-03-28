@@ -8,6 +8,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 
+#[allow(unused_imports)]
+use crate::{config, tiles::coords};
+
 /// Create the Axum router with all routes.
 pub fn create_router(state: Arc<WebState>) -> Router {
     Router::new()
@@ -15,6 +18,7 @@ pub fn create_router(state: Arc<WebState>) -> Router {
         .route("/map", get(map_page))
         .route("/stats", get(stats_page))
         .route("/custommap", get(custommap_page))
+        .route("/cache", get(cache_page))
         .route("/metrics", get(metrics_json))
         .route("/api/position", get(position_json))
         .route("/api/stats", get(metrics_json))
@@ -30,6 +34,9 @@ pub fn create_router(state: Arc<WebState>) -> Router {
         .route("/api/custommap/tiles", get(custommap_tiles))
         .route("/api/custommap/export", get(custommap_export))
         .route("/api/custommap/import", post(custommap_import))
+        // Cache API
+        .route("/api/cache/tiles", get(cache_tiles))
+        .route("/api/cache/stats", get(cache_stats))
         .with_state(state)
 }
 
@@ -137,6 +144,7 @@ const INDEX_HTML: &str = r#"<!DOCTYPE html>
   <p>Satellite Imagery for X-Plane</p>
   <a href="/map">Flight Map</a>
   <a href="/custommap">Custom Map Editor</a>
+  <a href="/cache">Cache Viewer</a>
   <a href="/stats">Performance Stats</a>
   <p class="status">AutoOrtho Rust v0.1.0</p>
 </body></html>"#;
@@ -393,9 +401,161 @@ async fn custommap_import(
     Json(state.custom_map.get_cells())
 }
 
+// --- Cache Viewer API handlers ---
+
+#[derive(Serialize)]
+struct CachedTile {
+    col: u32,
+    row: u32,
+    zoom: u32,
+    provider: String,
+    size_bytes: u64,
+    built: f64,
+    lat_n: f64,
+    lon_w: f64,
+    lat_s: f64,
+    lon_e: f64,
+}
+
+async fn cache_tiles() -> Json<Vec<CachedTile>> {
+    let config = crate::config::AutoOrthoConfig::load();
+
+    let cache_dir = std::path::PathBuf::from(&config.cache_dir).join("dds");
+    if !cache_dir.exists() {
+        return Json(vec![]);
+    }
+
+    let mut tiles = Vec::new();
+
+    let entries = match std::fs::read_dir(&cache_dir) {
+        Ok(e) => e,
+        Err(_) => return Json(vec![]),
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+
+        if !name.ends_with(".ddm") {
+            continue;
+        }
+
+        let Some(stem) = name.strip_suffix(".ddm") else {
+            continue;
+        };
+
+        // Parse key: col_row_provider_zZoom (e.g., "100_200_BI_z16")
+        let parts: Vec<&str> = stem.split('_').collect();
+        if parts.len() != 4 || !parts[3].starts_with('z') {
+            continue;
+        }
+
+        let col = match parts[0].parse::<u32>().ok() {
+            Some(c) => c,
+            None => continue,
+        };
+        let row = match parts[1].parse::<u32>().ok() {
+            Some(r) => r,
+            None => continue,
+        };
+        let provider = parts[2].to_string();
+        let zoom = match parts[3][1..].parse::<u32>().ok() {
+            Some(z) => z,
+            None => continue,
+        };
+
+        // Read metadata
+        let meta_str = match std::fs::read_to_string(&path) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+
+        let meta: serde_json::Value = match serde_json::from_str(&meta_str) {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+
+        let built = meta.get("built").and_then(|v| v.as_f64()).unwrap_or(0.0);
+
+        // Get DDS file size
+        let dds_path = cache_dir.join(format!("{}.dds.zst", stem));
+        let size_bytes = dds_path.metadata().map(|m| m.len()).unwrap_or(0);
+
+        // Calculate bounds
+        let (lat_n, lon_w, lat_s, lon_e) = match crate::tiles::coords::TileCoords::tile_bounds(col, row, zoom) {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+
+        tiles.push(CachedTile {
+            col,
+            row,
+            zoom,
+            provider,
+            size_bytes,
+            built,
+            lat_n,
+            lon_w,
+            lat_s,
+            lon_e,
+        });
+    }
+
+    Json(tiles)
+}
+
+#[derive(Serialize)]
+struct CacheStats {
+    entry_count: usize,
+    size_bytes: u64,
+}
+
+async fn cache_stats() -> Json<CacheStats> {
+    let config = crate::config::AutoOrthoConfig::load();
+
+    let cache_dir = std::path::PathBuf::from(&config.cache_dir).join("dds");
+    if !cache_dir.exists() {
+        return Json(CacheStats { entry_count: 0, size_bytes: 0 });
+    }
+
+    let entries = match std::fs::read_dir(&cache_dir) {
+        Ok(e) => e,
+        Err(_) => return Json(CacheStats { entry_count: 0, size_bytes: 0 }),
+    };
+
+    let mut count = 0usize;
+    let mut size = 0u64;
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+
+        if name.ends_with(".ddm") {
+            count += 1;
+        } else if name.ends_with(".dds.zst") {
+            size += path.metadata().map(|m| m.len()).unwrap_or(0);
+        }
+    }
+
+    Json(CacheStats {
+        entry_count: count,
+        size_bytes: size,
+    })
+}
+
+async fn cache_page() -> Html<String> {
+    Html(CACHE_VIEWER_HTML.to_string())
+}
+
 // The Custom Map Editor HTML is embedded from the Python AutoOrtho project.
 // It's a self-contained Leaflet.js app that talks to our REST API.
 const CUSTOMMAP_HTML: &str = include_str!("../../assets/custommap_editor.html");
+
+const CACHE_VIEWER_HTML: &str = include_str!("../../assets/cache_viewer.html");
 
 #[cfg(test)]
 mod tests {

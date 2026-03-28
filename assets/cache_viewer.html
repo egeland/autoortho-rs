@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cache Viewer - AutoOrtho</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A==" crossorigin=""/>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js" integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA==" crossorigin=""></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #1a1a2e; display: flex; flex-direction: column; height: 100vh; }
+  #toolbar {
+    display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+    background: #16213e; border-bottom: 1px solid #0f3460; flex-shrink: 0; flex-wrap: wrap;
+  }
+  #toolbar label { color: #e0e0e0; font-size: 13px; }
+  #toolbar select, #toolbar button {
+    font-size: 12px; padding: 4px 10px; border-radius: 4px; border: 1px solid #0f3460;
+    background: #1a1a2e; color: #e0e0e0; cursor: pointer;
+  }
+  #toolbar button:hover { background: #0f3460; }
+  #map { flex: 1; }
+  .leaflet-control-container { z-index: 800; position: relative; }
+
+  #legend {
+    position: absolute; top: 10px; right: 10px; z-index: 1000;
+    background: rgba(26, 26, 46, 0.92); border-radius: 8px; padding: 6px 8px;
+    color: #e0e0e0; font-size: 11px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    cursor: pointer; user-select: none;
+  }
+  #legend h4 { font-size: 12px; color: #fff; margin: 0; }
+  #legend h4::after { content: ' \25B2'; font-size: 8px; color: #888; }
+  #legend.collapsed h4::after { content: ' \25BC'; }
+  #legend.collapsed .legend-body { display: none; }
+  .legend-body { margin-top: 4px; }
+  .legend-item { display: flex; align-items: center; margin: 2px 0; }
+  .legend-color { width: 12px; height: 12px; border-radius: 2px; margin-right: 5px; border: 1px solid rgba(255,255,255,0.2); }
+  .legend-label { font-size: 10px; }
+
+  #status {
+    position: absolute; bottom: 10px; left: 10px; z-index: 1000;
+    background: rgba(26, 26, 46, 0.85); border-radius: 6px; padding: 6px 12px;
+    color: #aaa; font-size: 11px;
+  }
+</style>
+</head>
+<body>
+
+<!-- Toolbar -->
+<div id="toolbar">
+  <label for="zoom-select">Zoom:</label>
+  <select id="zoom-select">
+    <option value="all">All</option>
+    <option value="14">14</option>
+    <option value="15">15</option>
+    <option value="16">16</option>
+    <option value="17">17</option>
+    <option value="18">18</option>
+  </select>
+  <div class="separator" style="width:1px;height:24px;background:#0f3460;margin:0 4px"></div>
+  <label for="provider-select">Provider:</label>
+  <select id="provider-select">
+    <option value="all">All</option>
+  </select>
+  <div class="separator" style="width:1px;height:24px;background:#0f3460;margin:0 4px"></div>
+  <button id="btn-refresh">Refresh</button>
+</div>
+
+<div id="map"></div>
+<div id="legend" onclick="this.classList.toggle('collapsed')">
+  <h4>Providers</h4>
+  <div class="legend-body" id="legend-body"></div>
+</div>
+<div id="status">Loading...</div>
+
+<script>
+const MAPTYPE_COLORS = {
+  'BI':      '#4285F4',
+  'NAIP':   '#34A853',
+  'EOX':    '#FBBC04',
+  'USGS':   '#EA4335',
+  'Firefly':'#FF6D01',
+  'GO2':    '#46BDC6',
+  'ARC':    '#7B1FA2',
+  'YNDX':   '#D81B60',
+  'APPLE':  '#333333'
+};
+
+let map;
+let tileLayers = [];
+let allTiles = [];
+let providers = new Set();
+
+function init() {
+  map = L.map('map', { zoomControl: true }).setView([37, -95], 4);
+  
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19
+  }).addTo(map);
+
+  loadTiles();
+  setupLegend();
+  setupToolbar();
+}
+
+function setupLegend() {
+  const body = document.getElementById('legend-body');
+  body.innerHTML = '';
+  
+  const sorted = Object.keys(MAPTYPE_COLORS).sort();
+  for (const provider of sorted) {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+    item.innerHTML = `<div class="legend-color" style="background:${MAPTYPE_COLORS[provider]}"></div><span class="legend-label">${provider}</span>`;
+    body.appendChild(item);
+  }
+}
+
+function setupToolbar() {
+  document.getElementById('zoom-select').addEventListener('change', filterTiles);
+  document.getElementById('provider-select').addEventListener('change', filterTiles);
+  document.getElementById('btn-refresh').addEventListener('click', loadTiles);
+}
+
+async function loadTiles() {
+  updateStatus('Loading...');
+  
+  try {
+    const [tilesRes, statsRes] = await Promise.all([
+      fetch('/api/cache/tiles'),
+      fetch('/api/cache/stats')
+    ]);
+    
+    allTiles = await tilesRes.json();
+    const stats = await statsRes.json();
+    
+    // Collect unique providers
+    providers = new Set();
+    for (const tile of allTiles) {
+      providers.add(tile.provider);
+    }
+    
+    // Update provider dropdown
+    const providerSelect = document.getElementById('provider-select');
+    const currentProvider = providerSelect.value;
+    providerSelect.innerHTML = '<option value="all">All</option>';
+    for (const provider of Array.from(providers).sort()) {
+      providerSelect.innerHTML += `<option value="${provider}">${provider}</option>`;
+    }
+    if (providers.has(currentProvider)) {
+      providerSelect.value = currentProvider;
+    }
+    
+    const sizeStr = formatSize(stats.size_bytes);
+    updateStatus(`Total: ${stats.entry_count} tiles, ${sizeStr} (showing ${allTiles.length})`);
+    
+    filterTiles();
+  } catch (e) {
+    updateStatus('Error loading tiles: ' + e.message);
+  }
+}
+
+function filterTiles() {
+  // Clear existing layers
+  for (const layer of tileLayers) {
+    map.removeLayer(layer);
+  }
+  tileLayers = [];
+  
+  const zoomFilter = document.getElementById('zoom-select').value;
+  const providerFilter = document.getElementById('provider-select').value;
+  
+  let count = 0;
+  for (const tile of allTiles) {
+    if (zoomFilter !== 'all' && tile.zoom !== parseInt(zoomFilter)) continue;
+    if (providerFilter !== 'all' && tile.provider !== providerFilter) continue;
+    
+    const color = MAPTYPE_COLORS[tile.provider] || '#888888';
+    
+    const rect = L.rectangle(
+      [[tile.lat_s, tile.lon_w], [tile.lat_n, tile.lon_e]],
+      {
+        color: color,
+        weight: 1,
+        opacity: 0.8,
+        fillColor: color,
+        fillOpacity: 0.35
+      }
+    );
+    
+    const popupContent = `
+      <b>Provider:</b> ${tile.provider}<br>
+      <b>Zoom:</b> ${tile.zoom}<br>
+      <b>Tile:</b> ${tile.col}, ${tile.row}<br>
+      <b>Size:</b> ${formatSize(tile.size_bytes)}<br>
+      <b>Built:</b> ${new Date(tile.built * 1000).toLocaleString()}
+    `;
+    rect.bindPopup(popupContent);
+    
+    rect.addTo(map);
+    tileLayers.push(rect);
+    count++;
+  }
+  
+  const zoomFilterDisplay = zoomFilter === 'all' ? 'All' : zoomFilter;
+  const providerFilterDisplay = providerFilter === 'all' ? 'All' : providerFilter;
+  updateStatus(`Showing ${count} tiles (Zoom: ${zoomFilterDisplay}, Provider: ${providerFilterDisplay})`);
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
+function updateStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
