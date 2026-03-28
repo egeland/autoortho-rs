@@ -9,6 +9,7 @@ use std::sync::Mutex;
 use tokio::sync::{oneshot, watch};
 
 use crate::tiles::provider;
+use crate::webui::custommap::CustomMapStore;
 use crate::xplane::simbrief::{FlightFix, FlightPlan};
 
 /// Saved window geometry to restore on boot: (x, y, width, height)
@@ -226,16 +227,32 @@ impl AutoOrthoApp {
 
                 let zoom = self.state.config.near_airport_zoom;
 
+                // Load custom map to check for cell overrides
+                let custom_map_path = dirs::config_dir()
+                    .unwrap_or_else(|| std::path::PathBuf::from("."))
+                    .join("autoortho")
+                    .join("custom_map.json");
+                let custom_map = CustomMapStore::load(custom_map_path);
+                let custom_cells = custom_map.get_cells();
+
                 if let (Some(olat), Some(olon), Some(dlat), Some(dlon)) = (olat, olon, dlat, dlon) {
                     return iced::Task::perform(
                         async move {
                             let mut warnings = Vec::new();
-                            if provider::test_provider_coverage(&provider, olat, olon, zoom).await.is_err() {
+                            
+                            let origin_cell = format!("{},{}", olat.floor() as i32, olon.floor() as i32);
+                            let dest_cell = format!("{},{}", dlat.floor() as i32, dlon.floor() as i32);
+                            
+                            let origin_has_custom = custom_cells.contains_key(&origin_cell);
+                            if !origin_has_custom && provider::test_provider_coverage(&provider, olat, olon, zoom).await.is_err() {
                                 warnings.push(format!("origin ({})", origin_code));
                             }
-                            if provider::test_provider_coverage(&provider, dlat, dlon, zoom).await.is_err() {
+                            
+                            let dest_has_custom = custom_cells.contains_key(&dest_cell);
+                            if !dest_has_custom && provider::test_provider_coverage(&provider, dlat, dlon, zoom).await.is_err() {
                                 warnings.push(format!("destination ({})", dest_code));
                             }
+                            
                             if warnings.is_empty() {
                                 None
                             } else {
@@ -385,18 +402,32 @@ impl AutoOrthoApp {
                 let provider = self.state.config.tile_provider.clone();
                 let zoom = self.state.config.near_airport_zoom;
                 
+                // Load custom map to check for cell overrides
+                let custom_map_path = dirs::config_dir()
+                    .unwrap_or_else(|| std::path::PathBuf::from("."))
+                    .join("autoortho")
+                    .join("custom_map.json");
+                let custom_map = CustomMapStore::load(custom_map_path);
+                let custom_cells = custom_map.get_cells();
+                
                 if let (Some(olat), Some(olon), Some(dlat), Some(dlon)) = (origin_lat, origin_lon, dest_lat, dest_lon) {
                     return iced::Task::perform(
                         async move {
                             let mut warnings = Vec::new();
                             
-                            // Test origin coverage
-                            if provider::test_provider_coverage(&provider, olat, olon, zoom).await.is_err() {
+                            // Compute cell keys for origin and destination
+                            let origin_cell = format!("{},{}", olat.floor() as i32, olon.floor() as i32);
+                            let dest_cell = format!("{},{}", dlat.floor() as i32, dlon.floor() as i32);
+                            
+                            // Test origin coverage (skip if custom map override exists)
+                            let origin_has_custom = custom_cells.contains_key(&origin_cell);
+                            if !origin_has_custom && provider::test_provider_coverage(&provider, olat, olon, zoom).await.is_err() {
                                 warnings.push(format!("origin ({})", origin_code));
                             }
                             
-                            // Test destination coverage
-                            if provider::test_provider_coverage(&provider, dlat, dlon, zoom).await.is_err() {
+                            // Test destination coverage (skip if custom map override exists)
+                            let dest_has_custom = custom_cells.contains_key(&dest_cell);
+                            if !dest_has_custom && provider::test_provider_coverage(&provider, dlat, dlon, zoom).await.is_err() {
                                 warnings.push(format!("destination ({})", dest_code));
                             }
                             
