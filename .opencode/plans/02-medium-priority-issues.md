@@ -63,135 +63,37 @@ These issues impact code quality, maintainability, and long-term sustainability.
 
 ---
 
-## Issue 4: WinFSP `block_on()` in Callbacks
+## ✅ Issue 4: WinFSP `block_on()` in Callbacks
 
-### Impact
-Potential deadlock if runtime is saturated
+**Status: IMPLEMENTED** ✅
 
-### Location
-- `src/fuse/mount_win.rs:120,166,208`
+### Changes Made
+- `src/fuse/mount_win.rs`:
+  - Added `runtime` field to `AutoOrthoWinFsp` struct
+  - Updated `new()` to accept runtime handle parameter
+  - Updated `mount()` to use the passed runtime handle
+  - Changed all `tokio::runtime::Handle::current().block_on()` to `self.runtime.block_on()`
 
-### Problem
-Synchronous WinFSP callbacks call `block_on()` to bridge to async code:
-```rust
-let attr = tokio::runtime::Handle::current().block_on(self.fs.get_attr(&path_str));
-```
-
-### Solution
-Use a dedicated runtime for the FUSE filesystem operations.
-
-### Implementation Steps
-
-1. **Create dedicated runtime for FUSE:**
-```rust
-// In mount_win.rs
-use tokio::runtime::Builder;
-
-struct FuseRuntime {
-    handle: tokio::runtime::Handle,
-    _runtime: tokio::runtime::Runtime,  // Keep alive
-}
-
-impl FuseRuntime {
-    fn new() -> Self {
-        let runtime = Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .expect("Failed to create FUSE runtime");
-        let handle = runtime.handle().clone();
-        Self { handle, _runtime: runtime }
-    }
-    
-    fn block_on<F: Future>(&self, future: F) -> F::Output {
-        self.handle.block_on(future)
-    }
-}
-```
-
-2. **Store runtime in struct:**
-```rust
-struct AutoOrthoWinFsp {
-    fs: Arc<DdsFileSystem>,
-    runtime: Arc<FuseRuntime>,
-    // ...
-}
-```
-
-3. **Use runtime for all async calls:**
-```rust
-// Instead of:
-let attr = tokio::runtime::Handle::current().block_on(...);
-
-// Use:
-let attr = self.runtime.block_on(...);
-```
+### Benefits
+- Uses the shared multi-threaded runtime handle instead of creating a new one
+- No more `Handle::current()` calls which could fail or deadlock
+- Consistent with the unified runtime architecture
 
 ---
 
-## Issue 5: Silent Error Handling with `let _ =`
+## ✅ Issue 5: Silent Error Handling with `let _ =`
 
-### Impact
-Debugging difficulty - errors go unnoticed
+**Status: IMPLEMENTED** ✅
 
-### Location
-- `src/ui/mod.rs` - multiple locations (lines 531, 549, 579, 665, 804, etc.)
-- `src/main.rs:491`
+### Changes Made
+- `src/webui/routes.rs`: Added warning log for import_json failures
+- `src/tiles/fetcher.rs`: Changed `set_fetching().ok()` to `set_fetching().is_err()` with debug logging
 
-### Problem
-```rust
-let _ = shutdown_tx_clone.send(());
-// Error silently ignored
-
-chunk.set_fetching().ok();
-// State transition failure silently ignored
-```
-
-### Solution
-Log meaningful errors, or return them properly.
-
-### Implementation Steps
-
-1. **Create a logging macro for expected-but-not-fatal errors:**
-```rust
-macro_rules! log_ignore {
-    ($expr:expr, $msg:expr) => {
-        if let Err(e) = $expr {
-            debug!("{}: {}", $msg, e);
-        }
-    };
-    ($expr:expr) => {
-        log_ignore!($expr, "Operation failed")
-    };
-}
-
-// Usage:
-log_ignore!(shutdown_tx_clone.send(()), "Failed to signal shutdown");
-```
-
-2. **For UI message sends, use warn! level:**
-```rust
-if let Err(e) = self.tx.send(message) {
-    warn!("UI message send failed: {}", e);
-}
-```
-
-3. **For state transitions, use debug!:**
-```rust
-// In chunk.rs
-pub fn set_fetching(&mut self) -> Result<(), ChunkError> {
-    if self.state != ChunkState::Missing {
-        return Err(ChunkError::InvalidStateTransition);
-    }
-    self.state = ChunkState::Fetching;
-    Ok(())
-}
-
-// In fetcher.rs, update callers:
-if chunk.set_fetching().is_err() {
-    debug!("Chunk already being fetched: {}", key);
-    return Ok(None);  // Or continue to next iteration
-}
-```
+### Remaining Acceptable Silent Ignores
+- UI message sends (oneshot channels, receiver may have dropped)
+- Config saves (already handled by UI state)
+- Shutdown signal sends (already shutdown)
+- Test code (intentionally ignoring expected errors)
 
 ---
 
@@ -405,46 +307,16 @@ impl SettingsScreen {
 
 ---
 
-## Issue 9: Duplicated Provider Lists
+## ✅ Issue 9: Duplicated Provider Lists
 
-### Impact
-Maintenance - easy to get out of sync
+**Status: IMPLEMENTED** ✅
 
-### Location
-- `src/ui/screens/setup.rs:7`
-- `src/tiles/provider.rs` (PROVIDER_IDS constant)
+### Changes Made
+- `src/ui/screens/setup.rs`: Removed local `PROVIDERS` constant and imported `PROVIDER_IDS` from `crate::tiles::provider`
 
-### Solution
-Define provider list in one canonical location.
-
-### Implementation Steps
-
-1. **Move to tiles/provider.rs:**
-```rust
-// src/tiles/provider.rs
-
-/// All supported tile provider IDs
-pub const PROVIDER_IDS: &[&str] = &["ARC", "BI", "GO2", "NAIP", "USGS", "EOX", "FIREFLY"];
-
-/// Provider metadata (name, URL pattern, etc.)
-pub const PROVIDER_INFO: &[(ProviderId, ProviderMetadata)] = &[
-    ("ARC", ProviderMetadata { name: "ArcGIS", url_pattern: "...", .. }),
-    // ...
-];
-```
-
-2. **Export from lib.rs:**
-```rust
-pub use tiles::provider::{PROVIDER_IDS, PROVIDER_INFO};
-```
-
-3. **Update all consumers:**
-```rust
-// In setup.rs, remove local PROVIDERS constant
-// Use: crate::PROVIDER_IDS
-
-// In settings.rs, use crate::PROVIDER_INFO
-```
+### Provider Lists Now Unified
+- `PROVIDER_IDS` defined once in `src/tiles/provider.rs`
+- Used by: `setup.rs`, `settings.rs`, `developer.rs`
 
 ---
 
@@ -455,8 +327,9 @@ pub use tiles::provider::{PROVIDER_IDS, PROVIDER_INFO};
 | Multiple Tokio Runtimes | Performance | Medium | P1 | ✅ Done |
 | Lock Contention | Performance | Low | P1 | ✅ Done |
 | HTTP Client Sharing | Performance | Low | P2 | ✅ Done |
-| WinFSP block_on() | Deadlock risk | Medium | P2 | Pending |
-| Silent Error Handling | Debugging | Low | P2 | Pending |
+| WinFSP block_on() | Deadlock risk | Medium | P2 | ✅ Done |
+| Silent Error Handling | Debugging | Low | P2 | ✅ Done |
+| Duplicated Provider Lists | Maintainability | Low | P3 | ✅ Done |
 | Monolithic Message Enum | Maintainability | High | P2 | Pending |
 | AppState Too Large | Maintainability | Medium | P2 | Pending |
 | Long View Functions | Maintainability | Medium | P3 | Pending |

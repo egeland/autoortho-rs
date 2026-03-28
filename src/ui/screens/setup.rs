@@ -1,10 +1,9 @@
-use crate::ui::Message;
+use crate::tiles::provider::PROVIDER_IDS;
 use crate::ui::state::{AppState, Screen};
+use crate::ui::Message;
 use iced::widget::space;
 use iced::widget::{button, column, container, pick_list, row, text, text_input};
 use iced::{Element, Fill, Length};
-
-const PROVIDERS: &[&str] = &["ARC", "BI", "GO2", "NAIP", "USGS", "EOX", "FIREFLY"];
 
 /// Setup wizard screen — initial configuration
 pub fn view(state: &AppState) -> Element<'_, Message> {
@@ -60,7 +59,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let provider_row = row![
         text("Tile Provider:").width(Length::Fixed(140.0)),
         pick_list(
-            PROVIDERS,
+            PROVIDER_IDS,
             Some(state.config.tile_provider.as_str()),
             |s: &str| Message::SetTileProvider(s.to_string()),
         )

@@ -6,16 +6,16 @@ pub use self::winfsp_impl::mount;
 
 mod winfsp_impl {
     use crate::fuse::filesystem::DdsFileSystem;
-    use crate::fuse::{MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
+    use crate::fuse::{is_poison_path, MARKER_FILE, VIRTUAL_DIRS};
     use log::{debug, info, warn};
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
     use std::time::SystemTime;
 
-    use winfsp::WCHAR;
     use winfsp::filesystem::{DirInfo, FileInfo, FileSecurity, FileType, OpenFileInfo, VolInfo};
     use winfsp::host::{FileSystemHost, MountOptions, VolumeParams};
+    use winfsp::WCHAR;
 
     const ROOT_INO: u64 = 1;
     const TEXTURES_INO: u64 = 2;
@@ -25,6 +25,7 @@ mod winfsp_impl {
 
     pub struct AutoOrthoWinFsp {
         fs: Arc<DdsFileSystem>,
+        runtime: tokio::runtime::Handle,
         path_to_inode: Mutex<HashMap<PathBuf, u64>>,
         next_inode: Mutex<u64>,
         open_files: Mutex<HashMap<u64, PathBuf>>,
@@ -32,9 +33,10 @@ mod winfsp_impl {
     }
 
     impl AutoOrthoWinFsp {
-        pub fn new(fs: Arc<DdsFileSystem>) -> Self {
+        pub fn new(fs: Arc<DdsFileSystem>, runtime: tokio::runtime::Handle) -> Self {
             Self {
                 fs,
+                runtime,
                 path_to_inode: Mutex::new(HashMap::new()),
                 next_inode: Mutex::new(DYNAMIC_INO_START),
                 open_files: Mutex::new(HashMap::new()),
@@ -117,7 +119,7 @@ mod winfsp_impl {
 
             let ino = self.path_to_inode(Path::new(&path));
 
-            let attr = tokio::runtime::Handle::current().block_on(self.fs.get_attr(&path_str));
+            let attr = self.runtime.block_on(self.fs.get_attr(&path_str));
 
             match attr {
                 Ok(file_attr) => {
@@ -162,9 +164,7 @@ mod winfsp_impl {
                 let path_str = self.path_to_string(&path);
                 let ino = self.path_to_inode(&path);
 
-                if let Ok(attr) =
-                    tokio::runtime::Handle::current().block_on(self.fs.get_attr(&path_str))
-                {
+                if let Ok(attr) = self.runtime.block_on(self.fs.get_attr(&path_str)) {
                     file_info
                         .set_file_size(attr.size)
                         .set_allocation_size((attr.size + 4095) / 4096 * 4096)
@@ -205,7 +205,8 @@ mod winfsp_impl {
             );
 
             let size = buffer.len() as u32;
-            match tokio::runtime::Handle::current()
+            match self
+                .runtime
                 .block_on(self.fs.read_dds(&path_str, offset, size))
             {
                 Ok(data) => {
@@ -268,9 +269,9 @@ mod winfsp_impl {
     pub fn mount(
         fs: Arc<DdsFileSystem>,
         mountpoint: &Path,
-        _runtime: tokio::runtime::Handle,
+        runtime: tokio::runtime::Handle,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let winfsp_fs = AutoOrthoWinFsp::new(fs);
+        let winfsp_fs = AutoOrthoWinFsp::new(fs, runtime);
 
         info!(
             "Mounting AutoOrtho at {} using winfsp",

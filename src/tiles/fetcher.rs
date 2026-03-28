@@ -1,5 +1,6 @@
 use crate::tiles::chunk::{Chunk, ChunkError, ChunkState};
 use crate::tiles::provider::{ProviderFactory, TileProvider};
+use log::debug;
 use lru::LruCache;
 use std::num::NonZero;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -68,14 +69,18 @@ impl TileFetcher {
                     true
                 } else {
                     // Missing or error state - try to fetch
-                    chunk.set_fetching().ok();
+                    if chunk.set_fetching().is_err() {
+                        debug!("Chunk {} already being fetched", key);
+                    }
                     true
                 }
             } else {
                 // Chunk doesn't exist - create and fetch
                 chunks.push(key.clone(), Chunk::new(row, col, maptype.to_string(), zoom));
-                if let Some(chunk) = chunks.get_mut(&key) {
-                    chunk.set_fetching().ok();
+                if let Some(chunk) = chunks.get_mut(&key)
+                    && chunk.set_fetching().is_err()
+                {
+                    debug!("Chunk {} already being fetched", key);
                 }
                 true
             }
@@ -155,14 +160,18 @@ impl TileFetcher {
                     true
                 } else {
                     // Missing or error state - try to fetch
-                    chunk.set_fetching().ok();
+                    if chunk.set_fetching().is_err() {
+                        debug!("Chunk {} already being fetched", key);
+                    }
                     true
                 }
             } else {
                 // Chunk doesn't exist - create and fetch
                 chunks.push(key.clone(), Chunk::new(row, col, maptype.to_string(), zoom));
-                if let Some(chunk) = chunks.get_mut(&key) {
-                    chunk.set_fetching().ok();
+                if let Some(chunk) = chunks.get_mut(&key)
+                    && chunk.set_fetching().is_err()
+                {
+                    debug!("Chunk {} already being fetched", key);
                 }
                 true
             }

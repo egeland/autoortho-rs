@@ -4,6 +4,7 @@ use crate::webui::WebState;
 use axum::extract::{Query, State};
 use axum::response::{Html, Json};
 use axum::routing::{Router, get, post};
+use log::warn;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -395,7 +396,10 @@ async fn custommap_import(
     body: String,
 ) -> Json<HashMap<String, String>> {
     let merge = query.merge.as_deref() == Some("true");
-    let _ = state.custom_map.import_json(&body, merge);
+    if let Err(e) = state.custom_map.import_json(&body, merge) {
+        warn!("Failed to import custom map JSON: {}", e);
+        return Json(HashMap::new());
+    }
     Json(state.custom_map.get_cells())
 }
 
