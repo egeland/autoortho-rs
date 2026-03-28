@@ -3,6 +3,7 @@
 
 use autoortho_lib::config::AutoOrthoConfig;
 use autoortho_lib::dynamic_zoom::DynamicZoom;
+#[cfg(not(windows))]
 use autoortho_lib::fuse::filesystem::DdsFileSystem;
 use autoortho_lib::pipeline::cache::DdsCache;
 use autoortho_lib::stats::StatsStore;
@@ -42,14 +43,21 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     if let Some(pos) = args.iter().position(|a| a == "--mount") {
-        let config = autoortho_lib::config::AutoOrthoConfig::load();
-        let config_mount_dir = config.mount_dir().to_string_lossy().into_owned();
-        let mountpoint = args
-            .get(pos + 1)
-            .map(|s| s.as_str())
-            .unwrap_or(&config_mount_dir);
-        let rt = tokio::runtime::Runtime::new()?;
-        return rt.block_on(run_with_mount(mountpoint));
+        #[cfg(not(windows))]
+        {
+            let config = autoortho_lib::config::AutoOrthoConfig::load();
+            let config_mount_dir = config.mount_dir().to_string_lossy().into_owned();
+            let mountpoint = args
+                .get(pos + 1)
+                .map(|s| s.as_str())
+                .unwrap_or(&config_mount_dir);
+            let rt = tokio::runtime::Runtime::new()?;
+            return rt.block_on(run_with_mount(mountpoint));
+        }
+        #[cfg(windows)]
+        {
+            eprintln!("FUSE mounting is not supported on Windows. Starting server without mount.");
+        }
     }
 
     let rt = tokio::runtime::Runtime::new()?;
@@ -223,6 +231,8 @@ async fn test_tile_generation() -> Result<(), Box<dyn Error>> {
 }
 
 /// Run with FUSE mount — serves DDS tiles at the mount point.
+/// Only available on Linux and macOS.
+#[cfg(not(windows))]
 async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     use autoortho_lib::webui::custommap::CustomMapStore;
     use std::path::Path;
