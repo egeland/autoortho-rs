@@ -8,8 +8,10 @@ use crate::fuse::{DdsPathParser, FuseError, MARKER_FILE, VIRTUAL_DIRS, is_poison
 use crate::pipeline::cache::{DdsCache, DdsCacheMetadata};
 use crate::pipeline::dds::DdsFormat;
 use crate::tiles::assembler::{AssemblyConfig, AssemblyResult, assemble_tile};
+use crate::tiles::coords::TileCoords;
 use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::zoom::ChunkGrid;
+use crate::webui::custommap::CustomMapStore;
 use log::{debug, warn};
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
@@ -34,10 +36,14 @@ pub struct DdsFileSystem {
     /// Night exclusion: when true, read_dds returns a solid-color fallback tile
     /// instead of fetching satellite imagery. Updated externally via the Arc.
     night_exclusion: Arc<AtomicBool>,
+    /// Custom map store for per-cell provider overrides
+    custom_map: Option<Arc<CustomMapStore>>,
+    /// Default provider from config (fallback when no custom map override)
+    default_provider: String,
 }
 
 impl DdsFileSystem {
-    pub fn new(fetcher: Arc<TileFetcher>) -> Self {
+    pub fn new(fetcher: Arc<TileFetcher>, provider_id: &str) -> Self {
         Self {
             parser: DdsPathParser::new(),
             fetcher,
@@ -46,11 +52,13 @@ impl DdsFileSystem {
             disk_cache: None,
             root: None,
             night_exclusion: Arc::new(AtomicBool::new(false)),
+            custom_map: None,
+            default_provider: provider_id.to_string(),
         }
     }
 
     /// Create with a scenery root for real file pass-through.
-    pub fn with_root(fetcher: Arc<TileFetcher>, root: std::path::PathBuf) -> Self {
+    pub fn with_root(fetcher: Arc<TileFetcher>, root: std::path::PathBuf, provider_id: &str) -> Self {
         Self {
             parser: DdsPathParser::new(),
             fetcher,
@@ -59,6 +67,8 @@ impl DdsFileSystem {
             disk_cache: None,
             root: Some(root),
             night_exclusion: Arc::new(AtomicBool::new(false)),
+            custom_map: None,
+            default_provider: provider_id.to_string(),
         }
     }
 
@@ -66,6 +76,7 @@ impl DdsFileSystem {
     pub fn with_disk_cache(
         fetcher: Arc<TileFetcher>,
         disk_cache: Arc<std::sync::Mutex<DdsCache>>,
+        provider_id: &str,
     ) -> Self {
         Self {
             parser: DdsPathParser::new(),
@@ -75,7 +86,96 @@ impl DdsFileSystem {
             disk_cache: Some(disk_cache),
             root: None,
             night_exclusion: Arc::new(AtomicBool::new(false)),
+            custom_map: None,
+            default_provider: provider_id.to_string(),
         }
+    }
+
+    /// Set the custom map store for per-cell provider overrides.
+    pub fn set_custom_map(&mut self, custom_map: Arc<CustomMapStore>) {
+        self.custom_map = Some(custom_map);
+    }
+
+    /// Create a new filesystem with custom map support.
+    pub fn new_with_custom_map(fetcher: Arc<TileFetcher>, custom_map: Arc<CustomMapStore>, provider_id: &str) -> Self {
+        Self {
+            parser: DdsPathParser::new(),
+            fetcher,
+            format: DdsFormat::BC3,
+            dds_cache: Mutex::new(HashMap::new()),
+            disk_cache: None,
+            root: None,
+            night_exclusion: Arc::new(AtomicBool::new(false)),
+            custom_map: Some(custom_map),
+            default_provider: provider_id.to_string(),
+        }
+    }
+
+    /// Create with a scenery root and custom map support.
+    pub fn with_root_and_custom_map(
+        fetcher: Arc<TileFetcher>,
+        root: std::path::PathBuf,
+        custom_map: Arc<CustomMapStore>,
+        provider_id: &str,
+    ) -> Self {
+        Self {
+            parser: DdsPathParser::new(),
+            fetcher,
+            format: DdsFormat::BC3,
+            dds_cache: Mutex::new(HashMap::new()),
+            disk_cache: None,
+            root: Some(root),
+            night_exclusion: Arc::new(AtomicBool::new(false)),
+            custom_map: Some(custom_map),
+            default_provider: provider_id.to_string(),
+        }
+    }
+
+    /// Create with a persistent disk cache and custom map support.
+    pub fn with_disk_cache_and_custom_map(
+        fetcher: Arc<TileFetcher>,
+        disk_cache: Arc<std::sync::Mutex<DdsCache>>,
+        custom_map: Arc<CustomMapStore>,
+        provider_id: &str,
+    ) -> Self {
+        Self {
+            parser: DdsPathParser::new(),
+            fetcher,
+            format: DdsFormat::BC3,
+            dds_cache: Mutex::new(HashMap::new()),
+            disk_cache: Some(disk_cache),
+            root: None,
+            night_exclusion: Arc::new(AtomicBool::new(false)),
+            custom_map: Some(custom_map),
+            default_provider: provider_id.to_string(),
+        }
+    }
+
+    /// Get the provider for a given tile based on custom map overrides.
+    /// Returns the provider ID to use (custom map override or default).
+    fn get_provider_for_tile(&self, row: u32, col: u32, zoom: u32) -> String {
+        // Get tile center coordinates
+        let (center_lat, center_lon) = match TileCoords::tile_to_latlng(col, row, zoom) {
+            Ok(coords) => coords,
+            Err(_) => return self.default_provider.clone(),
+        };
+
+        // Compute cell key (floor coordinates)
+        let cell_key = format!(
+            "{},{}",
+            center_lat.floor() as i32,
+            center_lon.floor() as i32
+        );
+
+        // Check for custom map override
+        if let Some(ref custom_map) = self.custom_map {
+            let cells = custom_map.get_cells();
+            if let Some(provider) = cells.get(&cell_key) {
+                return provider.clone();
+            }
+        }
+
+        self.default_provider.clone()
     }
 
     /// Get a clone of the night exclusion flag Arc.
@@ -262,12 +362,15 @@ impl DdsFileSystem {
             pixel_height: 4096,
         };
 
-        // Fetch all 256 chunks
+        // Fetch all 256 chunks with per-chunk provider resolution
         let mut jpeg_chunks: Vec<Option<Vec<u8>>> = Vec::with_capacity(256);
         for (chunk_col, chunk_row) in grid.iter_chunks() {
+            // Get the provider for this specific chunk based on custom map overrides
+            let provider_id = self.get_provider_for_tile(chunk_row, chunk_col, zoom);
+            
             let result = self
                 .fetcher
-                .get_chunk_data(chunk_row, chunk_col, maptype, zoom)
+                .get_chunk_data_with_provider(chunk_row, chunk_col, maptype, zoom, &provider_id)
                 .await;
             match result {
                 Ok(Some(data)) => jpeg_chunks.push(Some(data)),
@@ -457,7 +560,7 @@ mod tests {
     fn make_fs() -> DdsFileSystem {
         let provider = Arc::new(MockProvider);
         let fetcher = crate::tiles::fetcher::TileFetcher::new(provider);
-        DdsFileSystem::new(Arc::new(fetcher))
+        DdsFileSystem::new(Arc::new(fetcher), "ARC")
     }
 
     #[tokio::test]
@@ -552,7 +655,7 @@ mod tests {
 
         let provider = Arc::new(MockProvider);
         let fetcher = crate::tiles::fetcher::TileFetcher::new(provider);
-        let fs = DdsFileSystem::with_root(Arc::new(fetcher), tmp.path().to_path_buf());
+        let fs = DdsFileSystem::with_root(Arc::new(fetcher), tmp.path().to_path_buf(), "ARC");
 
         // Real file should be accessible
         let attr = fs.get_attr("/test.dsf").await.unwrap();
@@ -572,7 +675,7 @@ mod tests {
 
         let provider = Arc::new(MockProvider);
         let fetcher = crate::tiles::fetcher::TileFetcher::new(provider);
-        let fs = DdsFileSystem::with_root(Arc::new(fetcher), tmp.path().to_path_buf());
+        let fs = DdsFileSystem::with_root(Arc::new(fetcher), tmp.path().to_path_buf(), "ARC");
 
         let entries = fs.list_dir("/").unwrap();
         assert!(entries.contains(&"textures".to_string()));

@@ -373,7 +373,7 @@ mod tests {
     fn test_well_known_inodes() {
         let provider = Arc::new(MockProvider);
         let fetcher = crate::tiles::fetcher::TileFetcher::new(provider);
-        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher)));
+        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher), "ARC"));
         let rt = tokio::runtime::Runtime::new().unwrap();
         let fuse = AutoOrthoFuse::new(fs, rt.handle().clone());
 
@@ -386,7 +386,7 @@ mod tests {
     fn test_dynamic_inode_allocation() {
         let provider = Arc::new(MockProvider);
         let fetcher = crate::tiles::fetcher::TileFetcher::new(provider);
-        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher)));
+        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher), "ARC"));
         let rt = tokio::runtime::Runtime::new().unwrap();
         let fuse = AutoOrthoFuse::new(fs, rt.handle().clone());
 
@@ -404,7 +404,7 @@ mod tests {
     fn test_inode_path_roundtrip() {
         let provider = Arc::new(MockProvider);
         let fetcher = crate::tiles::fetcher::TileFetcher::new(provider);
-        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher)));
+        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher), "ARC"));
         let rt = tokio::runtime::Runtime::new().unwrap();
         let fuse = AutoOrthoFuse::new(fs, rt.handle().clone());
 

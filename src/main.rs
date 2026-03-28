@@ -224,12 +224,20 @@ async fn test_tile_generation() -> Result<(), Box<dyn Error>> {
 /// Run with FUSE mount — serves DDS tiles at the mount point.
 async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     use std::path::Path;
+    use autoortho_lib::webui::custommap::CustomMapStore;
 
     info!("AutoOrtho Rust v0.1.0 starting with FUSE mount");
 
     let config = AutoOrthoConfig::default();
     let provider = ProviderFactory::create(&config.tile_provider).expect("Unknown tile provider");
     info!("Provider: {} ({})", provider.name(), config.tile_provider);
+
+    let custom_map_path = dirs::config_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("autoortho")
+        .join("custom_map.json");
+    let custom_map = CustomMapStore::load(custom_map_path);
+    info!("Custom map: {} cells defined", custom_map.get_cells().len());
 
     let fetcher = Arc::new(TileFetcher::new(provider));
 
@@ -258,9 +266,11 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     };
 
     let fs = if let Some(dc) = dds_cache {
-        Arc::new(DdsFileSystem::with_disk_cache(fetcher.clone(), dc))
+        Arc::new(DdsFileSystem::with_disk_cache_and_custom_map(
+            fetcher.clone(), dc, custom_map, &config.tile_provider))
     } else {
-        Arc::new(DdsFileSystem::new(fetcher.clone()))
+        Arc::new(DdsFileSystem::new_with_custom_map(
+            fetcher.clone(), custom_map, &config.tile_provider))
     };
 
     // Start web server
@@ -446,6 +456,9 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
 }
 
 async fn run_server() -> Result<(), Box<dyn Error>> {
+    
+    use autoortho_lib::webui::custommap::CustomMapStore;
+
     info!("AutoOrtho Rust v0.1.0 starting");
 
     let config = AutoOrthoConfig::default();
@@ -454,6 +467,13 @@ async fn run_server() -> Result<(), Box<dyn Error>> {
 
     let provider = ProviderFactory::create(&config.tile_provider).expect("Unknown tile provider");
     info!("Initialized {} provider", provider.name());
+
+    let custom_map_path = dirs::config_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("autoortho")
+        .join("custom_map.json");
+    let custom_map = CustomMapStore::load(custom_map_path);
+    info!("Custom map: {} cells defined", custom_map.get_cells().len());
 
     let fetcher = Arc::new(TileFetcher::new(provider));
 
@@ -482,9 +502,9 @@ async fn run_server() -> Result<(), Box<dyn Error>> {
     };
 
     let _fs = if let Some(dc) = dds_cache {
-        DdsFileSystem::with_disk_cache(fetcher, dc)
+        DdsFileSystem::with_disk_cache_and_custom_map(fetcher, dc, custom_map, &config.tile_provider)
     } else {
-        DdsFileSystem::new(fetcher)
+        DdsFileSystem::new_with_custom_map(fetcher, custom_map, &config.tile_provider)
     };
 
     let stats = Arc::new(StatsStore::new());

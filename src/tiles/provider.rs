@@ -3,6 +3,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 use thiserror::Error;
 
+use crate::tiles::coords::TileCoords;
+
 /// Metadata about a tile provider's capabilities.
 #[derive(Debug, Clone)]
 pub struct ProviderInfo {
@@ -41,6 +43,39 @@ pub const PROVIDER_INFO: &[ProviderInfo] = &[
         max_zoom: 19,
         requires_auth: false,
     },
+    ProviderInfo {
+        id: "NAIP",
+        display_name: "USGS NAIP",
+        min_zoom: 0,
+        max_zoom: 19,
+        requires_auth: false,
+    },
+    ProviderInfo {
+        id: "USGS",
+        display_name: "USGS Topo",
+        min_zoom: 0,
+        max_zoom: 16,
+        requires_auth: false,
+    },
+    ProviderInfo {
+        id: "EOX",
+        display_name: "EOX Maps",
+        min_zoom: 0,
+        max_zoom: 18,
+        requires_auth: false,
+    },
+    ProviderInfo {
+        id: "FIREFLY",
+        display_name: "Firefly",
+        min_zoom: 0,
+        max_zoom: 17,
+        requires_auth: false,
+    },
+];
+
+/// Provider IDs for UI pick lists (mirrors order in PROVIDER_INFO)
+pub const PROVIDER_IDS: &[&str] = &[
+    "GO2", "BI", "ARC", "NAIP", "USGS", "EOX", "FIREFLY",
 ];
 
 /// Get provider info by ID. Returns None for unknown providers.
@@ -122,7 +157,26 @@ async fn fetch_image(client: &reqwest::Client, url: &str) -> Result<Vec<u8>, Til
     Ok(bytes)
 }
 
-/// Google Maps provider (GO2)
+/// Test if a provider has coverage at the given coordinates.
+/// Returns Ok(()) if successful, Err(message) if failed.
+/// If successful, the tile data is returned for optional caching.
+pub async fn test_provider_coverage(
+    provider_id: &str,
+    lat: f64,
+    lon: f64,
+    zoom: u32,
+) -> Result<Vec<u8>, String> {
+    let provider = ProviderFactory::create(provider_id)
+        .ok_or_else(|| format!("Unknown provider: {}", provider_id))?;
+
+    let (row, col) = TileCoords::latlng_to_tile(lat, lon, zoom)
+        .map_err(|e| format!("Invalid coordinates: {}", e))?;
+
+    provider
+        .fetch(row, col, zoom)
+        .await
+        .map_err(|e| format!("Coverage test failed: {}", e))
+}
 pub struct GoogleMapsProvider {
     client: reqwest::Client,
 }
@@ -233,13 +287,17 @@ impl ProviderFactory {
             "GO2" | "GOOGLE" => Some(Arc::new(GoogleMapsProvider::new())),
             "BI" | "BING" => Some(Arc::new(BingMapsProvider::new(None))),
             "ARC" | "ARCGIS" => Some(Arc::new(ArcGisProvider::new())),
+            "NAIP" => Some(Arc::new(UsgsNaipProvider::new())),
+            "USGS" => Some(Arc::new(UsgsTopoProvider::new())),
+            "EOX" => Some(Arc::new(EoxProvider::new())),
+            "FIREFLY" => Some(Arc::new(FireflyProvider::new())),
             _ => None,
         }
     }
 
     /// List available provider names
     pub fn available_providers() -> Vec<&'static str> {
-        vec!["GO2", "BI", "ARC"]
+        vec!["GO2", "BI", "ARC", "NAIP", "USGS", "EOX", "FIREFLY"]
     }
 }
 
@@ -261,6 +319,166 @@ impl TileProvider for ArcGisProvider {
 
     fn name(&self) -> &str {
         "ArcGIS"
+    }
+}
+
+/// USGS NAIP provider (NAIP)
+pub struct UsgsNaipProvider {
+    client: reqwest::Client,
+}
+
+impl UsgsNaipProvider {
+    pub fn new() -> Self {
+        Self {
+            client: reqwest::Client::new(),
+        }
+    }
+}
+
+impl Default for UsgsNaipProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TileProvider for UsgsNaipProvider {
+    fn fetch(
+        &self,
+        row: u32,
+        col: u32,
+        zoom: u32,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, TileProviderError>> + Send + '_>> {
+        Box::pin(async move {
+            let url = format!(
+                "http://naip.maptiles.arcgis.com/arcgis/rest/services/NAIP/MapServer/tile/{}/{}/{}",
+                zoom, row, col
+            );
+            fetch_image(&self.client, &url).await
+        })
+    }
+
+    fn name(&self) -> &str {
+        "USGS NAIP"
+    }
+}
+
+/// USGS Topo provider (USGS)
+pub struct UsgsTopoProvider {
+    client: reqwest::Client,
+}
+
+impl UsgsTopoProvider {
+    pub fn new() -> Self {
+        Self {
+            client: reqwest::Client::new(),
+        }
+    }
+}
+
+impl Default for UsgsTopoProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TileProvider for UsgsTopoProvider {
+    fn fetch(
+        &self,
+        row: u32,
+        col: u32,
+        zoom: u32,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, TileProviderError>> + Send + '_>> {
+        Box::pin(async move {
+            let url = format!(
+                "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{}/{}/{}",
+                zoom, row, col
+            );
+            fetch_image(&self.client, &url).await
+        })
+    }
+
+    fn name(&self) -> &str {
+        "USGS Topo"
+    }
+}
+
+/// EOX provider (EOX)
+pub struct EoxProvider {
+    client: reqwest::Client,
+}
+
+impl EoxProvider {
+    pub fn new() -> Self {
+        Self {
+            client: reqwest::Client::new(),
+        }
+    }
+}
+
+impl Default for EoxProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TileProvider for EoxProvider {
+    fn fetch(
+        &self,
+        row: u32,
+        col: u32,
+        zoom: u32,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, TileProviderError>> + Send + '_>> {
+        Box::pin(async move {
+            let url = format!(
+                "https://s2maps-tiles.eu/wmts?layer=s2cloudless-2024_3857&style=default&tilematrixset=g&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image%2Fjpeg&TileMatrix={}&TileCol={}&TileRow={}",
+                zoom, col, row
+            );
+            fetch_image(&self.client, &url).await
+        })
+    }
+
+    fn name(&self) -> &str {
+        "EOX Maps"
+    }
+}
+
+/// Firefly provider (FIREFLY)
+pub struct FireflyProvider {
+    client: reqwest::Client,
+}
+
+impl FireflyProvider {
+    pub fn new() -> Self {
+        Self {
+            client: reqwest::Client::new(),
+        }
+    }
+}
+
+impl Default for FireflyProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TileProvider for FireflyProvider {
+    fn fetch(
+        &self,
+        row: u32,
+        col: u32,
+        zoom: u32,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, TileProviderError>> + Send + '_>> {
+        Box::pin(async move {
+            let url = format!(
+                "https://fly.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Firefly/MapServer/tile/{}/{}/{}",
+                zoom, row, col
+            );
+            fetch_image(&self.client, &url).await
+        })
+    }
+
+    fn name(&self) -> &str {
+        "Firefly"
     }
 }
 

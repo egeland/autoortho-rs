@@ -67,6 +67,24 @@
 - [ ] Level 2 (Scale): Scale from lower mipmap
 - [ ] Level 3 (Network): Download lower-detail imagery on-demand
 
+### Phase 4f — Provider Coverage Validation + Custom Map Integration
+
+#### Feature 1: Provider Suggestion on SimBrief Fetch ✅
+- [x] Add `test_provider_coverage(lat, lon, zoom, provider)` to provider.rs
+- [x] On SimBrief fetch, validate coverage at origin and destination
+- [x] Test at zoom = near_airport_zoom (default 19)
+- [ ] Auto-clear warning when provider changes (deferred)
+
+#### Feature 2: Custom Map Integration (Infrastructure Only)
+- [x] Add CustomMapStore field and provider resolution methods to DdsFileSystem
+- [ ] Implement actual tile fetching with cell-specific providers (deferred)
+- [ ] Skip coverage validation for cells with custom map (deferred)
+
+#### Feature 3: UI Warnings ✅
+- [x] Add `simbrief_coverage_warning` field to AppState
+- [x] Dashboard: Show warning in SimBrief section
+- [x] Settings: Show warning in SimBrief section
+
 ### Phase 5 — X-Plane Integration ✅
 - [x] `xplane/mod.rs` — RREF codec, FlightDataAverager, HeadingAverager
 - [x] `xplane/udp.rs` — Async UDP client

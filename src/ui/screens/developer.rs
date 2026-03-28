@@ -1,13 +1,12 @@
 use crate::tiles::provider;
-use crate::ui::Message;
+use crate::tiles::provider::PROVIDER_IDS;
 use crate::ui::state::AppState;
+use crate::ui::Message;
 use iced::widget::{
     button, column, container, image as iced_image, pick_list, row, rule, scrollable, slider,
     space, text, text_input,
 };
 use iced::{Element, Fill, Length};
-
-const PROVIDERS: &[&str] = &["ARC", "BI", "GO2"];
 
 /// Developer tools screen — testing and diagnostics
 pub fn view(state: &AppState) -> Element<'_, Message> {
@@ -154,7 +153,7 @@ fn provider_row(state: &AppState) -> Element<'_, Message> {
     row![
         text("Provider:").width(Length::Fixed(80.0)),
         pick_list(
-            PROVIDERS,
+            PROVIDER_IDS,
             Some(state.config.tile_provider.as_str()),
             |s: &str| Message::SetTileProvider(s.to_string()),
         )

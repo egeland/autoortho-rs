@@ -137,6 +137,7 @@ pub struct AppState {
     pub simbrief_show_details: bool,
     pub simbrief_error: Option<String>,
     pub simbrief_flight_plan: Option<crate::xplane::simbrief::FlightPlan>,
+    pub simbrief_coverage_warning: Option<String>,
 
     // Developer test tile state
     pub test_tile_lat: String,
@@ -190,9 +191,10 @@ impl AppState {
             simbrief_show_details: false,
             simbrief_error: None,
             simbrief_flight_plan: None,
-            test_tile_lat: "-33.86".to_string(),
-            test_tile_lon: "151.21".to_string(),
-            test_tile_zoom: 14,
+            simbrief_coverage_warning: None,
+            test_tile_lat: String::new(),
+            test_tile_lon: String::new(),
+            test_tile_zoom: 10,
             test_tile_status: None,
             test_tile_running: false,
             test_tile_image: None,

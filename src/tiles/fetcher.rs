@@ -1,5 +1,5 @@
 use crate::tiles::chunk::{Chunk, ChunkError, ChunkState};
-use crate::tiles::provider::TileProvider;
+use crate::tiles::provider::{TileProvider, ProviderFactory};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -87,6 +87,82 @@ impl TileFetcher {
     /// Get current cache size
     pub async fn cache_size(&self) -> usize {
         self.chunks.read().await.len()
+    }
+
+    /// Get chunk data with a specific provider.
+    /// The provider_id is included in the cache key so different providers
+    /// for the same tile coordinates are cached separately.
+    pub async fn get_chunk_data_with_provider(
+        &self,
+        row: u32,
+        col: u32,
+        maptype: &str,
+        zoom: u32,
+        provider_id: &str,
+    ) -> Result<Option<Vec<u8>>, ChunkError> {
+        let key = format!("{}_{}_{}_{}_{}", row, col, maptype, zoom, provider_id);
+
+        // Fast path: check if already cached (read lock only)
+        {
+            let chunks = self.chunks.read().await;
+            if let Some(chunk) = chunks.get(&key)
+                && let Some(data) = chunk.data()
+            {
+                return Ok(Some(data.to_vec()));
+            }
+        }
+        // Read lock released here
+
+        // Check if we need to fetch (brief write lock to mark as fetching)
+        let needs_fetch = {
+            let mut chunks = self.chunks.write().await;
+            let chunk = chunks
+                .entry(key.clone())
+                .or_insert_with(|| Chunk::new(row, col, maptype.to_string(), zoom));
+
+            if chunk.state() == ChunkState::Missing {
+                chunk.set_fetching().ok();
+                true
+            } else {
+                false
+            }
+        };
+        // Write lock released before the async network call
+
+        if needs_fetch {
+            // Create the provider for this specific request
+            let provider = match ProviderFactory::create(provider_id) {
+                Some(p) => p,
+                None => {
+                    let mut chunks = self.chunks.write().await;
+                    if let Some(chunk) = chunks.get_mut(&key) {
+                        chunk.set_error()?;
+                    }
+                    return Err(ChunkError::DownloadFailed(format!("Unknown provider: {}", provider_id)));
+                }
+            };
+
+            // Perform the actual fetch without holding any lock
+            let result = provider.fetch(row, col, zoom).await;
+
+            // Re-acquire lock to store the result
+            let mut chunks = self.chunks.write().await;
+            if let Some(chunk) = chunks.get_mut(&key) {
+                match result {
+                    Ok(data) => {
+                        chunk.set_cached(data)?;
+                    }
+                    Err(e) => {
+                        chunk.set_error()?;
+                        return Err(ChunkError::DownloadFailed(e.to_string()));
+                    }
+                }
+            }
+        }
+
+        // Return the cached data
+        let chunks = self.chunks.read().await;
+        Ok(chunks.get(&key).and_then(|c| c.data().map(|d| d.to_vec())))
     }
 }
 

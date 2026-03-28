@@ -164,6 +164,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             );
         }
 
+        if let Some(ref warning) = state.simbrief_coverage_warning {
+            section = section.push(
+                text(warning.clone())
+                    .size(13)
+                    .color(iced::Color::from_rgb(0.9, 0.6, 0.1)),
+            );
+        }
+
         section
     };
 

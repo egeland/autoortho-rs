@@ -5,7 +5,11 @@ use iced::{Element, Font, Subscription, Task};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
+use std::sync::Mutex;
 use tokio::sync::{oneshot, watch};
+
+use crate::tiles::provider;
+use crate::xplane::simbrief::{FlightFix, FlightPlan};
 
 /// Saved window geometry to restore on boot: (x, y, width, height)
 #[allow(clippy::type_complexity)]
@@ -130,10 +134,11 @@ pub enum Message {
     SetAirportRadius(u32),
     FetchSimbrief,
     SimbriefLoaded(
-        String,
-        Vec<(String, String, f32)>,
-        crate::xplane::simbrief::FlightPlan,
-    ), // (summary, fixes, full plan)
+        String, // summary
+        Vec<(String, String, f32)>, // fixes
+        std::sync::Arc<std::sync::Mutex<Option<FlightPlan>>>, // flight plan
+    ),
+    SimbriefCoverageChecked(Option<String>), // warning message if coverage issue
     SimbriefFailed(String),
     ToggleSimbriefDetails,
 
@@ -199,7 +204,48 @@ impl AutoOrthoApp {
                 }
             }
             Message::SetTileProvider(provider) => {
-                self.state.config.tile_provider = provider;
+                self.state.config.tile_provider = provider.clone();
+                self.state.simbrief_coverage_warning = None;
+
+                // Re-check coverage with new provider if we have an active flight plan
+                let (olat, olon, dlat, dlon, origin_code, dest_code): (Option<f64>, Option<f64>, Option<f64>, Option<f64>, String, String) = 
+                    if let Some(ref fp) = self.state.simbrief_flight_plan {
+                        let ofix = FlightPlan::origin_fix(fp);
+                        let dfix = FlightPlan::destination_fix(fp);
+                        (
+                            ofix.map(|f| f.lat),
+                            ofix.map(|f| f.lon),
+                            dfix.map(|f| f.lat),
+                            dfix.map(|f| f.lon),
+                            fp.origin.clone(),
+                            fp.destination.clone(),
+                        )
+                    } else {
+                        (None, None, None, None, String::new(), String::new())
+                    };
+
+                let zoom = self.state.config.near_airport_zoom;
+
+                if let (Some(olat), Some(olon), Some(dlat), Some(dlon)) = (olat, olon, dlat, dlon) {
+                    return iced::Task::perform(
+                        async move {
+                            let mut warnings = Vec::new();
+                            if provider::test_provider_coverage(&provider, olat, olon, zoom).await.is_err() {
+                                warnings.push(format!("origin ({})", origin_code));
+                            }
+                            if provider::test_provider_coverage(&provider, dlat, dlon, zoom).await.is_err() {
+                                warnings.push(format!("destination ({})", dest_code));
+                            }
+                            if warnings.is_empty() {
+                                None
+                            } else {
+                                Some(format!("Provider {} may not have coverage for your route: {}. Consider using ArcGIS for global coverage.", 
+                                    provider, warnings.join(" and ")))
+                            }
+                        },
+                        Message::SimbriefCoverageChecked,
+                    );
+                }
             }
             Message::SetMinZoom(zoom) => {
                 self.state.config.min_zoom = zoom;
@@ -302,7 +348,7 @@ impl AutoOrthoApp {
                                     (f.ident.clone(), f.fix_type.clone(), alt)
                                 })
                                 .collect();
-                            Message::SimbriefLoaded(summary, fixes, plan)
+                            Message::SimbriefLoaded(summary, fixes, Arc::new(Mutex::new(Some(plan))))
                         }
                         Err(e) => Message::SimbriefFailed(e.to_string()),
                     },
@@ -310,11 +356,63 @@ impl AutoOrthoApp {
             }
             Message::SimbriefLoaded(summary, fixes, plan) => {
                 self.state.simbrief_fetching = false;
-                self.state.simbrief_route_summary = Some(summary);
+                self.state.simbrief_route_summary = Some(summary.clone());
                 self.state.simbrief_fixes = fixes;
-                self.state.simbrief_flight_plan = Some(plan);
                 self.state.simbrief_show_details = false;
                 self.state.simbrief_error = None;
+                
+                // Extract coordinates and store plan first
+                let flight_plan_opt = { let guard = plan.lock().unwrap(); guard.clone() };
+                
+                let (origin_lat, origin_lon, dest_lat, dest_lon, origin_code, dest_code): (Option<f64>, Option<f64>, Option<f64>, Option<f64>, String, String) = if let Some(ref fp) = flight_plan_opt {
+                    let ofix: Option<&FlightFix> = FlightPlan::origin_fix(fp);
+                    let dfix: Option<&FlightFix> = FlightPlan::destination_fix(fp);
+                    (
+                        ofix.map(|f| f.lat),
+                        ofix.map(|f| f.lon),
+                        dfix.map(|f| f.lat),
+                        dfix.map(|f| f.lon),
+                        fp.origin.clone(),
+                        fp.destination.clone(),
+                    )
+                } else {
+                    (None, None, None, None, String::new(), String::new())
+                };
+                
+                self.state.simbrief_flight_plan = flight_plan_opt;
+                
+                // Check provider coverage for the flight route
+                let provider = self.state.config.tile_provider.clone();
+                let zoom = self.state.config.near_airport_zoom;
+                
+                if let (Some(olat), Some(olon), Some(dlat), Some(dlon)) = (origin_lat, origin_lon, dest_lat, dest_lon) {
+                    return iced::Task::perform(
+                        async move {
+                            let mut warnings = Vec::new();
+                            
+                            // Test origin coverage
+                            if provider::test_provider_coverage(&provider, olat, olon, zoom).await.is_err() {
+                                warnings.push(format!("origin ({})", origin_code));
+                            }
+                            
+                            // Test destination coverage
+                            if provider::test_provider_coverage(&provider, dlat, dlon, zoom).await.is_err() {
+                                warnings.push(format!("destination ({})", dest_code));
+                            }
+                            
+                            if warnings.is_empty() {
+                                None
+                            } else {
+                                Some(format!("Provider {} may not have coverage for your route: {}. Consider using ArcGIS for global coverage.", 
+                                    provider, warnings.join(" and ")))
+                            }
+                        },
+                        Message::SimbriefCoverageChecked,
+                    );
+                }
+            }
+            Message::SimbriefCoverageChecked(warning) => {
+                self.state.simbrief_coverage_warning = warning;
             }
             Message::SimbriefFailed(err) => {
                 self.state.simbrief_fetching = false;

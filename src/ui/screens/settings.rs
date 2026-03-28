@@ -1,4 +1,5 @@
 use crate::config::Season;
+use crate::tiles::provider::PROVIDER_IDS;
 use crate::ui::state::AppState;
 use crate::ui::Message;
 use iced::widget::{
@@ -6,7 +7,6 @@ use iced::widget::{
 };
 use iced::{Element, Fill, Length};
 
-const PROVIDERS: &[&str] = &["GO2", "BI", "ARC", "NAIP", "USGS", "EOX", "FIREFLY"];
 const SEASONS: &[Season] = &[
     Season::Disabled,
     Season::Spring,
@@ -272,6 +272,20 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .spacing(8);
 
+    // Show coverage warning if SimBrief is loaded
+    let simbrief = if let Some(ref warning) = state.simbrief_coverage_warning {
+        column![
+            simbrief,
+            space::vertical().height(8),
+            container(text(warning.clone()).size(13))
+                .padding(8)
+                .style(container::rounded_box)
+                .width(Length::Fill)
+        ]
+    } else {
+        simbrief
+    };
+
     // -- Tiles section --
     let tiles = column![
         text("Tiles").size(18),
@@ -279,7 +293,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         row![
             text("Tile Provider:").width(Length::Fixed(160.0)),
             pick_list(
-                PROVIDERS,
+                PROVIDER_IDS,
                 Some(state.config.tile_provider.as_str()),
                 |s: &str| Message::SetTileProvider(s.to_string()),
             )
