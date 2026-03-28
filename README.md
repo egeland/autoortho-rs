@@ -1,101 +1,152 @@
-# AutoOrtho Rust Rewrite
+# AutoOrtho Rust
 
-A pure Rust reimplementation of AutoOrtho, replacing the original Python/C codebase with idiomatic Rust for improved performance, safety, and maintainability.
+A pure Rust reimplementation of AutoOrtho for X-Plane satellite scenery, providing high-performance tile-based imagery with cross-platform support.
+
+## Features
+
+- **Multiple Tile Providers**: Google Maps, Bing Maps, ArcGIS, USGS NAIP, USGS Topo, EOX, Firefly
+- **Cross-Platform FUSE Filesystem**: Linux (libfuse), macOS (macFUSE), Windows (WinFsp)
+- **Real-Time Updates**: Web UI with live flight tracking via WebSocket
+- **Intelligent Caching**: DDS tile disk cache with LRU eviction and zstd compression
+- **Dynamic Zoom**: Altitude-based zoom level adjustment
+- **Fallback System**: Graceful degradation for missing tiles (cache lookup, downserve, solid color)
+- **Night Exclusion**: Automatic night mode based on sun elevation
+- **Seasonal Adjustments**: Spring, Summer, Autumn, Winter saturation modes
+- **SimBrief Integration**: Import flight plans for route-based prefetching
 
 ## Architecture
 
 ### Core Components
 
-**Phase 2 - Image Pipeline** (`src/pipeline/`)
+**Image Pipeline** (`src/pipeline/`)
 - `decode.rs`: JPEG decoding with buffer pool management
 - `dds.rs`: DDS header generation and mipmap chain sizing
 - `cache.rs`: Zstd-compressed DDS disk caching
 - `budget.rs`: LRU eviction for disk budget management
 - `image.rs`: RGBA image manipulation (paste, fill operations)
 
-**Phase 3 - Tile Engine** (`src/tiles/`)
+**Tile Engine** (`src/tiles/`)
 - `coords.rs`: Web Mercator slippy tile conversions, lat/lon math
 - `chunk.rs`: 256×256 tile chunk state machine (Missing→Fetching→Cached→Error)
 - `tile.rs`: 4096×4096 tile assembly from 16×16 chunk grids
 - `prefetch.rs`: Spatial prefetching with heading-based prioritization
-- `provider.rs`: Pluggable tile source interface (Google Maps, Bing Maps, ArcGIS)
+- `provider.rs`: Pluggable tile source interface
 - `fetcher.rs`: Concurrent chunk fetching with RwLock-based caching
+- `fallback.rs`: Fallback system for missing tiles
 
-**Phase 4 - FUSE Filesystem** (`src/fuse/`)
-- `mod.rs`: DDS path parser and virtual file size calculation
+**FUSE Filesystem** (`src/fuse/`)
 - `filesystem.rs`: Virtual filesystem operations (getattr, read, listdir)
+- `mount.rs`: Linux/macOS FUSE mounting via unifuse
+- `mount_win.rs`: Windows WinFsp mounting
 
-**Phase 5 - X-Plane Integration** (`src/xplane/`)
-- `mod.rs`: RREF protocol codec, flight data averager, heading circular mean
+**X-Plane Integration** (`src/xplane/`)
+- `dataref.rs`: RREF protocol codec, flight data tracker
+- `simbrief.rs`: SimBrief flight plan parsing and import
 - `udp.rs`: Async UDP client for X-Plane communication
 
-**Phase 6 - Ancillary Features**
-- `seasons.rs`: Seasonal saturation adjustment (HSL color space)
-- `time_exclusion.rs`: Sun elevation-based night exclusion
-- `dynamic_zoom.rs`: Altitude-to-zoom scaling
-- `altitude_predictor.rs`: Linear altitude interpolation
-- `downloader.rs`: Scenery pack download manager (zip/7z support)
-- `stats.rs`: Metrics accumulation with Arc<Mutex> for concurrency
+**Web UI** (`src/webui/`)
+- REST API endpoints for configuration and stats
+- WebSocket for live position updates
+- Custom map tile provider editor
+- Cache viewer
 
-**Phase 7 - Web UI** (`src/webui/`)
-- WebServer stub for Axum-based REST API
-
-**Phase 8 - Desktop UI** (`src/ui/`)
-- DesktopUI stub for egui-based interface
+**Desktop UI** (`src/ui/`)
+- Setup wizard for first-time configuration
+- Settings screen for all options
+- Dashboard with flight tracking and stats
+- Developer tools for testing
 
 ## Configuration
 
-AutoOrthoConfig supports INI-based configuration with sensible defaults:
+AutoOrtho uses a `config.toml` file stored in the platform config directory:
+- **Linux**: `~/.config/autoortho/config.toml`
+- **macOS**: `~/Library/Application Support/autoortho/config.toml`
+- **Windows**: `%APPDATA%\autoortho\config.toml`
 
-```rust
-let config = AutoOrthoConfig::default_config();
-// config.mount_dir = "/mnt/autoortho"
-// config.cache_dir = "~/.cache/autoortho"
-// config.xplane_host = "127.0.0.1"
-// config.xplane_port = 49000
-// config.tile_provider = "GO2" (Google Maps)
-// config.min_zoom = 10, max_zoom = 18
-// config.enable_night_exclusion = true
+### Key Configuration Options
+
+```toml
+[xplane]
+xplane_path = "/path/to/X-Plane 12"
+xplane_host = "127.0.0.1"
+xplane_port = 49000
+
+[scenery]
+tile_provider = "ARC"
+min_zoom = 10
+max_zoom = 18
+cache_dir = "~/.cache/autoortho"
+
+[display]
+enable_night_exclusion = true
+season = "Disabled"
+
+[fallback]
+level = "Cache"
+max_zoom_gap = 4
+cache_fallback = true
+solid_color = [66, 77, 55]
+
+[advanced]
+dds_memory_cache_mb = 256
+chunk_memory_cache_mb = 512
+```
+
+## Building
+
+### Prerequisites
+
+- Rust 1.75+ (install via [rustup](https://rustup.rs/))
+- **macOS**: macFUSE 4.x (install via Homebrew)
+- **Linux**: libfuse-dev (install via package manager)
+- **Windows**: WinFsp (download from [github.com/winfsp/winfsp](https://github.com/winfsp/winfsp))
+
+### Build Commands
+
+```bash
+# Debug build
+cargo build
+
+# Release build (recommended)
+cargo build --release
+
+# Run tests
+cargo test
+
+# Run benchmarks
+cargo bench
 ```
 
 ## Usage
 
-### Building
+### Desktop UI Mode
 
 ```bash
-cargo build --release
+./target/release/autoortho --gui
 ```
 
-### Running
+Launches the desktop UI with setup wizard, settings, and dashboard.
+
+### Command-Line Mode
 
 ```bash
-./target/release/autoortho
+./target/release/autoortho --xplane /path/to/X-Plane
 ```
 
-The application will:
-1. Load configuration
-2. Initialize tile provider
-3. Create tile fetcher with in-memory caching
-4. Start virtual filesystem (pending platform-specific FUSE binding)
-5. Listen for X-Plane UDP on configured host/port
-6. Run until Ctrl+C shutdown
+Runs without GUI, using configuration from config file.
+
+### Environment Variables
+
+- `RUST_LOG`: Set log level (e.g., `RUST_LOG=debug`)
+- `RUST_BACKTRACE`: Enable backtraces (set to `1`)
 
 ## Test Coverage
 
-**168 tests total:**
-- 156 unit tests across all modules
-- 12 integration tests exercising full pipeline
-
-Key test areas:
-- Tile coordinate conversions (Web Mercator math)
-- DDS compression and header generation
-- Chunk state machine transitions
-- X-Plane RREF protocol encoding/decoding
-- Flight data averaging with sliding windows
-- Heading circular averaging (0°/360° wrap-around)
-- Time exclusion with day/night thresholds
-- Seasonal saturation in HSL color space
-- Provider factory pattern and URL generation
+**333+ tests** across all modules:
+- Unit tests for tile coordinate math, DDS generation, chunk state machine
+- Integration tests for full tile pipeline
+- Protocol tests for X-Plane RREF codec
+- Provider tests for all tile sources
 
 ## Dependencies
 
@@ -103,83 +154,61 @@ Key test areas:
 |---------|-------|
 | Async runtime | tokio |
 | Parallelism | rayon |
-| HTTP | reqwest |
-| Compression | zstd |
+| HTTP client | reqwest |
+| Compression | zstd, texpresso |
 | LRU cache | lru |
-| Config/INI | config-rs + serde |
-| Web framework | axum (stub) |
-| UI | egui (stub) |
+| Web framework | axum |
+| WebSocket | tokio-tungstenite |
+| UI framework | iced |
 | Image decoding | image |
+| Config | config-rs + serde |
 | Error handling | thiserror |
 | Date/time | chrono |
-| Async traits | async-trait |
+| Filesystem | unifuse, winfsp |
+| Platform detection | sysinfo |
 
-## Implementation Status
+## Platform Support
 
-### Completed
-- ✅ Configuration system (INI-based)
-- ✅ JPEG decoding (image crate)
-- ✅ DDS header generation with mipmap chains
-- ✅ Web Mercator tile math and quadkey encoding
-- ✅ Chunk state machine and fetching
-- ✅ Tile provider interface with Google/Bing/ArcGIS implementations
-- ✅ Concurrent tile fetching with RwLock caching
-- ✅ Virtual filesystem path parsing and structure
-- ✅ X-Plane RREF protocol codec and UDP client
-- ✅ Flight data averaging (sliding window)
-- ✅ Heading circular averaging
-- ✅ Time exclusion (sun elevation-based)
-- ✅ Dynamic zoom (altitude-based)
-- ✅ Seasonal saturation (HSL adjustment)
-- ✅ Stats tracking
-- ✅ Comprehensive test suite
-
-### Pending
-- 🔄 Actual FUSE filesystem mounting (fuser crate or platform-specific)
-  - Linux: libfuse via fuser
-  - macOS: macFUSE via fuser (build issues in previous attempt)
-  - Windows: WinFsp
-- 🔄 BC1/BC3 DDS compression (currently placeholder)
-  - Option A: FFI to existing libispc_texcomp binaries
-  - Option B: Pure Rust BC3 implementation
-- 🔄 Web UI routes (dashboard, stats, custom map)
-- 🔄 Desktop UI implementation
-- 🔄 X-Plane UDP receiver (currently client only)
-- 🔄 SimBrief OFP API integration
-- 🔄 GitHub Actions CI/CD pipeline
-- 🔄 Release packaging and distribution
+| Platform | Filesystem | Status |
+|----------|------------|--------|
+| macOS | macFUSE | ✅ Tested |
+| Linux | libfuse | ✅ Tested |
+| Windows | WinFsp | ✅ Tested |
 
 ## Architecture Decisions
 
-1. **Async/Await**: Uses tokio throughout for non-blocking I/O (HTTP, UDP, file operations)
+1. **Async/Await**: Uses tokio throughout for non-blocking I/O
 2. **Trait-based Providers**: TileProvider trait allows swappable tile sources
-3. **Arc<RwLock> for Caching**: Shared immutable fetch results with reader-writer locks
-4. **Placeholder DDS Compression**: Structure is correct but actual BC1/BC3 implementation deferred
-5. **No FUSE Binding Yet**: Filesystem interface defined but platform-specific mount logic pending
-6. **State Machine for Chunks**: Clear transitions prevent invalid operations
+3. **parking_lot RwLock**: Better performance than std Mutex for concurrent reads
+4. **Single Tokio Runtime**: Shared runtime for all async components
+5. **Broadcast Channel**: WebSocket clients receive position updates via broadcast
+6. **Fallback Levels**: Cache → Downserve → Network → Solid for graceful degradation
 
-## Performance Considerations
+## Performance
 
-- **Parallel JPEG Decoding**: rayon for CPU-bound image operations
-- **Concurrent HTTP Fetching**: tokio tasks for simultaneous tile downloads
-- **Memory Pooling**: Pre-allocated buffer pools reduce allocation overhead
-- **LRU Eviction**: Disk budget enforcement via lru crate
-- **Zstd Compression**: Fast, high-ratio compression for disk cache
+Key optimizations:
+- Parallel JPEG decoding with rayon
+- Concurrent HTTP fetching with bounded LRU caches
+- Zstd compression for disk cache (3-5x ratio)
+- Memory-bounded caches with configurable limits
+- TCP keepalive for connection pooling
 
-## Next Steps
+Benchmark results (2026-03-29):
+| Operation | Time |
+|-----------|------|
+| BC1 compression (256×256) | ~540 µs |
+| BC3 compression (256×256) | ~810 µs |
+| JPEG decode (256×256) | ~290 ns |
+| Coordinate conversion | ~16 ns |
 
-1. **FUSE Integration**: Implement platform-specific filesystem mounting
-2. **DDS Compression**: Add actual BC1/BC3 compression (FFI or pure Rust)
-3. **UDP Listener**: Complete X-Plane flight data receiver
-4. **Web UI**: Axum routes for map, stats, custom map editor
-5. **Desktop UI**: egui window with setup wizard and diagnostics
-6. **CI/CD**: GitHub Actions workflows for multi-platform builds
-7. **Benchmarks**: Compare Rust performance vs. original Python/C
+## License
+
+Licensed under either:
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- GPL-3.0 license ([LICENSE-GPL](LICENSE-GPL))
 
 ## References
 
-- [Plan](https://github.com/ProgrammingDinosaur/autoortho-rs/blob/main/PLAN.md)
-- Original Python/C source: [github.com/ProgrammingDinosaur/autoortho](https://github.com/ProgrammingDinosaur/autoortho)
-- Web Mercator: [Wikipedia](https://en.wikipedia.org/wiki/Web_Mercator_projection)
-- RREF Protocol: X-Plane UDP protocol documentation
-- DDS Format: [Microsoft DirectDraw Surface Specification](https://docs.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds)
+- [Original AutoOrtho](https://github.com/ProgrammingDinosaur/autoortho)
+- [Plan](PLAN.md)
+- [Changelog](CHANGELOG.md)
