@@ -247,10 +247,10 @@
 
 ## Next Steps
 
-1. **Fallback system** — Add fallback levels for missing tiles (cache lookup, scale from mipmaps, download lower-detail)
-2. **DynamicZoom wiring** — Wire existing dynamic_zoom.rs into runtime
+1. ~~Fallback system~~ — ✅ Done
+2. ~~DynamicZoom wiring~~ — ✅ Done  
 3. **Windows Dokan** — Implement Windows FUSE support (deferred - no Windows test machine)
-4. **WebSocket** — Replace polling with WebSocket push
+4. ~~WebSocket~~ — ✅ Done - Replace polling with WebSocket push
 5. **Documentation** — Write user docs
 
 ---
@@ -269,7 +269,6 @@ Documentation is needed but tracked separately. See [autoortho4xplane docs](http
 ## Future Feature Ideas
 
 ### High Priority
-- **Fallback system** — Missing tiles fallback (cache lookup, scale from mipmaps, download lower-detail)
 - **X-Plane Plugin** — Thin Rust plugin with direct XPLM SDK calls (zero latency) + scenery pack management
 
 ### Medium Priority

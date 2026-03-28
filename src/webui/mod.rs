@@ -9,6 +9,7 @@
 //! - `/stats` — Performance metrics
 //! - `/metrics` — JSON stats API
 //! - `/api/position` — Current aircraft position JSON
+//! - `/ws` — WebSocket for live position updates
 //! - `/api/custommap/*` — Custom map cell editor API
 
 pub mod custommap;
@@ -19,8 +20,10 @@ use crate::stats::StatsStore;
 use crate::xplane::dataref::DatarefTracker;
 use custommap::CustomMapStore;
 use log::{error, info};
+use serde::Serialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 
 /// Shared application state accessible by all route handlers.
 pub struct WebState {
@@ -28,6 +31,36 @@ pub struct WebState {
     pub tracker: Arc<DatarefTracker>,
     pub custom_map: Arc<CustomMapStore>,
     pub config: Arc<parking_lot::RwLock<AutoOrthoConfig>>,
+    pub position_tx: broadcast::Sender<PositionUpdate>,
+}
+
+impl WebState {
+    pub fn new(
+        stats: Arc<StatsStore>,
+        tracker: Arc<DatarefTracker>,
+        custom_map: Arc<CustomMapStore>,
+        config: Arc<parking_lot::RwLock<AutoOrthoConfig>>,
+    ) -> Self {
+        let (position_tx, _) = broadcast::channel(32);
+        Self {
+            stats,
+            tracker,
+            custom_map,
+            config,
+            position_tx,
+        }
+    }
+}
+
+/// Position update sent via WebSocket
+#[derive(Clone, Serialize)]
+pub struct PositionUpdate {
+    pub lat: f64,
+    pub lon: f64,
+    pub alt_agl_ft: f32,
+    pub heading: f32,
+    pub ground_speed_mps: f32,
+    pub connected: bool,
 }
 
 /// Start the web server on the given port.
@@ -45,12 +78,7 @@ pub async fn start_server(
         .join("custom_map.json");
     let custom_map = CustomMapStore::load(custom_map_path);
 
-    let state = Arc::new(WebState {
-        stats,
-        tracker,
-        custom_map,
-        config,
-    });
+    let state = Arc::new(WebState::new(stats, tracker, custom_map, config));
     let app = routes::create_router(state);
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));

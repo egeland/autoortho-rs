@@ -1,13 +1,15 @@
 //! Axum route definitions for the web UI.
 
-use crate::webui::WebState;
-use axum::extract::{Query, State};
-use axum::response::{Html, Json};
+use crate::webui::{PositionUpdate, WebState};
+use axum::extract::{Query, State, ws};
+use axum::response::{Html, Json, IntoResponse};
 use axum::routing::{Router, get, post};
+use futures_util::{SinkExt, StreamExt};
 use log::warn;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::broadcast;
 
 #[allow(unused_imports)]
 use crate::{config, tiles::coords};
@@ -23,6 +25,7 @@ pub fn create_router(state: Arc<WebState>) -> Router {
         .route("/metrics", get(metrics_json))
         .route("/api/position", get(position_json))
         .route("/api/stats", get(metrics_json))
+        .route("/ws", get(ws_handler))
         // Custom map API
         .route(
             "/api/custommap/cells",
@@ -105,7 +108,43 @@ async fn metrics_json(State(state): State<Arc<WebState>>) -> Json<MetricsRespons
 
 async fn position_json(State(state): State<Arc<WebState>>) -> Json<PositionResponse> {
     let data = state.tracker.get_flight_data();
-    Json(PositionResponse {
+    let response = PositionResponse {
+        lat: data.lat,
+        lon: data.lon,
+        alt_agl_ft: data.alt_agl_ft(),
+        heading: data.heading,
+        ground_speed_mps: data.ground_speed_mps,
+        connected: data.connected,
+    };
+
+    // Broadcast position update to WebSocket clients
+    let _ = state.position_tx.send(PositionUpdate {
+        lat: data.lat,
+        lon: data.lon,
+        alt_agl_ft: data.alt_agl_ft(),
+        heading: data.heading,
+        ground_speed_mps: data.ground_speed_mps,
+        connected: data.connected,
+    });
+
+    Json(response)
+}
+
+/// WebSocket handler for live position updates
+async fn ws_handler(
+    State(state): State<Arc<WebState>>,
+    ws: ws::WebSocketUpgrade,
+) -> impl IntoResponse {
+    ws.on_upgrade(|socket| ws_position(socket, state))
+}
+
+async fn ws_position(socket: ws::WebSocket, state: Arc<WebState>) {
+    let (mut sender, mut receiver) = socket.split();
+    let mut rx = state.position_tx.subscribe();
+
+    // Send initial position
+    let data = state.tracker.get_flight_data();
+    let initial = serde_json::to_string(&PositionUpdate {
         lat: data.lat,
         lon: data.lon,
         alt_agl_ft: data.alt_agl_ft(),
@@ -113,6 +152,38 @@ async fn position_json(State(state): State<Arc<WebState>>) -> Json<PositionRespo
         ground_speed_mps: data.ground_speed_mps,
         connected: data.connected,
     })
+    .unwrap_or_default();
+
+    if sender.send(ws::Message::Text(initial.into())).await.is_err() {
+        return;
+    }
+
+    // Forward position updates to client
+    loop {
+        tokio::select! {
+            update = rx.recv() => {
+                match update {
+                    Ok(pos) => {
+                        let json = serde_json::to_string(&pos).unwrap_or_default();
+                        if sender.send(ws::Message::Text(json.into())).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Closed) => break,
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                }
+            }
+            msg = receiver.next() => {
+                match msg {
+                    Some(Ok(ws::Message::Close(_))) | None => break,
+                    Some(Ok(ws::Message::Ping(data))) => {
+                        let _ = sender.send(ws::Message::Pong(data)).await;
+                    }
+                    Some(Ok(_)) | Some(Err(_)) => {}
+                }
+            }
+        }
+    }
 }
 
 fn format_bytes(bytes: u64) -> String {
@@ -164,6 +235,7 @@ const MAP_HTML: &str = r##"<!DOCTYPE html>
             padding: 10px 16px; border-radius: 8px; z-index: 1000; font-family: monospace; font-size: 13px; }
     #info .disconnected { color: #cc0000; }
     #info .connected { color: #00aa00; }
+    #info .reconnecting { color: #cc6600; }
   </style>
 </head><body>
   <div id="map"></div>
@@ -176,11 +248,26 @@ const MAP_HTML: &str = r##"<!DOCTYPE html>
 
     var marker = null;
     var firstUpdate = true;
+    var ws = null;
+    var reconnectAttempts = 0;
+    var reconnectTimeout = null;
 
-    function updatePosition() {
-      fetch('/api/position')
-        .then(r => r.json())
-        .then(data => {
+    function connect() {
+      var protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(protocol + '//' + location.host + '/ws');
+
+      ws.onopen = function() {
+        document.getElementById('info').innerHTML = '<span class="connected">Connected (WebSocket)</span>';
+        reconnectAttempts = 0;
+        if (reconnectTimeout) {
+          clearTimeout(reconnectTimeout);
+          reconnectTimeout = null;
+        }
+      };
+
+      ws.onmessage = function(event) {
+        try {
+          var data = JSON.parse(event.data);
           var info = document.getElementById('info');
           if (!data.connected) {
             info.innerHTML = '<span class="disconnected">X-Plane not connected</span>';
@@ -201,14 +288,25 @@ const MAP_HTML: &str = r##"<!DOCTYPE html>
             + 'Alt: ' + data.alt_agl_ft.toFixed(0) + ' ft AGL<br>'
             + 'Hdg: ' + data.heading.toFixed(0) + '&deg;<br>'
             + 'GS: ' + (data.ground_speed_mps * 1.944).toFixed(0) + ' kt';
-        })
-        .catch(() => {
-          document.getElementById('info').innerHTML = '<span class="disconnected">Server unavailable</span>';
-        });
+        } catch (e) {
+          console.error('Failed to parse WebSocket message:', e);
+        }
+      };
+
+      ws.onclose = function() {
+        document.getElementById('info').innerHTML = '<span class="reconnecting">Reconnecting...</span>';
+        // Exponential backoff with max 30 seconds
+        var delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+        reconnectAttempts++;
+        reconnectTimeout = setTimeout(connect, delay);
+      };
+
+      ws.onerror = function() {
+        document.getElementById('info').innerHTML = '<span class="disconnected">Connection error</span>';
+      };
     }
 
-    setInterval(updatePosition, 2000);
-    updatePosition();
+    connect();
   </script>
 </body></html>"##;
 
@@ -575,12 +673,12 @@ mod tests {
 
     fn make_state() -> Arc<WebState> {
         let tmp = std::env::temp_dir().join("autoortho_test_custommap.json");
-        Arc::new(WebState {
-            stats: Arc::new(StatsStore::new()),
-            tracker: Arc::new(DatarefTracker::new()),
-            custom_map: CustomMapStore::load(tmp),
-            config: Arc::new(parking_lot::RwLock::new(crate::config::AutoOrthoConfig::default())),
-        })
+        Arc::new(WebState::new(
+            Arc::new(StatsStore::new()),
+            Arc::new(DatarefTracker::new()),
+            CustomMapStore::load(tmp),
+            Arc::new(parking_lot::RwLock::new(crate::config::AutoOrthoConfig::default())),
+        ))
     }
 
     #[tokio::test]
