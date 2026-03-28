@@ -1,9 +1,40 @@
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use thiserror::Error;
 
 use crate::tiles::coords::TileCoords;
+
+/// Shared HTTP client for tile providers.
+/// Uses OnceLock for lazy initialization with connection pooling.
+static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+/// Shared HTTP client for Google Maps (requires browser User-Agent).
+static GOOGLE_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+/// Get the shared HTTP client for most providers.
+/// Uses default settings with connection pooling.
+pub fn http_client() -> &'static reqwest::Client {
+    HTTP_CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .tcp_keepalive(std::time::Duration::from_secs(60))
+            .build()
+            .expect("failed to build HTTP client")
+    })
+}
+
+/// Get the shared HTTP client for Google Maps.
+/// Includes browser User-Agent to avoid blocking.
+pub fn google_http_client() -> &'static reqwest::Client {
+    GOOGLE_CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .tcp_keepalive(std::time::Duration::from_secs(60))
+            .build()
+            .expect("failed to build Google HTTP client")
+    })
+}
 
 /// Metadata about a tile provider's capabilities.
 #[derive(Debug, Clone)]
@@ -176,17 +207,14 @@ pub async fn test_provider_coverage(
         .map_err(|e| format!("Coverage test failed: {}", e))
 }
 pub struct GoogleMapsProvider {
-    client: reqwest::Client,
+    client: &'static reqwest::Client,
 }
 
 impl GoogleMapsProvider {
     pub fn new() -> Self {
-        // Google requires a browser-like User-Agent to avoid blocks
-        let client = reqwest::Client::builder()
-            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-            .build()
-            .expect("failed to build HTTP client");
-        Self { client }
+        Self {
+            client: google_http_client(),
+        }
     }
 }
 
@@ -208,7 +236,7 @@ impl TileProvider for GoogleMapsProvider {
                 "https://mt0.google.com/vt/lyrs=s&x={}&y={}&z={}",
                 col, row, zoom
             );
-            fetch_image(&self.client, &url).await
+            fetch_image(self.client, &url).await
         })
     }
 
@@ -219,14 +247,14 @@ impl TileProvider for GoogleMapsProvider {
 
 /// Bing Maps provider (BI)
 pub struct BingMapsProvider {
-    client: reqwest::Client,
+    client: &'static reqwest::Client,
     _key: Option<String>,
 }
 
 impl BingMapsProvider {
     pub fn new(key: Option<String>) -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: http_client(),
             _key: key,
         }
     }
@@ -247,7 +275,7 @@ impl TileProvider for BingMapsProvider {
                 "http://ecn.t3.tiles.virtualearth.net/tiles/a{}.jpeg?g=1",
                 quadkey
             );
-            fetch_image(&self.client, &url).await
+            fetch_image(self.client, &url).await
         })
     }
 
@@ -258,13 +286,13 @@ impl TileProvider for BingMapsProvider {
 
 /// ArcGIS provider (ARC)
 pub struct ArcGisProvider {
-    client: reqwest::Client,
+    client: &'static reqwest::Client,
 }
 
 impl ArcGisProvider {
     pub fn new() -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: http_client(),
         }
     }
 }
@@ -311,7 +339,7 @@ impl TileProvider for ArcGisProvider {
                 "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{}/{}/{}",
                 zoom, row, col
             );
-            fetch_image(&self.client, &url).await
+            fetch_image(self.client, &url).await
         })
     }
 
@@ -322,13 +350,13 @@ impl TileProvider for ArcGisProvider {
 
 /// USGS NAIP provider (NAIP)
 pub struct UsgsNaipProvider {
-    client: reqwest::Client,
+    client: &'static reqwest::Client,
 }
 
 impl UsgsNaipProvider {
     pub fn new() -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: http_client(),
         }
     }
 }
@@ -351,7 +379,7 @@ impl TileProvider for UsgsNaipProvider {
                 "http://naip.maptiles.arcgis.com/arcgis/rest/services/NAIP/MapServer/tile/{}/{}/{}",
                 zoom, row, col
             );
-            fetch_image(&self.client, &url).await
+            fetch_image(self.client, &url).await
         })
     }
 
@@ -362,13 +390,13 @@ impl TileProvider for UsgsNaipProvider {
 
 /// USGS Topo provider (USGS)
 pub struct UsgsTopoProvider {
-    client: reqwest::Client,
+    client: &'static reqwest::Client,
 }
 
 impl UsgsTopoProvider {
     pub fn new() -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: http_client(),
         }
     }
 }
@@ -391,7 +419,7 @@ impl TileProvider for UsgsTopoProvider {
                 "https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{}/{}/{}",
                 zoom, row, col
             );
-            fetch_image(&self.client, &url).await
+            fetch_image(self.client, &url).await
         })
     }
 
@@ -402,13 +430,13 @@ impl TileProvider for UsgsTopoProvider {
 
 /// EOX provider (EOX)
 pub struct EoxProvider {
-    client: reqwest::Client,
+    client: &'static reqwest::Client,
 }
 
 impl EoxProvider {
     pub fn new() -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: http_client(),
         }
     }
 }
@@ -431,7 +459,7 @@ impl TileProvider for EoxProvider {
                 "https://s2maps-tiles.eu/wmts?layer=s2cloudless-2024_3857&style=default&tilematrixset=g&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image%2Fjpeg&TileMatrix={}&TileCol={}&TileRow={}",
                 zoom, col, row
             );
-            fetch_image(&self.client, &url).await
+            fetch_image(self.client, &url).await
         })
     }
 
@@ -442,13 +470,13 @@ impl TileProvider for EoxProvider {
 
 /// Firefly provider (FIREFLY)
 pub struct FireflyProvider {
-    client: reqwest::Client,
+    client: &'static reqwest::Client,
 }
 
 impl FireflyProvider {
     pub fn new() -> Self {
         Self {
-            client: reqwest::Client::new(),
+            client: http_client(),
         }
     }
 }
@@ -471,7 +499,7 @@ impl TileProvider for FireflyProvider {
                 "https://fly.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Firefly/MapServer/tile/{}/{}/{}",
                 zoom, row, col
             );
-            fetch_image(&self.client, &url).await
+            fetch_image(self.client, &url).await
         })
     }
 

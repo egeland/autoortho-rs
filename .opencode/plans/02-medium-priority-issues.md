@@ -82,78 +82,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 ---
 
-## Issue 3: No HTTP Client Sharing
+## ✅ Issue 3: No HTTP Client Sharing
 
-### Impact
-Performance - no connection reuse between providers
+**Status: IMPLEMENTED** ✅
 
-### Location
-- `src/tiles/provider.rs:178-291`
+### Changes Made
+- `src/tiles/provider.rs`: Added `HTTP_CLIENT` and `GOOGLE_CLIENT` static `OnceLock` clients
+- Created `http_client()` and `google_http_client()` functions for lazy initialization
+- Updated all 7 providers to use shared clients:
+  - Google uses special User-Agent client
+  - All others share the default client with TCP keepalive
+- Providers now hold `&'static reqwest::Client` instead of owned clients
 
-### Problem
-Each tile provider creates its own `reqwest::Client`:
-```rust
-pub fn create(name: &str) -> Option<Arc<dyn TileProvider>> {
-    match name.to_uppercase().as_str() {
-        "GO2" | "GOOGLE" => Some(Arc::new(GoogleMapsProvider::new())),  // New client
-        "BI" | "BING" => Some(Arc::new(BingMapsProvider::new(None))),    // New client
-        // ...
-    }
-}
-```
-
-### Solution
-Create a shared HTTP client with connection pooling.
-
-### Implementation Steps
-
-1. **Create a shared client:**
-```rust
-// src/tiles/provider.rs
-
-use std::sync::OnceLock;
-
-static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
-
-pub fn http_client() -> &'static reqwest::Client {
-    HTTP_CLIENT.get_or_init(|| {
-        reqwest::Client::builder()
-            .user_agent("Mozilla/5.0 ...")
-            .tcp_keepalive(std::time::Duration::from_secs(60))
-            .build()
-            .expect("Failed to create HTTP client")
-    })
-}
-```
-
-2. **Update provider constructors:**
-```rust
-impl GoogleMapsProvider {
-    pub fn new() -> Self {
-        Self {
-            client: http_client().clone(),  // Reuse shared client
-        }
-    }
-}
-```
-
-3. **Consider per-host connection pools:**
-```rust
-// For more control, use a connection pool per host:
-use std::collections::HashMap;
-use std::sync::RwLock;
-
-struct ConnectionPool {
-    clients: RwLock<HashMap<String, reqwest::Client>>,
-}
-
-impl ConnectionPool {
-    pub fn get(&self, host: &str) -> reqwest::Client {
-        // Check pool first
-        // Create if not exists
-    }
-}
-```
+### Benefits
+- Connection pooling across all tile providers
+- TCP keepalive for connection reuse (60s)
+- Reduced memory footprint (one client vs seven)
+- Faster subsequent requests (no new connection overhead)
 
 ---
 
@@ -548,7 +493,7 @@ pub use tiles::provider::{PROVIDER_IDS, PROVIDER_INFO};
 |-------|--------|--------|----------|--------|
 | Multiple Tokio Runtimes | Performance | Medium | P1 | Pending |
 | Lock Contention | Performance | Low | P1 | ✅ Done |
-| No HTTP Client Sharing | Performance | Low | P2 | Pending |
+| HTTP Client Sharing | Performance | Low | P2 | ✅ Done |
 | WinFSP block_on() | Deadlock risk | Medium | P2 | Pending |
 | Silent Error Handling | Debugging | Low | P2 | Pending |
 | Monolithic Message Enum | Maintainability | High | P2 | Pending |
