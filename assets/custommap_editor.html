@@ -609,8 +609,8 @@ function buildLegend() {
   for (const [name, color] of Object.entries(MAPTYPE_COLORS)) {
     const item = document.createElement('div');
     item.className = 'legend-item';
-    item.innerHTML = '<div class="legend-color" style="background:' + color + '"></div>' +
-                     '<span class="legend-label">' + name + '</span>';
+    item.innerHTML = '<div class="legend-color" style="background:' + escapeHtml(color) + '"></div>' +
+                     '<span class="legend-label">' + escapeHtml(name) + '</span>';
     body.appendChild(item);
   }
   const availItem = document.createElement('div');
