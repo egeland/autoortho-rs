@@ -58,7 +58,8 @@ jobs:
             target: x86_64-pc-windows-msvc
             artifact: autoortho-windows-x86_64
             features: ""
-            deps: ""
+            deps: |
+              choco install winfsp -y
     steps:
       - uses: actions/checkout@v4
 

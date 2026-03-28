@@ -89,7 +89,8 @@ jobs:
               brew install macfuse
             features: ""
           - os: windows-latest
-            deps: ""
+            deps: |
+              choco install winfsp -y
             features: ""
     steps:
       - uses: actions/checkout@v4
