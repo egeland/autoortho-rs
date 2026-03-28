@@ -52,9 +52,14 @@ sevenz-rust = "0.6"
 futures-lite = "2.6"
 libloading = "0.8"
 
-# FUSE (Linux/macOS only - requires macFUSE/libfuse installed on build machine)
+# FUSE (Linux/macOS) - requires macFUSE/libfuse installed on build machine
 [target.'cfg(not(windows))'.dependencies]
 fuser = "0.17"
+
+# WinFSP (Windows) - future: requires WinFSP installed on build machine
+# [target.'cfg(windows)'.dependencies]
+# winfsp = "0.12"
+
 libc = "0.2"
 texpresso = { version = "2.0.2", features = ["rayon"] }
 
