@@ -55,7 +55,7 @@ image = "0.25"
 zip = "8.4"
 sevenz-rust = "0.6"
 futures-lite = "2.6"
-libloading = "0.8"
+libloading = "0.9"
 
 # FUSE support
 # Linux/macOS: uses rfuse3 via unifuse
