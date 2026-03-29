@@ -285,8 +285,16 @@ async fn test_bing_https_url() {
         quadkey
     );
 
-    let response = client.get(&https_url).send().await.expect("Failed to send request");
-    assert!(response.status().is_success(), "Bing HTTPS should return success: {}", response.status());
+    let response = client
+        .get(&https_url)
+        .send()
+        .await
+        .expect("Failed to send request");
+    assert!(
+        response.status().is_success(),
+        "Bing HTTPS should return success: {}",
+        response.status()
+    );
 }
 
 #[tokio::test]
@@ -297,9 +305,18 @@ async fn test_naip_https_url() {
         .expect("Failed to create HTTP client");
 
     // NAIP only covers US, use a US location (New York at zoom 10: row ~585, col ~778)
-    let https_url = "https://naip.maptiles.arcgis.com/arcgis/rest/services/NAIP/MapServer/tile/10/585/778";
+    let https_url =
+        "https://naip.maptiles.arcgis.com/arcgis/rest/services/NAIP/MapServer/tile/10/585/778";
 
-    let response = client.get(https_url).send().await.expect("Failed to send request");
+    let response = client
+        .get(https_url)
+        .send()
+        .await
+        .expect("Failed to send request");
     // NAIP may return 404 for missing tiles, but should respond over HTTPS
-    assert!(response.status() == 200 || response.status() == 404, "NAIP HTTPS should respond: {}", response.status());
+    assert!(
+        response.status() == 200 || response.status() == 404,
+        "NAIP HTTPS should respond: {}",
+        response.status()
+    );
 }

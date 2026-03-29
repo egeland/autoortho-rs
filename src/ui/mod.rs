@@ -16,9 +16,8 @@ use crate::xplane::simbrief::{FlightFix, FlightPlan};
 
 /// Saved window geometry to restore on boot: (x, y, width, height)
 #[allow(clippy::type_complexity)]
-static SAVED_WINDOW_GEOM: Mutex<
-    Option<(Option<f32>, Option<f32>, Option<f32>, Option<f32>)>,
-> = Mutex::new(None);
+static SAVED_WINDOW_GEOM: Mutex<Option<(Option<f32>, Option<f32>, Option<f32>, Option<f32>)>> =
+    Mutex::new(None);
 
 /// Whether saved geometry exists (checked by new() before GEOM is consumed)
 static HAS_SAVED_GEOM: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -151,9 +150,9 @@ pub enum Message {
     SetAirportRadius(u32),
     FetchSimbrief,
     SimbriefLoaded(
-        String,                                       // summary
-        Vec<(String, String, f32)>,                   // fixes
-        Arc<Mutex<Option<FlightPlan>>>,               // flight plan
+        String,                         // summary
+        Vec<(String, String, f32)>,     // fixes
+        Arc<Mutex<Option<FlightPlan>>>, // flight plan
     ),
     SimbriefCoverageChecked(Option<String>), // warning message if coverage issue
     SimbriefFailed(String),
@@ -204,28 +203,19 @@ impl AutoOrthoApp {
                 self.state.current_screen = screen;
             }
             Message::SetXPlanePath(path) => {
-                self.state.config.xplane_path = path;
-                self.state.scenery_install_dir = self
-                    .state
-                    .config
-                    .scenery_install_dir()
-                    .to_string_lossy()
-                    .into_owned();
+                handlers::handle_set_xplane_path(&mut self.state, path);
             }
             Message::SetCacheDir(dir) => {
-                self.state.config.cache_dir = dir;
+                handlers::handle_set_cache_dir(&mut self.state, dir);
             }
             Message::SetXPlaneHost(host) => {
-                self.state.config.xplane_host = host;
+                handlers::set_xplane_host(&mut self.state, host);
             }
             Message::SetXPlanePort(port_str) => {
-                if let Ok(port) = port_str.parse() {
-                    self.state.config.xplane_port = port;
-                }
+                handlers::handle_set_xplane_port(&mut self.state, &port_str);
             }
             Message::SetTileProvider(provider) => {
-                self.state.config.tile_provider = provider.clone();
-                self.state.simbrief_coverage_warning = None;
+                handlers::set_tile_provider(&mut self.state, provider.clone());
 
                 // Re-check coverage with new provider if we have an active flight plan
                 let (olat, olon, dlat, dlon, origin_code, dest_code): (
@@ -303,61 +293,61 @@ impl AutoOrthoApp {
                 }
             }
             Message::SetMinZoom(zoom) => {
-                self.state.config.min_zoom = zoom;
+                handlers::set_min_zoom(&mut self.state, zoom);
             }
             Message::SetMaxZoom(zoom) => {
-                self.state.config.max_zoom = zoom;
+                handlers::set_max_zoom(&mut self.state, zoom);
             }
             Message::SetEnableDynamicZoom(enabled) => {
-                self.state.config.enable_dynamic_zoom = enabled;
+                handlers::set_enable_dynamic_zoom(&mut self.state, enabled);
             }
             Message::SetUIScale(scale) => {
-                self.state.config.ui_scale = scale;
+                handlers::set_ui_scale(&mut self.state, scale);
             }
             Message::SetDdsCacheSizeMb(mb) => {
-                self.state.config.dds_cache_size_mb = mb;
+                handlers::set_dds_cache_size_mb(&mut self.state, mb);
             }
             Message::SetEnableDdsCache(enabled) => {
-                self.state.config.enable_dds_cache = enabled;
+                handlers::set_enable_dds_cache(&mut self.state, enabled);
             }
             Message::SetDdsMemoryCacheMb(mb) => {
-                self.state.config.dds_memory_cache_mb = mb;
+                handlers::set_dds_memory_cache_mb(&mut self.state, mb);
             }
             Message::SetChunkMemoryCacheMb(mb) => {
-                self.state.config.chunk_memory_cache_mb = mb;
+                handlers::set_chunk_memory_cache_mb(&mut self.state, mb);
             }
             Message::SetEnableNightExclusion(v) => {
-                self.state.config.enable_night_exclusion = v;
+                handlers::set_enable_night_exclusion(&mut self.state, v);
             }
             Message::SetNightThreshold(v) => {
-                self.state.config.night_threshold = v as f32;
+                handlers::set_night_threshold(&mut self.state, v as f32);
             }
             Message::SetDayThreshold(v) => {
-                self.state.config.day_threshold = v as f32;
+                handlers::set_day_threshold(&mut self.state, v as f32);
             }
             Message::SetSeason(season) => {
-                self.state.config.season = season;
+                handlers::set_season(&mut self.state, season);
             }
             Message::SetSpringSaturation(v) => {
-                self.state.config.spring_saturation = (v as f32) / 100.0;
+                handlers::set_spring_saturation(&mut self.state, (v as f32) / 100.0);
             }
             Message::SetSummerSaturation(v) => {
-                self.state.config.summer_saturation = (v as f32) / 100.0;
+                handlers::set_summer_saturation(&mut self.state, (v as f32) / 100.0);
             }
             Message::SetAutumnSaturation(v) => {
-                self.state.config.autumn_saturation = (v as f32) / 100.0;
+                handlers::set_autumn_saturation(&mut self.state, (v as f32) / 100.0);
             }
             Message::SetWinterSaturation(v) => {
-                self.state.config.winter_saturation = (v as f32) / 100.0;
+                handlers::set_winter_saturation(&mut self.state, (v as f32) / 100.0);
             }
             Message::SetFallbackLevel(level) => {
-                self.state.config.fallback.level = level;
+                handlers::set_fallback_level(&mut self.state, level);
             }
             Message::SetFallbackMaxZoomGap(gap) => {
-                self.state.config.fallback.max_zoom_gap = gap;
+                handlers::set_fallback_max_zoom_gap(&mut self.state, gap);
             }
             Message::SetFallbackCacheEnabled(enabled) => {
-                self.state.config.fallback.cache_fallback = enabled;
+                handlers::set_fallback_cache_enabled(&mut self.state, enabled);
             }
             Message::ClearDdsCache => {
                 let cache_dir = std::path::PathBuf::from(&self.state.config.cache_dir).join("dds");
@@ -372,25 +362,25 @@ impl AutoOrthoApp {
                 }
             }
             Message::SetSimbriefUserId(id) => {
-                self.state.config.simbrief_user_id = id;
+                handlers::set_simbrief_user_id(&mut self.state, id);
             }
             Message::SetRouteConsiderationRadius(v) => {
-                self.state.config.route_consideration_radius_nm = v;
+                handlers::set_route_consideration_radius(&mut self.state, v);
             }
             Message::SetRouteDeviationThreshold(v) => {
-                self.state.config.route_deviation_threshold_nm = v;
+                handlers::set_route_deviation_threshold(&mut self.state, v);
             }
             Message::SetRoutePrefetchRadius(v) => {
-                self.state.config.route_prefetch_radius_nm = v;
+                handlers::set_route_prefetch_radius(&mut self.state, v);
             }
             Message::SetPrefetchRoutePercent(v) => {
-                self.state.config.prefetch_route_percent = v;
+                handlers::set_prefetch_route_percent(&mut self.state, v);
             }
             Message::SetPrefetchAirports(v) => {
-                self.state.config.prefetch_airports = v;
+                handlers::set_prefetch_airports(&mut self.state, v);
             }
             Message::SetAirportRadius(v) => {
-                self.state.config.airport_radius_nm = v;
+                handlers::set_airport_radius(&mut self.state, v);
             }
             Message::FetchSimbrief => {
                 self.state.simbrief_fetching = true;
@@ -598,7 +588,7 @@ impl AutoOrthoApp {
                 self.state.set_error(format!("Failed to start: {}", err));
             }
             Message::SetSceneryDownloadDir(v) => {
-                self.state.scenery_download_dir = v;
+                handlers::set_scenery_download_dir_state(&mut self.state, v);
             }
             Message::RefreshAvailableRegions => {
                 self.state.scenery_refreshing = true;

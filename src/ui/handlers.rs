@@ -6,12 +6,151 @@
 //! This module provides helper functions for handling UI messages,
 //! extracted from the main update() function for better organization.
 
+use crate::config::{FallbackLevel, Season};
 use crate::ui::state::{AppState, DownloadState, ServiceStatus};
+
+pub fn handle_set_xplane_path(state: &mut AppState, path: String) {
+    state.config.xplane_path = path;
+    state.scenery_install_dir = state
+        .config
+        .scenery_install_dir()
+        .to_string_lossy()
+        .into_owned();
+}
+
+pub fn handle_set_cache_dir(state: &mut AppState, dir: String) {
+    state.config.cache_dir = dir;
+}
+
+pub fn set_xplane_host(state: &mut AppState, host: String) {
+    state.config.xplane_host = host;
+}
 
 pub fn handle_set_xplane_port(state: &mut AppState, port_str: &str) {
     if let Ok(port) = port_str.parse() {
         state.config.xplane_port = port;
     }
+}
+
+pub fn set_tile_provider(state: &mut AppState, provider: String) {
+    state.config.tile_provider = provider;
+    state.simbrief_coverage_warning = None;
+}
+
+pub fn set_min_zoom(state: &mut AppState, zoom: u32) {
+    state.config.min_zoom = zoom;
+}
+
+pub fn set_max_zoom(state: &mut AppState, zoom: u32) {
+    state.config.max_zoom = zoom;
+}
+
+pub fn set_enable_dynamic_zoom(state: &mut AppState, enabled: bool) {
+    state.config.enable_dynamic_zoom = enabled;
+}
+
+pub fn set_ui_scale(state: &mut AppState, scale: f64) {
+    state.config.ui_scale = scale;
+}
+
+pub fn set_dds_cache_size_mb(state: &mut AppState, mb: u64) {
+    state.config.dds_cache_size_mb = mb;
+}
+
+pub fn set_enable_dds_cache(state: &mut AppState, enabled: bool) {
+    state.config.enable_dds_cache = enabled;
+}
+
+pub fn set_dds_memory_cache_mb(state: &mut AppState, mb: u64) {
+    state.config.dds_memory_cache_mb = mb;
+}
+
+pub fn set_chunk_memory_cache_mb(state: &mut AppState, mb: u64) {
+    state.config.chunk_memory_cache_mb = mb;
+}
+
+pub fn set_enable_night_exclusion(state: &mut AppState, enabled: bool) {
+    state.config.enable_night_exclusion = enabled;
+}
+
+pub fn set_night_threshold(state: &mut AppState, v: f32) {
+    state.config.night_threshold = v;
+}
+
+pub fn set_day_threshold(state: &mut AppState, v: f32) {
+    state.config.day_threshold = v;
+}
+
+pub fn set_season(state: &mut AppState, season: Season) {
+    state.config.season = season;
+}
+
+pub fn set_spring_saturation(state: &mut AppState, v: f32) {
+    state.config.spring_saturation = v;
+}
+
+pub fn set_summer_saturation(state: &mut AppState, v: f32) {
+    state.config.summer_saturation = v;
+}
+
+pub fn set_autumn_saturation(state: &mut AppState, v: f32) {
+    state.config.autumn_saturation = v;
+}
+
+pub fn set_winter_saturation(state: &mut AppState, v: f32) {
+    state.config.winter_saturation = v;
+}
+
+pub fn set_fallback_level(state: &mut AppState, level: FallbackLevel) {
+    state.config.fallback.level = level;
+}
+
+pub fn set_fallback_max_zoom_gap(state: &mut AppState, gap: u32) {
+    state.config.fallback.max_zoom_gap = gap;
+}
+
+pub fn set_fallback_cache_enabled(state: &mut AppState, enabled: bool) {
+    state.config.fallback.cache_fallback = enabled;
+}
+
+pub fn set_simbrief_user_id(state: &mut AppState, id: String) {
+    state.config.simbrief_user_id = id;
+}
+
+pub fn set_route_consideration_radius(state: &mut AppState, v: u32) {
+    state.config.route_consideration_radius_nm = v;
+}
+
+pub fn set_route_deviation_threshold(state: &mut AppState, v: u32) {
+    state.config.route_deviation_threshold_nm = v;
+}
+
+pub fn set_route_prefetch_radius(state: &mut AppState, v: u32) {
+    state.config.route_prefetch_radius_nm = v;
+}
+
+pub fn set_prefetch_route_percent(state: &mut AppState, v: u32) {
+    state.config.prefetch_route_percent = v;
+}
+
+pub fn set_prefetch_airports(state: &mut AppState, v: bool) {
+    state.config.prefetch_airports = v;
+}
+
+pub fn set_airport_radius(state: &mut AppState, v: u32) {
+    state.config.airport_radius_nm = v;
+}
+
+pub fn set_near_airport_zoom(state: &mut AppState, v: u32) {
+    state.config.near_airport_zoom = v;
+}
+
+pub fn set_scenery_download_dir(state: &mut AppState, v: String) {
+    state.config.scenery_download_dir = v;
+}
+
+pub fn set_scenery_download_dir_state(state: &mut AppState, v: String) {
+    state.scenery_download_dir = v;
 }
 
 pub fn handle_download_progress(
@@ -52,5 +191,12 @@ mod tests {
         state.config.xplane_port = 49000;
         handle_set_xplane_port(&mut state, "invalid");
         assert_eq!(state.config.xplane_port, 49000);
+    }
+
+    #[test]
+    fn test_set_xplane_path() {
+        let mut state = AppState::new();
+        handle_set_xplane_path(&mut state, "/test/path".to_string());
+        assert_eq!(state.config.xplane_path, "/test/path");
     }
 }

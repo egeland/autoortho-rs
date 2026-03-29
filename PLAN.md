@@ -367,7 +367,7 @@ Documentation is needed but tracked separately. See [autoortho4xplane docs](http
 - [x] Remove unused `_key` field from `BingMapsProvider`
 - [x] Add builder pattern for `DdsFileSystem` constructors
 - [ ] Replace silent `.ok()` error handling with proper logging (acceptable as-is)
-- [ ] Split large `update()` functions in UI
+- [x] Split large `update()` functions in UI
 
 ## Phase R2 — Security Hardening
 - [x] Replace hardcoded User-Agent with configurable UA
