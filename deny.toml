@@ -1,6 +1,26 @@
+[graph]
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-unknown-linux-musl",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+]
+all-features = true
+
+[advisories]
+unmaintained = "workspace"
+
+[bans]
+multiple-versions = "deny"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+
 [licenses]
-version = 2
-unlicensed = "deny"
+confidence-threshold = 0.8
 allow = [
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
@@ -22,6 +42,3 @@ license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
 name = "s2n-tls"
 expression = "Apache-2.0"
 license-files = [{ path = "LICENSE", hash = 0x677f2d98 }]
-
-[advisories]
-version = 2
