@@ -1,11 +1,10 @@
 name: Version Bump
 
 on:
-  push:
+  workflow_run:
+    workflows: [Cross-Platform Test, Security]
+    types: [completed]
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
 
 permissions:
   contents: write
@@ -15,7 +14,10 @@ jobs:
   release-please:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: "!contains(github.commit.message, 'chore: release-please')"
+    if: >
+      workflow_run.event == 'push' &&
+      workflow_run.conclusion == 'success' &&
+      !contains(github.commit.message, 'chore: release-please')
     steps:
       - uses: googleapis/release-please-action@v4
         with:
