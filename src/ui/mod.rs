@@ -9,6 +9,7 @@ use std::sync::OnceLock;
 use std::sync::atomic::Ordering;
 use tokio::sync::{oneshot, watch};
 
+pub mod handlers;
 use crate::tiles::provider;
 use crate::webui::custommap::CustomMapStore;
 use crate::xplane::simbrief::{FlightFix, FlightPlan};

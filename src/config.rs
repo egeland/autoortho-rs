@@ -46,6 +46,71 @@ impl Default for FallbackConfig {
     }
 }
 
+impl FallbackConfig {
+    /// Validate fallback configuration.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        validate_range(self.max_zoom_gap as u64, 1, 10, "fallback.max_zoom_gap")?;
+        Ok(())
+    }
+}
+
+/// Configuration validation error
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConfigError {
+    FieldInvalid {
+        field: String,
+        message: String,
+    },
+    FieldOutOfRange {
+        field: String,
+        min: u64,
+        max: u64,
+        value: u64,
+    },
+}
+
+impl std::fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::FieldInvalid { field, message } => write!(f, "Invalid {}: {}", field, message),
+            Self::FieldOutOfRange {
+                field,
+                min,
+                max,
+                value,
+            } => {
+                write!(f, "{} out of range ({}-{}), got {}", field, min, max, value)
+            }
+        }
+    }
+}
+
+impl std::error::Error for ConfigError {}
+
+/// Validate a u64 field is within range.
+fn validate_range(value: u64, min: u64, max: u64, field: &str) -> Result<(), ConfigError> {
+    if value < min || value > max {
+        return Err(ConfigError::FieldOutOfRange {
+            field: field.to_string(),
+            min,
+            max,
+            value,
+        });
+    }
+    Ok(())
+}
+
+/// Validate a f32 field is within range.
+fn validate_f32_range(value: f32, min: f32, max: f32, field: &str) -> Result<(), ConfigError> {
+    if value < min || value > max {
+        return Err(ConfigError::FieldInvalid {
+            field: field.to_string(),
+            message: format!("out of range ({}-{}), got {}", min, max, value),
+        });
+    }
+    Ok(())
+}
+
 /// A zoom rule: at or above this AGL altitude, use this zoom level.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct ZoomRule {
@@ -211,6 +276,103 @@ impl AutoOrthoConfig {
     /// Calculate the number of chunks that fit in the configured memory.
     pub fn chunk_memory_cache_entries(&self) -> usize {
         ((self.chunk_memory_cache_mb * 1024 / Self::CHUNK_SIZE_KB).max(1)) as usize
+    }
+
+    /// Validate all config fields are within acceptable ranges.
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        // Port
+        validate_range(self.xplane_port as u64, 1, 65535, "xplane_port")?;
+
+        // Zoom levels
+        let min_zoom = self.min_zoom as u64;
+        let max_zoom = self.max_zoom as u64;
+        validate_range(min_zoom, 0, 21, "min_zoom")?;
+        validate_range(max_zoom, 0, 21, "max_zoom")?;
+        if self.min_zoom > self.max_zoom {
+            return Err(ConfigError::FieldInvalid {
+                field: "min_zoom".to_string(),
+                message: format!(
+                    "min_zoom ({}) > max_zoom ({})",
+                    self.min_zoom, self.max_zoom
+                ),
+            });
+        }
+
+        // Night thresholds
+        validate_f32_range(self.night_threshold, -90.0, 0.0, "night_threshold")?;
+        validate_f32_range(self.day_threshold, -90.0, 90.0, "day_threshold")?;
+        if self.night_threshold > self.day_threshold {
+            return Err(ConfigError::FieldInvalid {
+                field: "night_threshold".to_string(),
+                message: "night_threshold must be <= day_threshold".to_string(),
+            });
+        }
+
+        // UI scale
+        if self.ui_scale < 0.5 || self.ui_scale > 1.5 {
+            return Err(ConfigError::FieldOutOfRange {
+                field: "ui_scale".to_string(),
+                min: 50,
+                max: 150,
+                value: (self.ui_scale * 100.0) as u64,
+            });
+        }
+
+        // Cache sizes
+        validate_range(self.dds_cache_size_mb, 0, 102400, "dds_cache_size_mb")?;
+        validate_range(self.dds_memory_cache_mb, 0, 4096, "dds_memory_cache_mb")?;
+        validate_range(self.chunk_memory_cache_mb, 0, 4096, "chunk_memory_cache_mb")?;
+
+        // Route settings
+        validate_range(
+            self.route_consideration_radius_nm as u64,
+            0,
+            500,
+            "route_consideration_radius_nm",
+        )?;
+        validate_range(
+            self.route_deviation_threshold_nm as u64,
+            0,
+            500,
+            "route_deviation_threshold_nm",
+        )?;
+        validate_range(
+            self.route_prefetch_radius_nm as u64,
+            0,
+            500,
+            "route_prefetch_radius_nm",
+        )?;
+        validate_range(
+            self.prefetch_route_percent as u64,
+            0,
+            100,
+            "prefetch_route_percent",
+        )?;
+        validate_range(self.airport_radius_nm as u64, 0, 500, "airport_radius_nm")?;
+        validate_range(self.near_airport_zoom as u64, 0, 21, "near_airport_zoom")?;
+
+        // Saturation values
+        validate_f32_range(self.spring_saturation, 0.0, 2.0, "spring_saturation")?;
+        validate_f32_range(self.summer_saturation, 0.0, 2.0, "summer_saturation")?;
+        validate_f32_range(self.autumn_saturation, 0.0, 2.0, "autumn_saturation")?;
+        validate_f32_range(self.winter_saturation, 0.0, 2.0, "winter_saturation")?;
+
+        // Fallback config
+        self.fallback.validate()?;
+
+        // Zoom rules
+        for (i, rule) in self.zoom_rules.iter().enumerate() {
+            if rule.zoom_level > 21 {
+                return Err(ConfigError::FieldOutOfRange {
+                    field: format!("zoom_rules[{}].zoom_level", i),
+                    min: 0,
+                    max: 21,
+                    value: rule.zoom_level as u64,
+                });
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -452,5 +614,43 @@ mod tests {
             config.scenery_install_dir(),
             PathBuf::from("/home/user/X-Plane 12/Custom Scenery")
         );
+    }
+
+    #[test]
+    fn test_config_validate_default() {
+        let config = AutoOrthoConfig::default();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_config_validate_invalid_zoom() {
+        let mut config = AutoOrthoConfig::default();
+        config.min_zoom = 25;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validate_zoom_order() {
+        let mut config = AutoOrthoConfig::default();
+        config.min_zoom = 15;
+        config.max_zoom = 10;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validate_invalid_port() {
+        let mut config = AutoOrthoConfig::default();
+        config.xplane_port = 0;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_fallback_config_validate() {
+        let fallback = FallbackConfig::default();
+        assert!(fallback.validate().is_ok());
+
+        let mut invalid = FallbackConfig::default();
+        invalid.max_zoom_gap = 100;
+        assert!(invalid.validate().is_err());
     }
 }

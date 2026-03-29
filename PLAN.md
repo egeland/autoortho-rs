@@ -376,6 +376,6 @@ Documentation is needed but tracked separately. See [autoortho4xplane docs](http
 
 ## Phase R3 — Architecture Improvements
 - [x] Standardize on tokio mutexes in async code paths
-- [ ] Add config validation helpers with range checks
-- [ ] Consider extracting UI message handlers to separate modules
+- [x] Add config validation helpers with range checks
+- [x] Consider extracting UI message handlers to separate modules
 - [ ] Add request rate limiting to prevent provider blocking
