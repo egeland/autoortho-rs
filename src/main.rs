@@ -40,10 +40,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     if let Some(pos) = args.iter().position(|a| a == "--test-tile") {
-        let provider = args
-            .get(pos + 1)
-            .map(|s| s.as_str())
-            .unwrap_or("ARC");
+        let provider = args.get(pos + 1).map(|s| s.as_str()).unwrap_or("ARC");
         let rt = tokio::runtime::Runtime::new()?;
         return rt.block_on(test_tile_generation(provider));
     }
@@ -240,7 +237,10 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     use autoortho_lib::webui::custommap::CustomMapStore;
     use std::path::Path;
 
-    info!("AutoOrtho Rust v0.1.0 starting with FUSE mount");
+    info!(
+        "AutoOrtho Rust v{} starting with FUSE mount",
+        env!("CARGO_PKG_VERSION")
+    );
 
     let config = AutoOrthoConfig::default();
     let provider = ProviderFactory::create(&config.tile_provider).expect("Unknown tile provider");
@@ -440,22 +440,28 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
 
                                     // Trigger fetches for queued tiles
                                     while let Some((row, col)) = prefetcher.next_tile() {
-                                        // Find the closest prefetch point to determine zoom
                                         let zoom = if config_for_prefetch.enable_dynamic_zoom {
-                                            // Find point closest to this tile position
-                                            let mut closest_dist = f64::MAX;
-                                            let mut best_alt_agl = 0.0f32;
-                                            for point in &points {
-                                                let dist = ((point.lat - lat).powi(2)
-                                                    + (point.lon - lon).powi(2))
-                                                .sqrt();
-                                                if dist < closest_dist {
-                                                    closest_dist = dist;
-                                                    best_alt_agl = point.altitude_agl_ft();
+                                            if config_for_prefetch.use_simbrief_altitude
+                                                && !points.is_empty()
+                                            {
+                                                let mut closest_dist = f64::MAX;
+                                                let mut best_alt_agl = 0.0f32;
+                                                for point in &points {
+                                                    let dist = ((point.lat - lat).powi(2)
+                                                        + (point.lon - lon).powi(2))
+                                                    .sqrt();
+                                                    if dist < closest_dist {
+                                                        closest_dist = dist;
+                                                        best_alt_agl = point.altitude_agl_ft();
+                                                    }
                                                 }
+                                                dynamic_zoom_for_prefetch
+                                                    .zoom_for_altitude_agl(best_alt_agl)
+                                            } else {
+                                                let alt_agl_ft = flight_data.alt_agl_m * 3.28084;
+                                                dynamic_zoom_for_prefetch
+                                                    .zoom_for_altitude_agl(alt_agl_ft)
                                             }
-                                            dynamic_zoom_for_prefetch
-                                                .zoom_for_altitude_agl(best_alt_agl)
                                         } else {
                                             config_for_prefetch.max_zoom
                                         };
@@ -543,7 +549,7 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
 async fn run_server() -> Result<(), Box<dyn Error>> {
     use autoortho_lib::webui::custommap::CustomMapStore;
 
-    info!("AutoOrtho Rust v0.1.0 starting");
+    info!("AutoOrtho Rust v{} starting", env!("CARGO_PKG_VERSION"));
 
     let config = AutoOrthoConfig::default();
     info!("Using tile provider: {}", config.tile_provider);

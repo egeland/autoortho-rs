@@ -29,9 +29,10 @@ jobs:
             libxkbcommon-dev libwayland-dev libvulkan-dev \
             libfuse-dev pkg-config
 
-      - uses: dtolnay/rust-toolchain@1.85.0
-        with:
-          components: rustfmt, clippy
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install components
+        run: rustup component add rustfmt clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -61,7 +62,7 @@ jobs:
             libxkbcommon-dev libwayland-dev libvulkan-dev \
             libfuse-dev pkg-config
 
-      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
         with:

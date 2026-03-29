@@ -49,6 +49,10 @@ pub fn set_enable_dynamic_zoom(state: &mut AppState, enabled: bool) {
     state.config.enable_dynamic_zoom = enabled;
 }
 
+pub fn set_use_simbrief_altitude(state: &mut AppState, enabled: bool) {
+    state.config.use_simbrief_altitude = enabled;
+}
+
 pub fn set_ui_scale(state: &mut AppState, scale: f64) {
     state.config.ui_scale = scale;
 }

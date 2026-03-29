@@ -106,15 +106,15 @@ impl AppleTokenService {
             .ok_or_else(|| AppleTokenError::ParseError("No tileSources found".to_string()))?;
 
         for ts in tile_sources {
-            if ts.get("tileSource")
+            if ts
+                .get("tileSource")
                 .and_then(|s| s.as_str())
                 .map(|s| s == "satellite")
                 .unwrap_or(false)
             {
-                let path = ts
-                    .get("path")
-                    .and_then(|p| p.as_str())
-                    .ok_or_else(|| AppleTokenError::ParseError("No path in tileSource".to_string()))?;
+                let path = ts.get("path").and_then(|p| p.as_str()).ok_or_else(|| {
+                    AppleTokenError::ParseError("No path in tileSource".to_string())
+                })?;
 
                 // Extract version and accessKey from path like:
                 // /tile?style=7&size=1&scale=1&z={z}&x={x}&y={y}&v=21.04.15&accessKey=abc123...
@@ -131,7 +131,10 @@ impl AppleTokenService {
                     .ok_or_else(|| AppleTokenError::ParseError("No accessKey in path".to_string()))?
                     .to_string();
 
-                return Ok(AppleToken { version, access_key });
+                return Ok(AppleToken {
+                    version,
+                    access_key,
+                });
             }
         }
 

@@ -355,13 +355,31 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .spacing(12)
                 .align_y(iced::Alignment::Center),
                 if !state.config.enable_dynamic_zoom {
-                    text("Dynamic zoom is disabled").size(13)
+                    column![text("Dynamic zoom is disabled").size(13)]
                 } else {
-                    text(format!(
-                        "{} zoom rule(s) configured",
-                        state.config.zoom_rules.len()
-                    ))
-                    .size(13)
+                    column![
+                        text(format!(
+                            "{} zoom rule(s) configured",
+                            state.config.zoom_rules.len()
+                        ))
+                        .size(13),
+                        text("").size(4),
+                        row![
+                            text("Use SimBrief Altitude:").width(Length::Fixed(160.0)),
+                            button(text(if state.config.use_simbrief_altitude {
+                                "Enabled"
+                            } else {
+                                "Disabled"
+                            }))
+                            .on_press(
+                                Message::SetUseSimBriefAltitude(
+                                    !state.config.use_simbrief_altitude
+                                )
+                            ),
+                        ]
+                        .spacing(12)
+                        .align_y(iced::Alignment::Center),
+                    ]
                 },
             ]
             .spacing(4)

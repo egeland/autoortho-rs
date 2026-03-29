@@ -9,3 +9,12 @@ updates:
       - "dependencies"
     commit-message:
       prefix: "ci"
+
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "deps"

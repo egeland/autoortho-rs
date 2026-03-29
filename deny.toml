@@ -1,16 +1,52 @@
+[graph]
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "x86_64-unknown-linux-musl",
+    "x86_64-apple-darwin",
+    "aarch64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+]
+all-features = true
+
+[advisories]
+unmaintained = "workspace"
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+skip = [
+    { crate = "getrandom@0.2.17", reason = "ring uses this old version" },
+    { crate = "hashbrown@0.15.5", reason = "petgraph uses this old version" },
+]
+
+skip-tree = [
+    { crate = "windows-sys", reason = "a foundational crate for many that bumps far too frequently to ever have a shared version" },
+]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+
 [licenses]
-version = 2
-unlicensed = "deny"
+confidence-threshold = 0.8
 allow = [
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "BSL-1.0",
+    "bzip2-1.0.6",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "GPL-3.0",
+    "GPL-3.0-or-later",
     "ISC",
     "MIT",
     "MPL-2.0",
     "Unicode-3.0",
     "Unicode-DFS-2016",
+    "Zlib",
 ]
 
 [[licenses.clarify]]
@@ -22,10 +58,3 @@ license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
 name = "s2n-tls"
 expression = "Apache-2.0"
 license-files = [{ path = "LICENSE", hash = 0x677f2d98 }]
-
-[advisories]
-version = 2
-
-[spdx]
-# Not included in deny.toml by default but useful
-include-only = ["Apache-2.0", "GPL-3.0"]
