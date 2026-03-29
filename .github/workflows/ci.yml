@@ -66,3 +66,35 @@ jobs:
 
       - name: Run library tests (all features)
         run: cargo test --lib --all-features
+
+  dist:
+    name: Distribution
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxkbcommon-dev libwayland-dev libvulkan-dev \
+            libfuse-dev pkg-config
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.93.0"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-dist
+        run: cargo install cargo-dist
+
+      - name: Build dist plan
+        run: cargo dist plan
+
+      - name: Upload dist plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-plan
+          path: dist-plan.json
