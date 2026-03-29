@@ -81,7 +81,7 @@ async fn test_tile_generation() -> Result<(), Box<dyn Error>> {
     let provider = ProviderFactory::create(provider_name).expect("Unknown tile provider");
     println!("Provider: {} ({})", provider.name(), provider_name);
 
-    let fetcher = Arc::new(TileFetcher::new(provider));
+    let fetcher = Arc::new(TileFetcher::new(provider, provider_name));
 
     // Sydney Opera House area
     let zoom = 14u32;
@@ -266,7 +266,10 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
         chunk_cache_entries, dds_cache_entries
     );
 
-    let fetcher = Arc::new(TileFetcher::with_cache_size(provider, chunk_cache_entries));
+    let fetcher = Arc::new(TileFetcher::with_cache_size(
+        chunk_cache_entries,
+        &config.tile_provider,
+    ));
 
     let dds_cache = if config.enable_dds_cache {
         let cache_dir = PathBuf::from(&config.cache_dir).join("dds");
@@ -315,9 +318,14 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     // Shutdown channel for graceful termination of background tasks
     let (shutdown_tx, _) = broadcast::channel(1);
 
-    let addr = autoortho_lib::webui::start_server(5847, stats.clone(), tracker.clone(), web_config.clone())
-        .await
-        .map_err(|e| format!("Web server error: {}", e))?;
+    let addr = autoortho_lib::webui::start_server(
+        5847,
+        stats.clone(),
+        tracker.clone(),
+        web_config.clone(),
+    )
+    .await
+    .map_err(|e| format!("Web server error: {}", e))?;
     info!("Web UI at http://{}", addr);
 
     // Night exclusion: poll sun_pitch from the dataref tracker and update the
@@ -556,7 +564,10 @@ async fn run_server() -> Result<(), Box<dyn Error>> {
         chunk_cache_entries, dds_cache_entries
     );
 
-    let fetcher = Arc::new(TileFetcher::with_cache_size(provider, chunk_cache_entries));
+    let fetcher = Arc::new(TileFetcher::with_cache_size(
+        chunk_cache_entries,
+        &config.tile_provider,
+    ));
 
     let dds_cache = if config.enable_dds_cache {
         let cache_dir = PathBuf::from(&config.cache_dir).join("dds");

@@ -5,8 +5,8 @@ use iced::{Element, Font, Subscription, Task};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::atomic::Ordering;
 use std::sync::OnceLock;
+use std::sync::atomic::Ordering;
 use tokio::sync::{oneshot, watch};
 
 use crate::tiles::provider;
@@ -560,7 +560,8 @@ impl AutoOrthoApp {
 
                 rt.spawn(async move {
                     let result =
-                        start_all_services(5847, &xplane_host, xplane_port, config, shutdown_rx).await;
+                        start_all_services(5847, &xplane_host, xplane_port, config, shutdown_rx)
+                            .await;
                     let _ = result_tx.send(result);
                 });
 
@@ -867,7 +868,8 @@ impl AutoOrthoApp {
                 let rt = self.runtime.clone();
 
                 rt.spawn(async move {
-                    let result = test_fallback_lookup(lat, lon, zoom, &cache_dir, fallback_config).await;
+                    let result =
+                        test_fallback_lookup(lat, lon, zoom, &cache_dir, fallback_config).await;
                     let _ = tx.send(result);
                 });
 
@@ -1207,7 +1209,7 @@ async fn fetch_test_tile(
     let provider = ProviderFactory::create(provider_name)
         .ok_or_else(|| format!("Unknown provider: {}", provider_name))?;
 
-    let fetcher = Arc::new(TileFetcher::new(provider));
+    let fetcher = Arc::new(TileFetcher::new(provider, provider_name));
 
     // Convert lat/lon to fractional tile coordinates, then center the 2x2 grid
     let n = 2_f64.powi(zoom as i32);

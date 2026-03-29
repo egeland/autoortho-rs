@@ -144,7 +144,10 @@ mod tests {
 
         // Verify it was stored
         let chunk = tile.chunk(5, 7).unwrap();
-        assert_eq!(chunk.data(), Some(&[1, 2, 3][..]));
+        assert_eq!(
+            chunk.data().map(|d| d.as_ref().as_slice()),
+            Some(&[1, 2, 3][..])
+        );
     }
 
     #[test]

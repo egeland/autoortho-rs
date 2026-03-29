@@ -2,28 +2,29 @@
 
 ## Overview
 
-Implement persistent disk caching for both raw JPEG tiles and pre-built DDS textures, with configurable size limits and LRU eviction. Currently, everything is in-memory only and lost on restart.
+Implement persistent disk caching for both raw JPEG tiles and pre-built DDS textures, with configurable size limits and LRU eviction.
 
 Reference: [autoortho4xplane docs/performance.md](https://github.com/ProgrammingDinosaur/autoortho4xplane/blob/develop/docs/performance.md) (Ephemeral DDS Cache, JPEG Cache sections)
 
 ---
 
-## Current State
+## Current State ✅ MOSTLY DONE
 
-### What's Implemented
+### What's Implemented ✅
 - `src/pipeline/cache.rs` — `DdsCache` with zstd compression, atomic writes, DDM metadata
-- `src/pipeline/budget.rs` — `DiskBudgetManager` with LRU eviction
-- `src/tiles/fetcher.rs` — In-memory `HashMap` for JPEG chunks (unbounded)
-- `src/fuse/filesystem.rs` — In-memory `HashMap` for DDS tiles (unbounded)
-- `src/tiles/tile.rs` — `TileCacher` with LRU by count (10 tiles max)
+- Config: `dds_cache_size_mb`, `enable_dds_cache`, `dds_memory_cache_mb`, `chunk_memory_cache_mb`
+- DDS disk cache wired into DdsFileSystem
+- In-memory LRU for chunks (via TileFetcher LruCache)
+- In-memory LRU for DDS tiles (via DdsFileSystem LruCache)
+- Upserving: higher-zoom DDS tiles used when lower-zoom requested
+- Fallback system: `FallbackLevel::Cache`, `Downserve`, `Network`, `Solid`
+- Cache management UI: sliders, clear buttons, enable toggle
 
-### What's Missing
+### What's Missing ❌
 - **JPEG disk cache** — Raw downloaded tiles never persisted to disk
-- **DDS disk cache** — `DdsCache` exists but is never instantiated in the app
-- **Cache size config** — No UI or config for `max_cache_size_mb`
-- **Cache index persistence** — `DdsCache` tracks size in-memory, not persisted across restarts
-- **Cache management UI** — No "clear cache" button, no size display
-- **`DiskBudgetManager` not wired up** — Eviction never triggered in production
+- **DDS in-memory cache size from config** — Hardcoded to 256 entries, config value not used
+- **DiskBudgetManager eviction** — Not wired up, cache grows without bound
+- FallbackLevel::None (disabled)
 
 ### The Problem
 Every app restart = all tiles re-downloaded and re-assembled from scratch. For a 30-minute flight covering 50 tiles at ZL16:
@@ -394,17 +395,25 @@ impl AutoOrthoConfig {
 
 ## Implementation Order
 
-1. **[ ] Config**: Add cache size fields and validation
-2. **[ ] JPEG cache**: Create `jpeg_cache.rs` with disk persistence + LRU eviction
-3. **[ ] Wire JPEG cache**: Modify `TileFetcher` to use disk cache
-4. **[ ] Wire DDS cache**: Modify `DdsFileSystem` to use `DdsCache` (disk) + hot memory layer
-5. **[ ] Budget eviction**: Wire `DiskBudgetManager` into `DdsCache::put()`
-6. **[ ] Startup rebuild**: Add `open()` method to rebuild index from disk
-7. **[ ] Staleness check**: Check `meta.is_stale()` on cache read, regenerate if needed
-8. **[ ] Healing** (optional): Background rebuild of tiles with `needs_healing()`
-9. **[ ] UI**: Add cache size bars, clear buttons, size sliders to Settings
-10. **[ ] Integration**: Create caches at startup in `lib.rs`, wire into app
-11. **[ ] Tests**: Unit tests for cache eviction, integration test for startup rebuild
+1. **[x] Config**: Add cache size fields and validation ✅
+2. **[ ] JPEG cache**: Create `jpeg_cache.rs` with disk persistence + LRU eviction ❌
+3. **[x] Wire JPEG cache**: In-memory LRU via TileFetcher ✅
+4. **[x] Wire DDS cache**: `DdsFileSystem` uses `DdsCache` (disk) + memory layer ✅
+5. **[ ] Budget eviction**: Wire `DiskBudgetManager` into `DdsCache::put()` ❌
+6. **[x] Startup rebuild**: `DdsCache::open()` rebuilds index from disk ✅
+7. **[x] Staleness check**: `meta.is_stale()` checked on cache read ✅
+8. **[ ] Healing**: Background rebuild of tiles with `needs_healing()` ❌
+9. **[x] UI**: Cache size bars, clear buttons, size sliders in Settings ✅
+10. **[x] Integration**: Caches created at startup in main.rs ✅
+11. **[x] Tests**: Unit tests for cache operations ✅
+
+## Remaining Work
+
+- **[ ] Add JPEG disk cache** - Highest priority missing feature
+- **[ ] Wire DDS in-memory cache size from config** - Currently hardcoded to 256
+- **[ ] Add DiskBudgetManager eviction** - Cache grows without bound
+- **[ ] Add FallbackLevel::None option**
+- **[ ] Optional: Background healing of incomplete tiles
 
 ---
 

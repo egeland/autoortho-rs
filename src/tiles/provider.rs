@@ -248,15 +248,19 @@ impl TileProvider for GoogleMapsProvider {
 /// Bing Maps provider (BI)
 pub struct BingMapsProvider {
     client: &'static reqwest::Client,
-    _key: Option<String>,
 }
 
 impl BingMapsProvider {
-    pub fn new(key: Option<String>) -> Self {
+    pub fn new() -> Self {
         Self {
             client: http_client(),
-            _key: key,
         }
+    }
+}
+
+impl Default for BingMapsProvider {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -311,7 +315,7 @@ impl ProviderFactory {
     pub fn create(name: &str) -> Option<Arc<dyn TileProvider>> {
         match name.to_uppercase().as_str() {
             "GO2" | "GOOGLE" => Some(Arc::new(GoogleMapsProvider::new())),
-            "BI" | "BING" => Some(Arc::new(BingMapsProvider::new(None))),
+            "BI" | "BING" => Some(Arc::new(BingMapsProvider::new())),
             "ARC" | "ARCGIS" => Some(Arc::new(ArcGisProvider::new())),
             "NAIP" => Some(Arc::new(UsgsNaipProvider::new())),
             "USGS" => Some(Arc::new(UsgsTopoProvider::new())),
@@ -520,13 +524,13 @@ mod tests {
 
     #[test]
     fn test_bing_provider_name() {
-        let provider = BingMapsProvider::new(None);
+        let provider = BingMapsProvider::new();
         assert_eq!(provider.name(), "Bing Maps");
     }
 
     #[test]
-    fn test_bing_provider_with_key() {
-        let provider = BingMapsProvider::new(Some("test_key".to_string()));
+    fn test_bing_provider_creation() {
+        let provider = BingMapsProvider::new();
         assert_eq!(provider.name(), "Bing Maps");
     }
 

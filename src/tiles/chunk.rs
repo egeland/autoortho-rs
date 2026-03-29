@@ -1,4 +1,5 @@
 use crate::tiles::provider::TileProvider;
+use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -27,7 +28,7 @@ pub struct Chunk {
     pub maptype: String,
     pub zoom: u32,
     state: ChunkState,
-    data: Option<Vec<u8>>, // JPEG data
+    data: Option<Arc<Vec<u8>>>, // JPEG data, Arc for cheap cloning
 }
 
 impl Chunk {
@@ -57,7 +58,7 @@ impl Chunk {
 
     pub fn set_cached(&mut self, data: Vec<u8>) -> Result<(), ChunkError> {
         if self.state == ChunkState::Fetching {
-            self.data = Some(data);
+            self.data = Some(Arc::new(data));
             self.state = ChunkState::Cached;
             Ok(())
         } else {
@@ -74,8 +75,12 @@ impl Chunk {
         }
     }
 
-    pub fn data(&self) -> Option<&[u8]> {
-        self.data.as_deref()
+    pub fn data(&self) -> Option<&Arc<Vec<u8>>> {
+        self.data.as_ref()
+    }
+
+    pub fn data_arc(&self) -> Option<Arc<Vec<u8>>> {
+        self.data.clone()
     }
 
     pub fn cache_key(&self) -> String {
@@ -146,7 +151,10 @@ mod tests {
         chunk.set_fetching().unwrap();
         chunk.set_cached(test_data.clone()).unwrap();
 
-        assert_eq!(chunk.data(), Some(&test_data[..]));
+        assert_eq!(
+            chunk.data().map(|d| d.as_ref().as_slice()),
+            Some(&test_data[..])
+        );
     }
 
     #[test]

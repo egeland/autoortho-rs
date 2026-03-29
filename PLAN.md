@@ -1,5 +1,71 @@
 # AutoOrtho Rust Rewrite - Implementation Plan
 
+## Code Review Findings (2026-03-29)
+
+### Critical Issues Found
+
+1. **Cache Eviction Tracking Bug** (`filesystem.rs:398-400`)
+   - Reports eviction every time an entry is added, regardless of actual eviction
+   - Fix: Compare cache length before and after push, track only true evictions
+
+2. **Redundant Clones in Hot Paths** (`fetcher.rs:53, 111, 144`)
+   - `data.to_vec()` called even when returning cached data
+   - Fix: Use `Arc::clone()` or return borrowed data
+
+3. **Duplicate Code in TileFetcher**
+   - `get_chunk_data()` and `get_chunk_data_with_provider()` are 90% identical
+   - Fix: Extract common logic into private helper method
+
+4. **DdsFileSystem Constructor Duplication**
+   - 8 constructors with massive code duplication (~30 lines each)
+   - Fix: Use builder pattern or defaultable config struct
+
+5. **Mixed Sync/Async Mutexes**
+   - `std::sync::Mutex` mixed with `tokio::sync::RwLock` unnecessarily
+   - Fix: Use tokio locks consistently in async contexts
+
+6. **Silent Error Suppression**
+   - Many `.ok()` calls silently swallow errors in critical paths
+   - Fix: Log warnings or propagate errors
+
+7. **Unused Code**
+   - `BufferPool` created but never used
+   - `_key` field in `BingMapsProvider` is dead code
+
+8. **Hardcoded User-Agent** (`provider.rs:32`)
+   - Fingerprintable browser UA string
+   - Fix: Use realistic, rotating UA or default reqwest UA
+
+9. **HTTP vs HTTPS** 
+   - Bing and NAIP providers use HTTP instead of HTTPS
+
+10. **Large Functions**
+    - Some `update()` functions are 100+ lines
+    - Fix: Extract message handlers into separate methods
+
+### Proposed Refactoring Plan
+
+#### Phase R1 — Code Quality Fixes (High Priority)
+- [ ] Fix cache eviction tracking bug
+- [ ] Eliminate redundant clones in fetcher
+- [ ] Deduplicate TileFetcher methods
+- [ ] Add builder pattern for DdsFileSystem
+- [ ] Replace `.ok()` with proper error handling
+- [ ] Remove unused code (BufferPool, _key field)
+
+#### Phase R2 — Security Hardening
+- [ ] Replace hardcoded User-Agent with configurable/rotating UA
+- [ ] Force HTTPS for all providers
+- [ ] Add input validation for parsed values
+
+#### Phase R3 — Architecture Improvements
+- [ ] Standardize on tokio mutexes in async code
+- [ ] Extract large functions into smaller methods
+- [ ] Add config validation helpers
+- [ ] Consider actor model for complex state
+
+---
+
 ## Overall Progress: Phases 1-10 mostly complete
 
 ### Phase 1 — Project Bootstrap ✅
@@ -61,11 +127,14 @@
 - [x] Add seasonal adjustment to pipeline (assembler.rs with apply_saturation)
 - [x] Add UI: pick_list for season selection, saturation sliders (0-200%)
 
-### Phase 4e — Fallback System
-- [ ] Add FallbackLevel enum: None, Cache, Full
-- [ ] Level 1 (Cache): Check disk cache for lower-zoom version
-- [ ] Level 2 (Scale): Scale from lower mipmap
-- [ ] Level 3 (Network): Download lower-detail imagery on-demand
+### Phase 4e — Fallback System ✅ (mostly)
+- [x] Add FallbackLevel enum: Cache, Downserve, Network, Solid
+- [x] Level 1 (Cache): Check disk cache for lower-zoom version
+- [x] Level 2 (Downserve): Scale from lower-res tile
+- [x] Level 3 (Network): Download on-demand (placeholder)
+- [x] Level 4 (Solid): Solid color fallback
+- [ ] FallbackLevel::None option
+- [ ] JPEG disk cache (raw tiles) — still missing
 
 ### Phase 4f — Provider Coverage Validation + Custom Map Integration ✅
 
@@ -96,7 +165,7 @@
 - [x] `seasons.rs` — Seasonal saturation with HSL conversion
 - [x] `time_exclusion.rs` — Sun elevation thresholds with hysteresis
 - [x] **Night exclusion wired** — FUSE returns fallback DDS at night, uses X-Plane sun_pitch dataref, editable Settings (toggle + threshold sliders)
-- [ ] `dynamic_zoom.rs` — Altitude-based zoom selection (defined but not wired into runtime)
+- [x] `dynamic_zoom.rs` — Altitude-based zoom selection, wired into runtime + SimBrief prefetch
 - [x] `altitude_predictor.rs` — Route altitude interpolation
 - [x] `stats.rs` — Thread-safe metrics accumulation
 - [x] `scenery/` — Scenery pack discovery, download, install, uninstall, INI management
@@ -242,6 +311,9 @@
 2. **Windows FUSE** — WinFsp implementation not started
 3. **Google Maps auth** — May still block under heavy use (ARC/BI recommended)
 4. **iced Position::Specific broken on macOS** — Workaround: use move_to() after WindowOpened
+5. **Cache eviction tracking bug** — Always reports eviction on new entry (false positives in stats)
+6. **HTTP instead of HTTPS** — Bing and NAIP providers use insecure connections
+7. **Hardcoded User-Agent** — Fingerprintable browser string in requests
 
 ---
 
@@ -251,7 +323,9 @@
 2. ~~DynamicZoom wiring~~ — ✅ Done  
 3. **Windows Dokan** — Implement Windows FUSE support (deferred - no Windows test machine)
 4. ~~WebSocket~~ — ✅ Done - Replace polling with WebSocket push
-5. **Documentation** — Write user docs
+5. **Phase R1 Code Quality** — Fix bugs and remove code duplication
+6. **Phase R2 Security** — HTTPS and input validation
+7. **Documentation** — Write user docs
 
 ---
 
@@ -282,3 +356,26 @@ Documentation is needed but tracked separately. See [autoortho4xplane docs](http
 - New imagery sources (Yandex, Apple, etc.)
 - macOS Fuse-T support
 - Seasonal ortho support
+
+---
+
+## Phase R1 — Code Quality Fixes (High Priority)
+- [x] Fix cache eviction tracking bug in `DdsFileSystem`
+- [x] Eliminate redundant `.to_vec()` clones in `TileFetcher` hot paths
+- [x] Deduplicate `get_chunk_data()` and `get_chunk_data_with_provider()`
+- [x] Remove unused `BufferPool` code
+- [x] Remove unused `_key` field from `BingMapsProvider`
+- [ ] Add builder pattern for `DdsFileSystem` constructors (deferred)
+- [ ] Replace silent `.ok()` error handling with proper logging (acceptable as-is)
+- [ ] Split large `update()` functions in UI
+
+## Phase R2 — Security Hardening
+- [ ] Replace hardcoded User-Agent with configurable UA
+- [ ] Force HTTPS for all tile providers (Bing, NAIP)
+- [ ] Add input validation for parsed numeric values
+
+## Phase R3 — Architecture Improvements
+- [ ] Standardize on tokio mutexes in async code paths
+- [ ] Add config validation helpers with range checks
+- [ ] Consider extracting UI message handlers to separate modules
+- [ ] Add request rate limiting to prevent provider blocking

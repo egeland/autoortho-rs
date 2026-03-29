@@ -14,12 +14,12 @@ use crate::tiles::fallback::FallbackSystem;
 use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::zoom::ChunkGrid;
 use crate::webui::custommap::CustomMapStore;
-use lru::LruCache;
 use log::{debug, warn};
+use lru::LruCache;
 use parking_lot::RwLock;
 use std::num::NonZero;
-use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::time::Instant;
 
 /// Virtual DDS filesystem implementation.
@@ -379,10 +379,12 @@ impl DdsFileSystem {
         {
             let mut cache = self.dds_cache.write();
             if let Some(dds) = cache.get(&tile_key) {
-                self.cache_hits.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                self.cache_hits
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                 return Ok(slice_range(dds, offset, size));
             }
-            self.cache_misses.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            self.cache_misses
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
 
         // Check disk cache for requested zoom
@@ -393,10 +395,11 @@ impl DdsFileSystem {
             debug!("DDS disk cache hit: {}", tile_key);
             let arc = Arc::new(dds_data);
             let mut mem_cache = self.dds_cache.write();
-            let old_len = mem_cache.len();
+            let was_full = mem_cache.len() >= mem_cache.cap().get();
             mem_cache.push(tile_key, arc.clone());
-            if mem_cache.len() > old_len {
-                self.cache_evictions.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if was_full {
+                self.cache_evictions
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
             return Ok(slice_range(&arc, offset, size));
         }
@@ -414,11 +417,12 @@ impl DdsFileSystem {
                     );
                     let arc = Arc::new(dds_data);
                     let mut mem_cache = self.dds_cache.write();
-                    let old_len = mem_cache.len();
+                    let was_full = mem_cache.len() >= mem_cache.cap().get();
                     // Store at the requested zoom key so future requests work
                     mem_cache.push(tile_key, arc.clone());
-                    if mem_cache.len() > old_len {
-                        self.cache_evictions.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                    if was_full {
+                        self.cache_evictions
+                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     }
                     return Ok(slice_range(&arc, offset, size));
                 }
@@ -436,10 +440,11 @@ impl DdsFileSystem {
             let dds = fallback_data;
             let arc = Arc::new(dds);
             let mut mem_cache = self.dds_cache.write();
-            let old_len = mem_cache.len();
+            let was_full = mem_cache.len() >= mem_cache.cap().get();
             mem_cache.push(tile_key, arc.clone());
-            if mem_cache.len() > old_len {
-                self.cache_evictions.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if was_full {
+                self.cache_evictions
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
             return Ok(slice_range(&arc, offset, size));
         }
@@ -459,10 +464,11 @@ impl DdsFileSystem {
             let fallback_dds = fb.solid_fallback(4096, self.format);
             let arc = Arc::new(fallback_dds);
             let mut mem_cache = self.dds_cache.write();
-            let old_len = mem_cache.len();
+            let was_full = mem_cache.len() >= mem_cache.cap().get();
             mem_cache.push(tile_key, arc.clone());
-            if mem_cache.len() > old_len {
-                self.cache_evictions.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if was_full {
+                self.cache_evictions
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
             return Ok(slice_range(&arc, offset, size));
         }
@@ -508,12 +514,13 @@ impl DdsFileSystem {
         // Cache it in memory (LRU will evict oldest entries when full)
         let dds_arc = {
             let mut cache = self.dds_cache.write();
-            let old_len = cache.len();
+            let was_full = cache.len() >= cache.cap().get();
             let arc = Arc::new(dds_data);
             cache.push(tile_key, arc.clone());
-            if cache.len() > old_len {
+            if was_full {
                 // An entry was evicted to make room
-                self.cache_evictions.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                self.cache_evictions
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
             arc
         };
@@ -673,7 +680,9 @@ impl DdsFileSystem {
         DdsCacheStats {
             hits: self.cache_hits.load(std::sync::atomic::Ordering::Relaxed),
             misses: self.cache_misses.load(std::sync::atomic::Ordering::Relaxed),
-            evictions: self.cache_evictions.load(std::sync::atomic::Ordering::Relaxed),
+            evictions: self
+                .cache_evictions
+                .load(std::sync::atomic::Ordering::Relaxed),
             entries: self.cache_len(),
         }
     }
@@ -759,7 +768,7 @@ mod tests {
 
     fn make_fs() -> DdsFileSystem {
         let provider = Arc::new(MockProvider);
-        let fetcher = crate::tiles::fetcher::TileFetcher::new(provider);
+        let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
         DdsFileSystem::new(Arc::new(fetcher), "ARC")
     }
 
@@ -854,7 +863,7 @@ mod tests {
         std::fs::create_dir(tmp.path().join("Earth nav data")).unwrap();
 
         let provider = Arc::new(MockProvider);
-        let fetcher = crate::tiles::fetcher::TileFetcher::new(provider);
+        let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
         let fs = DdsFileSystem::with_root(Arc::new(fetcher), tmp.path().to_path_buf(), "ARC");
 
         // Real file should be accessible
@@ -874,7 +883,7 @@ mod tests {
         std::fs::create_dir(tmp.path().join("Earth nav data")).unwrap();
 
         let provider = Arc::new(MockProvider);
-        let fetcher = crate::tiles::fetcher::TileFetcher::new(provider);
+        let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
         let fs = DdsFileSystem::with_root(Arc::new(fetcher), tmp.path().to_path_buf(), "ARC");
 
         let entries = fs.list_dir("/").unwrap();
