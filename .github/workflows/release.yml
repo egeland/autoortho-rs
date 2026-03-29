@@ -3,14 +3,11 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v[0-9]*'
 
 # Required permissions for cargo-dist
 permissions:
   contents: write
-  id-token: write  # Required for GitHub Releases
-  attestations: write
-  checkout: write
 
 jobs:
   release:
