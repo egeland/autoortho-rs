@@ -54,23 +54,93 @@ pub struct DdsFileSystem {
     cache_evictions: AtomicU64,
 }
 
-impl DdsFileSystem {
-    pub fn new(fetcher: Arc<TileFetcher>, provider_id: &str) -> Self {
+pub struct DdsFileSystemBuilder {
+    parser: DdsPathParser,
+    fetcher: Arc<TileFetcher>,
+    format: DdsFormat,
+    cache_entries: usize,
+    disk_cache: Option<Arc<std::sync::Mutex<DdsCache>>>,
+    root: Option<std::path::PathBuf>,
+    night_exclusion: Arc<AtomicBool>,
+    custom_map: Option<Arc<CustomMapStore>>,
+    default_provider: String,
+    fallback: Option<Arc<FallbackSystem>>,
+}
+
+impl DdsFileSystemBuilder {
+    fn new(fetcher: Arc<TileFetcher>, provider_id: &str) -> Self {
         Self {
             parser: DdsPathParser::new(),
             fetcher,
             format: DdsFormat::BC3,
-            dds_cache: RwLock::new(LruCache::new(NonZero::new(256).unwrap())),
+            cache_entries: 256,
             disk_cache: None,
             root: None,
             night_exclusion: Arc::new(AtomicBool::new(false)),
             custom_map: None,
             default_provider: provider_id.to_string(),
             fallback: None,
+        }
+    }
+
+    pub fn cache_entries(mut self, entries: usize) -> Self {
+        self.cache_entries = entries;
+        self
+    }
+
+    pub fn disk_cache(mut self, cache: Arc<std::sync::Mutex<DdsCache>>) -> Self {
+        self.disk_cache = Some(cache);
+        self
+    }
+
+    pub fn root(mut self, root: std::path::PathBuf) -> Self {
+        self.root = Some(root);
+        self
+    }
+
+    pub fn custom_map(mut self, custom_map: Arc<CustomMapStore>) -> Self {
+        self.custom_map = Some(custom_map);
+        self
+    }
+
+    pub fn fallback_config(mut self, config: FallbackConfig) -> Self {
+        if let Some(ref disk_cache) = self.disk_cache {
+            self.fallback = Some(Arc::new(FallbackSystem::new(
+                disk_cache.lock().unwrap().cache_dir().clone(),
+                config,
+            )));
+        }
+        self
+    }
+
+    pub fn build(self) -> DdsFileSystem {
+        DdsFileSystem {
+            parser: self.parser,
+            fetcher: self.fetcher,
+            format: self.format,
+            dds_cache: RwLock::new(LruCache::new(
+                NonZero::new(self.cache_entries.max(1)).unwrap(),
+            )),
+            disk_cache: self.disk_cache,
+            root: self.root,
+            night_exclusion: self.night_exclusion,
+            custom_map: self.custom_map,
+            default_provider: self.default_provider,
+            fallback: self.fallback,
             cache_hits: AtomicU64::new(0),
             cache_misses: AtomicU64::new(0),
             cache_evictions: AtomicU64::new(0),
         }
+    }
+}
+
+impl DdsFileSystem {
+    pub fn new(fetcher: Arc<TileFetcher>, provider_id: &str) -> Self {
+        Self::builder(fetcher, provider_id).build()
+    }
+
+    pub fn builder(fetcher: Arc<TileFetcher>, provider_id: &str) -> DdsFileSystemBuilder {
+        DdsFileSystemBuilder::new(fetcher, provider_id)
     }
 
     /// Create with a specific in-memory cache size (number of tiles).
@@ -79,21 +149,9 @@ impl DdsFileSystem {
         provider_id: &str,
         cache_entries: usize,
     ) -> Self {
-        Self {
-            parser: DdsPathParser::new(),
-            fetcher,
-            format: DdsFormat::BC3,
-            dds_cache: RwLock::new(LruCache::new(NonZero::new(cache_entries.max(1)).unwrap())),
-            disk_cache: None,
-            root: None,
-            night_exclusion: Arc::new(AtomicBool::new(false)),
-            custom_map: None,
-            default_provider: provider_id.to_string(),
-            fallback: None,
-            cache_hits: AtomicU64::new(0),
-            cache_misses: AtomicU64::new(0),
-            cache_evictions: AtomicU64::new(0),
-        }
+        Self::builder(fetcher, provider_id)
+            .cache_entries(cache_entries)
+            .build()
     }
 
     /// Create with a scenery root for real file pass-through.
@@ -102,21 +160,7 @@ impl DdsFileSystem {
         root: std::path::PathBuf,
         provider_id: &str,
     ) -> Self {
-        Self {
-            parser: DdsPathParser::new(),
-            fetcher,
-            format: DdsFormat::BC3,
-            dds_cache: RwLock::new(LruCache::new(NonZero::new(256).unwrap())),
-            disk_cache: None,
-            root: Some(root),
-            night_exclusion: Arc::new(AtomicBool::new(false)),
-            custom_map: None,
-            default_provider: provider_id.to_string(),
-            fallback: None,
-            cache_hits: AtomicU64::new(0),
-            cache_misses: AtomicU64::new(0),
-            cache_evictions: AtomicU64::new(0),
-        }
+        Self::builder(fetcher, provider_id).root(root).build()
     }
 
     /// Create with a persistent disk cache for DDS tiles.
@@ -125,21 +169,9 @@ impl DdsFileSystem {
         disk_cache: Arc<std::sync::Mutex<DdsCache>>,
         provider_id: &str,
     ) -> Self {
-        Self {
-            parser: DdsPathParser::new(),
-            fetcher,
-            format: DdsFormat::BC3,
-            dds_cache: RwLock::new(LruCache::new(NonZero::new(256).unwrap())),
-            disk_cache: Some(disk_cache),
-            root: None,
-            night_exclusion: Arc::new(AtomicBool::new(false)),
-            custom_map: None,
-            default_provider: provider_id.to_string(),
-            fallback: None,
-            cache_hits: AtomicU64::new(0),
-            cache_misses: AtomicU64::new(0),
-            cache_evictions: AtomicU64::new(0),
-        }
+        Self::builder(fetcher, provider_id)
+            .disk_cache(disk_cache)
+            .build()
     }
 
     /// Set the custom map store for per-cell provider overrides.
@@ -168,21 +200,9 @@ impl DdsFileSystem {
         custom_map: Arc<CustomMapStore>,
         provider_id: &str,
     ) -> Self {
-        Self {
-            parser: DdsPathParser::new(),
-            fetcher,
-            format: DdsFormat::BC3,
-            dds_cache: RwLock::new(LruCache::new(NonZero::new(256).unwrap())),
-            disk_cache: None,
-            root: None,
-            night_exclusion: Arc::new(AtomicBool::new(false)),
-            custom_map: Some(custom_map),
-            default_provider: provider_id.to_string(),
-            fallback: None,
-            cache_hits: AtomicU64::new(0),
-            cache_misses: AtomicU64::new(0),
-            cache_evictions: AtomicU64::new(0),
-        }
+        Self::builder(fetcher, provider_id)
+            .custom_map(custom_map)
+            .build()
     }
 
     /// Create with a scenery root and custom map support.
@@ -192,21 +212,10 @@ impl DdsFileSystem {
         custom_map: Arc<CustomMapStore>,
         provider_id: &str,
     ) -> Self {
-        Self {
-            parser: DdsPathParser::new(),
-            fetcher,
-            format: DdsFormat::BC3,
-            dds_cache: RwLock::new(LruCache::new(NonZero::new(256).unwrap())),
-            disk_cache: None,
-            root: Some(root),
-            night_exclusion: Arc::new(AtomicBool::new(false)),
-            custom_map: Some(custom_map),
-            default_provider: provider_id.to_string(),
-            fallback: None,
-            cache_hits: AtomicU64::new(0),
-            cache_misses: AtomicU64::new(0),
-            cache_evictions: AtomicU64::new(0),
-        }
+        Self::builder(fetcher, provider_id)
+            .root(root)
+            .custom_map(custom_map)
+            .build()
     }
 
     /// Create with a persistent disk cache and custom map support.
@@ -216,21 +225,10 @@ impl DdsFileSystem {
         custom_map: Arc<CustomMapStore>,
         provider_id: &str,
     ) -> Self {
-        Self {
-            parser: DdsPathParser::new(),
-            fetcher,
-            format: DdsFormat::BC3,
-            dds_cache: RwLock::new(LruCache::new(NonZero::new(256).unwrap())),
-            disk_cache: Some(disk_cache),
-            root: None,
-            night_exclusion: Arc::new(AtomicBool::new(false)),
-            custom_map: Some(custom_map),
-            default_provider: provider_id.to_string(),
-            fallback: None,
-            cache_hits: AtomicU64::new(0),
-            cache_misses: AtomicU64::new(0),
-            cache_evictions: AtomicU64::new(0),
-        }
+        Self::builder(fetcher, provider_id)
+            .disk_cache(disk_cache)
+            .custom_map(custom_map)
+            .build()
     }
 
     /// Create with a fallback system for missing tiles.
@@ -240,25 +238,10 @@ impl DdsFileSystem {
         provider_id: &str,
         fallback_config: FallbackConfig,
     ) -> Self {
-        let fallback = Arc::new(FallbackSystem::new(
-            disk_cache.lock().unwrap().cache_dir().clone(),
-            fallback_config,
-        ));
-        Self {
-            parser: DdsPathParser::new(),
-            fetcher,
-            format: DdsFormat::BC3,
-            dds_cache: RwLock::new(LruCache::new(NonZero::new(256).unwrap())),
-            disk_cache: Some(disk_cache),
-            root: None,
-            night_exclusion: Arc::new(AtomicBool::new(false)),
-            custom_map: None,
-            default_provider: provider_id.to_string(),
-            fallback: Some(fallback),
-            cache_hits: AtomicU64::new(0),
-            cache_misses: AtomicU64::new(0),
-            cache_evictions: AtomicU64::new(0),
-        }
+        Self::builder(fetcher, provider_id)
+            .disk_cache(disk_cache)
+            .fallback_config(fallback_config)
+            .build()
     }
 
     /// Get the provider for a given tile based on custom map overrides.
