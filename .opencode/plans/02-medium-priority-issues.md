@@ -333,6 +333,5 @@ impl SettingsScreen {
 | Monolithic Message Enum | Maintainability | High | P2 | Pending |
 | AppState Too Large | Maintainability | Medium | P2 | Pending |
 | Long View Functions | Maintainability | Medium | P3 | Pending |
-| Duplicated Provider Lists | Maintainability | Low | P3 | Pending |
 
 **Note:** Some of these (Message enum, AppState, View functions) are significant refactors that would benefit from being done together with the Phase 8c UI improvements in PLAN.md.
