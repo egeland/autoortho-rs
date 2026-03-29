@@ -303,12 +303,14 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
             dc,
             custom_map,
             &config.tile_provider,
+            dds_cache_entries,
         ))
     } else {
         Arc::new(DdsFileSystem::new_with_custom_map(
             fetcher.clone(),
             custom_map,
             &config.tile_provider,
+            dds_cache_entries,
         ))
     };
 
@@ -607,9 +609,15 @@ async fn run_server() -> Result<(), Box<dyn Error>> {
             dc,
             custom_map,
             &config.tile_provider,
+            dds_cache_entries,
         )
     } else {
-        DdsFileSystem::new_with_custom_map(fetcher, custom_map, &config.tile_provider)
+        DdsFileSystem::new_with_custom_map(
+            fetcher,
+            custom_map,
+            &config.tile_provider,
+            dds_cache_entries,
+        )
     };
 
     let stats = Arc::new(StatsStore::new());

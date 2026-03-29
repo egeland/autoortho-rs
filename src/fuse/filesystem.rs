@@ -168,8 +168,10 @@ impl DdsFileSystem {
         fetcher: Arc<TileFetcher>,
         disk_cache: Arc<parking_lot::Mutex<DdsCache>>,
         provider_id: &str,
+        cache_entries: usize,
     ) -> Self {
         Self::builder(fetcher, provider_id)
+            .cache_entries(cache_entries)
             .disk_cache(disk_cache)
             .build()
     }
@@ -199,8 +201,10 @@ impl DdsFileSystem {
         fetcher: Arc<TileFetcher>,
         custom_map: Arc<CustomMapStore>,
         provider_id: &str,
+        cache_entries: usize,
     ) -> Self {
         Self::builder(fetcher, provider_id)
+            .cache_entries(cache_entries)
             .custom_map(custom_map)
             .build()
     }
@@ -211,8 +215,10 @@ impl DdsFileSystem {
         root: std::path::PathBuf,
         custom_map: Arc<CustomMapStore>,
         provider_id: &str,
+        cache_entries: usize,
     ) -> Self {
         Self::builder(fetcher, provider_id)
+            .cache_entries(cache_entries)
             .root(root)
             .custom_map(custom_map)
             .build()
@@ -224,8 +230,10 @@ impl DdsFileSystem {
         disk_cache: Arc<parking_lot::Mutex<DdsCache>>,
         custom_map: Arc<CustomMapStore>,
         provider_id: &str,
+        cache_entries: usize,
     ) -> Self {
         Self::builder(fetcher, provider_id)
+            .cache_entries(cache_entries)
             .disk_cache(disk_cache)
             .custom_map(custom_map)
             .build()
@@ -237,8 +245,10 @@ impl DdsFileSystem {
         disk_cache: Arc<parking_lot::Mutex<DdsCache>>,
         provider_id: &str,
         fallback_config: FallbackConfig,
+        cache_entries: usize,
     ) -> Self {
         Self::builder(fetcher, provider_id)
+            .cache_entries(cache_entries)
             .disk_cache(disk_cache)
             .fallback_config(fallback_config)
             .build()

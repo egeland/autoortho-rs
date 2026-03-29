@@ -1,6 +1,7 @@
 # Plan: Native Installer Packages
 
 **Created:** 2026-03-29
+**Updated:** 2026-03-30
 
 ## Overview
 
@@ -9,39 +10,45 @@ Create native installers for AutoOrtho Rust across all three platforms:
 - **macOS**: DMG with app bundle and ZIP
 - **Linux**: Tarball and AppImage
 
-## Current Status: NOT STARTED
+## Current Status: PARTIALLY COMPLETE 🔄
 
-This is a future enhancement plan. No implementation has been done yet.
+cargo-dist is configured and release automation is in place. Native installers build on tag push but platform-specific enhancements (FUSE dependency checks) are not yet implemented.
 
 ## Strategy
 
-Use **cargo-dist** (formerly known as "cxldist") for cross-platform release automation.
+Using **cargo-dist** v0.30+ for cross-platform release automation.
 
 ---
 
-## Files to Modify
+## What's Done ✅
 
-| File | Changes |
-|------|---------|
-| `Cargo.toml` | Add cargo-dist config |
-| `.github/workflows/release.yml` | New CI workflow |
+| Item | Status |
+|------|--------|
+| `Cargo.toml` — cargo-dist config (targets, installer suffix) | ✅ |
+| `.github/workflows/release.yml` — cargo-dist release workflow | ✅ |
+| `.github/workflows/version.yml` — release-please version bumps | ✅ |
+| `.github/workflows/ci.yml` — CI test workflow | ✅ |
+| `.github/workflows/cross-platform.yml` — Multi-platform builds | ✅ |
+| `.github/workflows/security.yml` — cargo-audit + cargo-deny | ✅ |
+| Release profile (LTO thin, strip, panic abort) | ✅ |
+| Three target triples configured | ✅ |
 
-## Files to Create
+## What's NOT Done ❌
 
-| File | Description |
-|------|-------------|
-| `.github/workflows/ci.yml` | CI test workflow |
+| Item | Status |
+|------|--------|
+| macOS DMG bundle | ❌ |
+| Windows NSIS installer (vs plain .exe) | ❌ |
+| Linux AppImage | ❌ |
+| Windows installer prompts for WinFsp | ❌ |
+| macOS app checks for macFUSE | ❌ |
 
 ## Acceptance Criteria
 
-- [ ] `cargo dist build` produces Windows .exe and .zip
-- [ ] `cargo dist build` produces macOS .dmg and .tar.gz
-- [ ] `cargo dist build` produces Linux .tar.gz and .AppImage
-- [ ] GitHub Release created on tag push
+- [x] GitHub Release created on tag push (via cargo-dist + release-please)
+- [x] Release builds for Linux x86_64, macOS arm64, Windows x86_64
+- [ ] `cargo dist build` produces macOS .dmg
+- [ ] `cargo dist build` produces Linux .AppImage
 - [ ] All artifacts have checksums
 - [ ] Windows installer prompts for WinFsp
 - [ ] macOS app checks for macFUSE
-
-## Time Estimate
-
-~10 hours

@@ -66,7 +66,7 @@
 
 ---
 
-## Overall Progress: Phases 1-10 mostly complete
+## Overall Progress: Phases 1-10 complete, R1-R3 complete, Phase 12 (SimHeaven) in PR
 
 ### Phase 1 — Project Bootstrap ✅
 - [x] Cargo workspace with binary + library crates
@@ -110,11 +110,11 @@
 - [x] macFUSE installed, `cargo build --features fuse` compiles
 - [x] **FUSE live-tested in Podman container** — mount, ls, stat, poison pill all verified
 
-### Phase 4b — Windows Dokan FUSE (Deferred)
-- [ ] Windows Dokan implementation (deferred - no Windows test machine available)
-- [ ] Add `dokan` crate for Windows
-- [ ] Create `fuse/dokan.rs` implementing DokanFileSystem trait
-- [ ] Add config option `prefer_dokan` (default true)
+### Phase 4b — Windows FUSE (WinFsp) 🔄
+- [x] `fuse/mount_win.rs` — WinFsp-based implementation (305 lines)
+- [x] `winfsp` crate added to Cargo.toml (target-specific dependency)
+- [x] Cross-platform CI builds Windows target
+- [ ] Live testing on Windows (deferred - no Windows test machine available)
 
 ### Phase 4c — 7z Extraction ✅
 - [x] Add `sevenz-rust` crate
@@ -213,16 +213,18 @@
 
 ### Phase 9 — Packaging & Distribution ✅
 - [x] GitHub Actions CI: format, lint, test (ubuntu), build (ubuntu, macos arm64, windows)
-- [x] release-please for conventional-commit semver + changelog
-- [x] Release workflow builds and uploads binaries for Linux, macOS, Windows
+- [x] release-please for conventional-commit semver + changelog (`version.yml`)
+- [x] Release workflow via cargo-dist (`release.yml`) builds and uploads binaries
+- [x] Security workflow: cargo-audit + cargo-deny (`security.yml`)
+- [x] Cross-platform test matrix: Linux/macOS/Windows (`cross-platform.yml`)
 - [x] Dockerfile.fuse-test for container-based FUSE testing
 - [x] `.dockerignore` for clean builds
 
 ### Phase 10 — Final 🔄
-- [x] Benchmarks with criterion (benches/bench.rs)
+- [x] Benchmarks with criterion (benches/bench.rs) — 6 benchmark groups
+- [x] Documentation — USER_GUIDE.md, CONFIGURATION.md, INSTALLATION.md
 - [ ] Performance profiling with `cargo-flamegraph`
 - [ ] End-to-end integration test: mount, request DDS, byte-compare
-- [ ] Documentation (see section above)
 
 ### Phase 11 — X-Plane Plugin 🔄
 - [ ] **X-Plane Plugin** — Thin plugin in Rust (xplm crate) replacing UDP dataref polling with direct XPLM SDK calls. See [docs/xplane-plugin-plan.md](docs/xplane-plugin-plan.md)
@@ -288,7 +290,7 @@
 
 ## Test Summary
 
-308 tests passing (296 unit + 12 integration)
+347 tests passing (326 unit + 21 integration), 6 criterion benchmark groups
 
 ---
 
@@ -311,32 +313,42 @@
 2. **Windows FUSE** — WinFsp implementation not started
 3. **Google Maps auth** — May still block under heavy use (ARC/BI recommended)
 4. **iced Position::Specific broken on macOS** — Workaround: use move_to() after WindowOpened
-5. **Cache eviction tracking bug** — Always reports eviction on new entry (false positives in stats)
-6. **HTTP instead of HTTPS** — Bing and NAIP providers use insecure connections
-7. **Hardcoded User-Agent** — Fingerprintable browser string in requests
+5. ~~Cache eviction tracking bug~~ → Fixed: properly tracks before/after cache length
+6. ~~HTTP instead of HTTPS~~ → Fixed: all providers now use HTTPS
+7. ~~Hardcoded User-Agent~~ → Fixed: configurable UA with Chrome version rotation
+8. ~~DDS in-memory cache size hardcoded~~ → Fixed: `dds_memory_cache_mb` config now wired through to DdsFileSystem constructors
+9. **DiskBudgetManager not wired** — DDS disk cache grows without bound; no eviction
+10. **Vertical speed not computed** — `dataref.rs:156` TODO: compute from altitude delta
 
 ---
 
 ## Next Steps
 
 1. ~~Fallback system~~ — ✅ Done
-2. ~~DynamicZoom wiring~~ — ✅ Done  
+2. ~~DynamicZoom wiring~~ — ✅ Done
 3. **Windows Dokan** — Implement Windows FUSE support (deferred - no Windows test machine)
 4. ~~WebSocket~~ — ✅ Done - Replace polling with WebSocket push
-5. **Phase R1 Code Quality** — Fix bugs and remove code duplication
-6. **Phase R2 Security** — HTTPS and input validation
-7. **Documentation** — Write user docs
+5. ~~Phase R1 Code Quality~~ — ✅ Done (`.ok()` handling accepted as-is)
+6. ~~Phase R2 Security~~ — ✅ Done (HTTPS, UA, input validation)
+7. ~~Documentation~~ — ✅ Done (USER_GUIDE.md, CONFIGURATION.md, INSTALLATION.md)
+8. **SimHeaven compatibility** — PR #11 open, adds SimHeaven X-World overlay management
+9. ~~Wire DDS cache config~~ — ✅ Done: `dds_memory_cache_mb` now used by DdsFileSystem
+10. **DiskBudgetManager eviction** — Wire up cache eviction to prevent unbounded growth
+11. **Merge dependabot PRs** — 7 pending dependency updates (criterion, tokio-tungstenite, cargo-dist, etc.)
 
 ---
 
-## Documentation (Future Work)
+## Documentation ✅ (Mostly Complete)
 
-Documentation is needed but tracked separately. See [autoortho4xplane docs](https://github.com/ProgrammingDinosaur/autoortho4xplane/tree/develop/docs) for reference material. Key areas:
-- README / Quick Start / Installation guides for each OS
-- Configuration reference
-- FAQ & Troubleshooting
-- Performance tuning guide
-- Attributions
+Core documentation written. See `docs/` directory:
+- [x] USER_GUIDE.md — Comprehensive user guide
+- [x] CONFIGURATION.md — Full config reference
+- [x] INSTALLATION.md — Platform-specific install instructions
+- [ ] FAQ & Troubleshooting (not started)
+- [ ] Performance tuning guide (not started)
+- [ ] Attributions (not started)
+
+Reference: [autoortho4xplane docs](https://github.com/ProgrammingDinosaur/autoortho4xplane/tree/develop/docs)
 
 ---
 
@@ -344,38 +356,66 @@ Documentation is needed but tracked separately. See [autoortho4xplane docs](http
 
 ### High Priority
 - **X-Plane Plugin** — Thin Rust plugin with direct XPLM SDK calls (zero latency) + scenery pack management
+- **JPEG disk cache** — Raw downloaded tiles not persisted to disk (only in-memory LRU)
+- **DiskBudgetManager** — Wire up cache eviction so DDS disk cache doesn't grow without bound
 
 ### Medium Priority
 - Performance presets UI — Fast/Balanced/Quality dropdown in Settings
 - Early-build DDS — Two-phase tile building for faster first-texture
 - Stall detection — Log warnings when downloads appear stalled
 - X-Plane diagnostics — Show packet rate in status bar
+- Hide roads plan — See [docs/hide-roads-plan.md](docs/hide-roads-plan.md)
+- Request rate limiting — Prevent provider blocking under heavy use
 
 ### Lower Priority
-- Windows installer (NSIS/WiX)
-- New imagery sources (Yandex, Apple, etc.)
+- ~~New imagery sources (Yandex, Apple, etc.)~~ → ✅ Done (Yandex + Apple Maps providers)
+- ~~Windows installer (NSIS/WiX)~~ → Partially done via cargo-dist (release.yml exists)
 - macOS Fuse-T support
-- Seasonal ortho support
+- FallbackLevel::None option
 
 ---
 
-## Phase R1 — Code Quality Fixes (High Priority)
+## Phase 12 — SimHeaven X-World Compatibility 🔄 (PR #11)
+- [x] `simheaven_compat` config field (bool, default false)
+- [x] `src/scenery/simheaven.rs` — Region mapping (Kubilus ↔ SimHeaven), package detection, overlay toggle
+- [x] Settings UI toggle for SimHeaven compatibility mode
+- [x] Auto-disable yAutoOrtho_Overlays when enabled, re-enable when disabled
+- [x] 9 unit tests for region mapping, detection, enable/disable
+- [x] Implementation plan: [docs/simheaven-compat-plan.md](docs/simheaven-compat-plan.md)
+- [ ] Merge PR #11
+
+---
+
+## Phase R1 — Code Quality Fixes ✅
 - [x] Fix cache eviction tracking bug in `DdsFileSystem`
 - [x] Eliminate redundant `.to_vec()` clones in `TileFetcher` hot paths
 - [x] Deduplicate `get_chunk_data()` and `get_chunk_data_with_provider()`
 - [x] Remove unused `BufferPool` code
 - [x] Remove unused `_key` field from `BingMapsProvider`
 - [x] Add builder pattern for `DdsFileSystem` constructors
-- [ ] Replace silent `.ok()` error handling with proper logging (acceptable as-is)
 - [x] Split large `update()` functions in UI
+- _Skipped:_ `.ok()` error handling — reviewed and accepted as-is (most are in non-critical paths or proper `ok()?` chains)
 
-## Phase R2 — Security Hardening
+## Phase R2 — Security Hardening ✅
 - [x] Replace hardcoded User-Agent with configurable UA
 - [x] Force HTTPS for all tile providers (Bing, NAIP)
 - [x] Add input validation for parsed numeric values
 
-## Phase R3 — Architecture Improvements
-- [x] Standardize on tokio mutexes in async code paths
+## Phase R3 — Architecture Improvements ✅ (mostly)
+- [x] Standardize on tokio mutexes in async code paths (confirmed: zero `std::sync::Mutex`, only `parking_lot` for sync + `tokio::sync::RwLock` for async)
 - [x] Add config validation helpers with range checks
-- [x] Consider extracting UI message handlers to separate modules
+- [x] Consider extracting UI message handlers to separate modules (done: `ui/handlers.rs`, `ui/screens/`)
 - [ ] Add request rate limiting to prevent provider blocking
+
+---
+
+## Code Review Observations (2026-03-30)
+
+### Remaining Low-Severity Items
+1. **`fetcher.rs:107,186,208`** — `data.as_ref().clone()` clones entire Vec instead of Arc; returns ~256KB copy per cache hit. Could return `Arc<Vec<u8>>` directly.
+2. **`filesystem.rs:687`** — `slice_range()` allocates new Vec on every partial DDS read (hot path). Consider `Cow<[u8]>` or returning slice.
+3. **`assembler.rs:107-133`** — Image decode failures silently use fallback colors via `.ok()`. Per-failure logging would help debugging.
+4. **`fetcher.rs` constructors** — 3 constructor variants still exist alongside builder; minor API bloat.
+5. **`dataref.rs:156`** — `vertical_speed_fpm: 0.0` with TODO to compute from altitude delta.
+6. **`mockall` dev-dependency** — Listed in Cargo.toml but unused in any test file.
+7. **Rust toolchain drift** — `cross-platform.yml` pins Rust 1.85.0 but dependabot PR updates to 1.100.0. AGENTS.md says 1.93.0.
