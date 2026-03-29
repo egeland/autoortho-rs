@@ -372,7 +372,7 @@ Documentation is needed but tracked separately. See [autoortho4xplane docs](http
 ## Phase R2 — Security Hardening
 - [ ] Replace hardcoded User-Agent with configurable UA
 - [x] Force HTTPS for all tile providers (Bing, NAIP)
-- [ ] Add input validation for parsed numeric values
+- [x] Add input validation for parsed numeric values
 
 ## Phase R3 — Architecture Improvements
 - [ ] Standardize on tokio mutexes in async code paths

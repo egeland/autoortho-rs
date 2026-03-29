@@ -327,6 +327,12 @@ pub async fn fetch_flight_plan(user_id: &str) -> Result<FlightPlan, SimbriefErro
         .filter_map(|f| {
             let lat = f.pos_lat.parse::<f64>().ok()?;
             let lon = f.pos_long.parse::<f64>().ok()?;
+
+            // Validate coordinate ranges
+            if !(-90.0..=90.0).contains(&lat) || !(-180.0..=180.0).contains(&lon) {
+                return None;
+            }
+
             Some(FlightFix {
                 ident: f.ident,
                 name: f.name.unwrap_or_default(),

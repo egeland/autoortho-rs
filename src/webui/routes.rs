@@ -462,6 +462,11 @@ fn parse_dsf_coords(stem: &str) -> Option<(i32, i32)> {
     let lat = lat_str.parse::<i32>().ok()?;
     let lon = lon_str.parse::<i32>().ok()?;
 
+    // Validate latitude (-90 to 90) and longitude (-180 to 180) ranges
+    if !(-90..=90).contains(&lat) || !(-180..=180).contains(&lon) {
+        return None;
+    }
+
     Some((lat, lon))
 }
 
@@ -565,8 +570,8 @@ async fn cache_tiles(State(state): State<Arc<WebState>>) -> Json<Vec<CachedTile>
         };
         let provider = parts[2].to_string();
         let zoom = match parts[3][1..].parse::<u32>().ok() {
-            Some(z) => z,
-            None => continue,
+            Some(z) if z <= 21 => z,
+            _ => continue,
         };
 
         // Read metadata
