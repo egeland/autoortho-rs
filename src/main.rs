@@ -39,9 +39,13 @@ fn main() -> Result<(), Box<dyn Error>> {
         return Ok(());
     }
 
-    if args.iter().any(|a| a == "--test-tile") {
+    if let Some(pos) = args.iter().position(|a| a == "--test-tile") {
+        let provider = args
+            .get(pos + 1)
+            .map(|s| s.as_str())
+            .unwrap_or("ARC");
         let rt = tokio::runtime::Runtime::new()?;
-        return rt.block_on(test_tile_generation());
+        return rt.block_on(test_tile_generation(provider));
     }
 
     if let Some(pos) = args.iter().position(|a| a == "--mount") {
@@ -67,7 +71,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 /// Fetch a real satellite tile and write it as a DDS file for inspection.
-async fn test_tile_generation() -> Result<(), Box<dyn Error>> {
+async fn test_tile_generation(provider_name: &str) -> Result<(), Box<dyn Error>> {
     use autoortho_lib::pipeline::dds::DdsFormat;
     use autoortho_lib::pipeline::decode::ImageBuffer;
     use autoortho_lib::pipeline::image::Image;
@@ -76,9 +80,6 @@ async fn test_tile_generation() -> Result<(), Box<dyn Error>> {
     println!("=== AutoOrtho Tile Generation Test ===");
     println!();
 
-    // Use ArcGIS — it's an open API that doesn't block automated requests.
-    // Google (GO2) requires auth cookies and blocks raw HTTP fetches.
-    let provider_name = "ARC";
     let provider = ProviderFactory::create(provider_name).expect("Unknown tile provider");
     println!("Provider: {} ({})", provider.name(), provider_name);
 

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
 // Copyright (c) 2024 the AutoOrtho contributors
 
+pub mod apple_token;
 pub mod assembler;
 pub mod chunk;
 pub mod coords;

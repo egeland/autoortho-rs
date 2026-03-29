@@ -6,6 +6,8 @@ use thiserror::Error;
 
 use crate::tiles::coords::TileCoords;
 
+use crate::tiles::apple_token::AppleTokenService;
+
 include!(concat!(env!("OUT_DIR"), "/user_agent.rs"));
 
 /// Shared HTTP client for tile providers.
@@ -104,10 +106,24 @@ pub const PROVIDER_INFO: &[ProviderInfo] = &[
         max_zoom: 17,
         requires_auth: false,
     },
+    ProviderInfo {
+        id: "YNDX",
+        display_name: "Yandex Maps",
+        min_zoom: 0,
+        max_zoom: 17,
+        requires_auth: false,
+    },
+    ProviderInfo {
+        id: "APPLE",
+        display_name: "Apple Maps",
+        min_zoom: 0,
+        max_zoom: 19,
+        requires_auth: true,
+    },
 ];
 
 /// Provider IDs for UI pick lists (mirrors order in PROVIDER_INFO)
-pub const PROVIDER_IDS: &[&str] = &["GO2", "BI", "ARC", "NAIP", "USGS", "EOX", "FIREFLY"];
+pub const PROVIDER_IDS: &[&str] = &["GO2", "BI", "ARC", "NAIP", "USGS", "EOX", "FIREFLY", "YNDX", "APPLE"];
 
 /// Get provider info by ID. Returns None for unknown providers.
 pub fn provider_info(id: &str) -> Option<&'static ProviderInfo> {
@@ -274,8 +290,6 @@ impl TileProvider for BingMapsProvider {
         zoom: u32,
     ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, TileProviderError>> + Send + '_>> {
         Box::pin(async move {
-            use crate::tiles::coords::TileCoords;
-
             let quadkey = TileCoords::tile_to_quadkey(col, row, zoom);
             let url = format!(
                 "https://ecn.t3.tiles.virtualearth.net/tiles/a{}.jpeg?g=1",
@@ -323,13 +337,15 @@ impl ProviderFactory {
             "USGS" => Some(Arc::new(UsgsTopoProvider::new())),
             "EOX" => Some(Arc::new(EoxProvider::new())),
             "FIREFLY" => Some(Arc::new(FireflyProvider::new())),
+            "YNDX" | "YANDEX" => Some(Arc::new(YandexMapsProvider::new())),
+            "APPLE" => Some(Arc::new(AppleMapsProvider::new())),
             _ => None,
         }
     }
 
     /// List available provider names
     pub fn available_providers() -> Vec<&'static str> {
-        vec!["GO2", "BI", "ARC", "NAIP", "USGS", "EOX", "FIREFLY"]
+        vec!["GO2", "BI", "ARC", "NAIP", "USGS", "EOX", "FIREFLY", "YNDX", "APPLE"]
     }
 }
 
@@ -511,6 +527,156 @@ impl TileProvider for FireflyProvider {
 
     fn name(&self) -> &str {
         "Firefly"
+    }
+}
+
+/// Yandex Maps provider (YNDX)
+/// Uses round-robin server selection like Google Maps.
+pub struct YandexMapsProvider {
+    client: &'static reqwest::Client,
+    server: std::sync::atomic::AtomicU32,
+}
+
+impl YandexMapsProvider {
+    pub fn new() -> Self {
+        Self {
+            client: http_client(),
+            server: std::sync::atomic::AtomicU32::new(1),
+        }
+    }
+
+    fn next_server(&self) -> u32 {
+        // Cycle through servers 1-4
+        self.server
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            % 4
+            + 1
+    }
+}
+
+impl Default for YandexMapsProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TileProvider for YandexMapsProvider {
+    fn fetch(
+        &self,
+        row: u32,
+        col: u32,
+        zoom: u32,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, TileProviderError>> + Send + '_>> {
+        let server = self.next_server();
+        Box::pin(async move {
+            let url = format!(
+                "https://sat{:02}.maps.yandex.net/tiles?l=sat&v=3.1814.0&x={}&y={}&z={}",
+                server, col, row, zoom
+            );
+            fetch_image(self.client, &url).await
+        })
+    }
+
+    fn name(&self) -> &str {
+        "Yandex Maps"
+    }
+}
+
+/// Apple Maps provider (APPLE)
+/// Requires dynamic authentication tokens that must be refreshed on 403/410 errors.
+pub struct AppleMapsProvider {
+    client: reqwest::Client,
+    token_service: AppleTokenService,
+}
+
+impl AppleMapsProvider {
+    pub fn new() -> Self {
+        Self {
+            client: reqwest::Client::builder()
+                .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)")
+                .build()
+                .expect("failed to build Apple HTTP client"),
+            token_service: AppleTokenService::new(),
+        }
+    }
+}
+
+impl Default for AppleMapsProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl TileProvider for AppleMapsProvider {
+    fn fetch(
+        &self,
+        row: u32,
+        col: u32,
+        zoom: u32,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, TileProviderError>> + Send + '_>> {
+        Box::pin(async move {
+            // Fetch token (with retry on auth failures) - max 3 attempts
+            let mut token_attempts = 0;
+            let token = loop {
+                token_attempts += 1;
+                match self.token_service.get_token().await {
+                    Ok(t) => break t,
+                    Err(e) => {
+                        if token_attempts >= 3 {
+                            return Err(TileProviderError::NetworkError(format!(
+                                "Failed to get Apple token after {} attempts: {}",
+                                token_attempts, e
+                            )));
+                        }
+                        // Token fetch failed, try again after reset
+                        self.token_service.reset_token();
+                        // Small delay to avoid hammering
+                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                        continue;
+                    }
+                }
+            };
+
+            let url = self.token_service.make_tile_url(col, row, zoom, &token);
+
+            // Make request with retry on auth failures
+            let mut attempts = 0;
+            loop {
+                attempts += 1;
+                let response = self
+                    .client
+                    .get(&url)
+                    .send()
+                    .await
+                    .map_err(|e| TileProviderError::NetworkError(e.to_string()))?;
+
+                let status = response.status();
+                if status == 200 {
+                    let bytes = response
+                        .bytes()
+                        .await
+                        .map(|b| b.to_vec())
+                        .map_err(|e| TileProviderError::NetworkError(e.to_string()))?;
+                    return validate_image_response(&bytes).map(|_| bytes);
+                } else if status == 403 || status == 410 {
+                    // Token expired, reset and retry (once)
+                    if attempts < 2 {
+                        self.token_service.reset_token();
+                        continue;
+                    }
+                    return Err(TileProviderError::RateLimited);
+                } else {
+                    return Err(TileProviderError::NetworkError(format!(
+                        "HTTP {} after {} attempts",
+                        status, attempts
+                    )));
+                }
+            }
+        })
+    }
+
+    fn name(&self) -> &str {
+        "Apple Maps"
     }
 }
 
