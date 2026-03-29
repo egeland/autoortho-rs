@@ -68,6 +68,7 @@ pub enum Message {
     SetMinZoom(u32),
     SetMaxZoom(u32),
     SetEnableDynamicZoom(bool),
+    SetUseSimBriefAltitude(bool),
     SetUIScale(f64),
 
     // Configuration persistence
@@ -300,6 +301,9 @@ impl AutoOrthoApp {
             }
             Message::SetEnableDynamicZoom(enabled) => {
                 handlers::set_enable_dynamic_zoom(&mut self.state, enabled);
+            }
+            Message::SetUseSimBriefAltitude(enabled) => {
+                handlers::set_use_simbrief_altitude(&mut self.state, enabled);
             }
             Message::SetUIScale(scale) => {
                 handlers::set_ui_scale(&mut self.state, scale);
