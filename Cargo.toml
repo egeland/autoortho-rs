@@ -73,7 +73,7 @@ winfsp = "0.12"
 tempfile = "3"
 mockall = "0.14"
 criterion = "0.8"
-cargo-dist = "0.30"
+cargo-dist = "0.31"
 
 [package.metadata.dist]
 dist-version = "0.2.0"
