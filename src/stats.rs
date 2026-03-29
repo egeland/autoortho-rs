@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
 // Copyright (c) 2024 the AutoOrtho contributors
 
+use parking_lot::Mutex;
 use std::sync::Arc;
-use std::sync::Mutex;
 
 /// Statistics store for tile downloads and cache
 #[derive(Debug, Clone)]
@@ -34,37 +34,37 @@ impl StatsStore {
     }
 
     pub fn record_download(&self, bytes: u64) {
-        let mut snap = self.snapshot.lock().expect("stats mutex poisoned");
+        let mut snap = self.snapshot.lock();
         snap.tiles_downloaded += 1;
         snap.bytes_downloaded += bytes;
     }
 
     pub fn record_cache_hit(&self) {
-        let mut snap = self.snapshot.lock().expect("stats mutex poisoned");
+        let mut snap = self.snapshot.lock();
         snap.cache_hits += 1;
     }
 
     pub fn record_cache_miss(&self) {
-        let mut snap = self.snapshot.lock().expect("stats mutex poisoned");
+        let mut snap = self.snapshot.lock();
         snap.cache_misses += 1;
     }
 
     pub fn set_pending_tiles(&self, count: u32) {
-        let mut snap = self.snapshot.lock().expect("stats mutex poisoned");
+        let mut snap = self.snapshot.lock();
         snap.tiles_pending = count;
     }
 
     pub fn set_completed_tiles(&self, count: u32) {
-        let mut snap = self.snapshot.lock().expect("stats mutex poisoned");
+        let mut snap = self.snapshot.lock();
         snap.tiles_completed = count;
     }
 
     pub fn snapshot(&self) -> StatsSnapshot {
-        self.snapshot.lock().expect("stats mutex poisoned").clone()
+        self.snapshot.lock().clone()
     }
 
     pub fn hit_ratio(&self) -> f64 {
-        let snap = self.snapshot.lock().expect("stats mutex poisoned");
+        let snap = self.snapshot.lock();
         let total = snap.cache_hits + snap.cache_misses;
         if total > 0 {
             snap.cache_hits as f64 / total as f64
@@ -74,7 +74,7 @@ impl StatsStore {
     }
 
     pub fn clear(&self) {
-        let mut snap = self.snapshot.lock().expect("stats mutex poisoned");
+        let mut snap = self.snapshot.lock();
         snap.tiles_downloaded = 0;
         snap.bytes_downloaded = 0;
         snap.cache_hits = 0;

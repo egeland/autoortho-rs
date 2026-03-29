@@ -2,9 +2,9 @@
 // Copyright (c) 2024 the AutoOrtho contributors
 
 use iced::{Element, Font, Subscription, Task};
+use parking_lot::Mutex;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::sync::OnceLock;
 use std::sync::atomic::Ordering;
 use tokio::sync::{oneshot, watch};
@@ -15,9 +15,9 @@ use crate::xplane::simbrief::{FlightFix, FlightPlan};
 
 /// Saved window geometry to restore on boot: (x, y, width, height)
 #[allow(clippy::type_complexity)]
-static SAVED_WINDOW_GEOM: std::sync::Mutex<
+static SAVED_WINDOW_GEOM: Mutex<
     Option<(Option<f32>, Option<f32>, Option<f32>, Option<f32>)>,
-> = std::sync::Mutex::new(None);
+> = Mutex::new(None);
 
 /// Whether saved geometry exists (checked by new() before GEOM is consumed)
 static HAS_SAVED_GEOM: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -150,9 +150,9 @@ pub enum Message {
     SetAirportRadius(u32),
     FetchSimbrief,
     SimbriefLoaded(
-        String,                                               // summary
-        Vec<(String, String, f32)>,                           // fixes
-        std::sync::Arc<std::sync::Mutex<Option<FlightPlan>>>, // flight plan
+        String,                                       // summary
+        Vec<(String, String, f32)>,                   // fixes
+        Arc<Mutex<Option<FlightPlan>>>,               // flight plan
     ),
     SimbriefCoverageChecked(Option<String>), // warning message if coverage issue
     SimbriefFailed(String),
@@ -439,7 +439,7 @@ impl AutoOrthoApp {
 
                 // Extract coordinates and store plan first
                 let flight_plan_opt = {
-                    let guard = plan.lock().unwrap();
+                    let guard = plan.lock();
                     guard.clone()
                 };
 
@@ -667,7 +667,7 @@ impl AutoOrthoApp {
                     cancel: cancel.clone(),
                     bytes_downloaded: Arc::new(std::sync::atomic::AtomicU64::new(0)),
                     total_bytes,
-                    current_file: Arc::new(std::sync::Mutex::new(String::new())),
+                    current_file: Arc::new(Mutex::new(String::new())),
                     files_done: Arc::new(std::sync::atomic::AtomicU32::new(0)),
                     files_total,
                 };
@@ -908,7 +908,7 @@ impl AutoOrthoApp {
             Message::WindowOpened(id) => {
                 // Move window first, then schedule a delayed resize so the
                 // window is on the correct monitor (correct DPI) before resizing.
-                if let Some(geom) = SAVED_WINDOW_GEOM.lock().expect("lock").take() {
+                if let Some(geom) = SAVED_WINDOW_GEOM.lock().take() {
                     let has_pos = geom.0.is_some() && geom.1.is_some();
                     let has_size = geom.2.is_some() && geom.3.is_some();
 
@@ -1421,7 +1421,7 @@ async fn download_and_install_region(
     install_dir: &str,
     cancel: &tokio_util::sync::CancellationToken,
     progress_bytes: &std::sync::Arc<std::sync::atomic::AtomicU64>,
-    progress_file: &std::sync::Arc<std::sync::Mutex<String>>,
+    progress_file: &Arc<Mutex<String>>,
     progress_files_done: &std::sync::Arc<std::sync::atomic::AtomicU32>,
 ) -> Result<String, String> {
     use crate::scenery::discovery;
@@ -1446,7 +1446,7 @@ async fn download_and_install_region(
     let mut unverified = 0u32;
 
     for package in &region.packages {
-        *progress_file.lock().expect("progress mutex") = package.filename.clone();
+        *progress_file.lock() = package.filename.clone();
 
         let path = installer::download_package(package, download_path, cancel, progress_bytes)
             .await
@@ -1543,7 +1543,7 @@ pub fn run(runtime: tokio::runtime::Runtime) -> iced::Result {
     );
 
     // Store geometry for the Opened event handler to apply
-    SAVED_WINDOW_GEOM.lock().expect("lock").replace((
+    SAVED_WINDOW_GEOM.lock().replace((
         config.window_x,
         config.window_y,
         config.window_width,

@@ -375,7 +375,7 @@ Documentation is needed but tracked separately. See [autoortho4xplane docs](http
 - [x] Add input validation for parsed numeric values
 
 ## Phase R3 — Architecture Improvements
-- [ ] Standardize on tokio mutexes in async code paths
+- [x] Standardize on tokio mutexes in async code paths
 - [ ] Add config validation helpers with range checks
 - [ ] Consider extracting UI message handlers to separate modules
 - [ ] Add request rate limiting to prevent provider blocking

@@ -12,6 +12,7 @@ use autoortho_lib::tiles::prefetch::{RoutePrefetchConfig, SpatialPrefetcher};
 use autoortho_lib::tiles::provider::ProviderFactory;
 use autoortho_lib::xplane::dataref::DatarefTracker;
 use log::{info, warn};
+use parking_lot::Mutex;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -280,7 +281,7 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
                     cache.entry_count(),
                     cache.size_bytes() / (1024 * 1024)
                 );
-                Some(Arc::new(std::sync::Mutex::new(cache)))
+                Some(Arc::new(Mutex::new(cache)))
             }
             Err(e) => {
                 warn!(
@@ -578,7 +579,7 @@ async fn run_server() -> Result<(), Box<dyn Error>> {
                     cache.entry_count(),
                     cache.size_bytes() / (1024 * 1024)
                 );
-                Some(Arc::new(std::sync::Mutex::new(cache)))
+                Some(Arc::new(Mutex::new(cache)))
             }
             Err(e) => {
                 warn!(

@@ -67,7 +67,7 @@ pub struct DownloadState {
     /// Total bytes expected
     pub total_bytes: u64,
     /// Current file being downloaded
-    pub current_file: std::sync::Arc<std::sync::Mutex<String>>,
+    pub current_file: std::sync::Arc<parking_lot::Mutex<String>>,
     /// Number of files completed / total files
     pub files_done: std::sync::Arc<std::sync::atomic::AtomicU32>,
     pub files_total: u32,
@@ -100,7 +100,7 @@ impl DownloadState {
     }
 
     pub fn current_filename(&self) -> String {
-        self.current_file.lock().expect("progress mutex").clone()
+        self.current_file.lock().clone()
     }
 }
 

@@ -36,7 +36,7 @@ pub struct DdsFileSystem {
     /// Uses RwLock for concurrent reads with exclusive writes
     dds_cache: RwLock<LruCache<String, Arc<Vec<u8>>>>,
     /// Persistent disk cache for DDS tiles (compressed with zstd)
-    disk_cache: Option<Arc<std::sync::Mutex<DdsCache>>>,
+    disk_cache: Option<Arc<parking_lot::Mutex<DdsCache>>>,
     /// Scenery root directory (for pass-through of real files)
     root: Option<std::path::PathBuf>,
     /// Night exclusion: when true, read_dds returns a solid-color fallback tile
@@ -59,7 +59,7 @@ pub struct DdsFileSystemBuilder {
     fetcher: Arc<TileFetcher>,
     format: DdsFormat,
     cache_entries: usize,
-    disk_cache: Option<Arc<std::sync::Mutex<DdsCache>>>,
+    disk_cache: Option<Arc<parking_lot::Mutex<DdsCache>>>,
     root: Option<std::path::PathBuf>,
     night_exclusion: Arc<AtomicBool>,
     custom_map: Option<Arc<CustomMapStore>>,
@@ -88,7 +88,7 @@ impl DdsFileSystemBuilder {
         self
     }
 
-    pub fn disk_cache(mut self, cache: Arc<std::sync::Mutex<DdsCache>>) -> Self {
+    pub fn disk_cache(mut self, cache: Arc<parking_lot::Mutex<DdsCache>>) -> Self {
         self.disk_cache = Some(cache);
         self
     }
@@ -106,7 +106,7 @@ impl DdsFileSystemBuilder {
     pub fn fallback_config(mut self, config: FallbackConfig) -> Self {
         if let Some(ref disk_cache) = self.disk_cache {
             self.fallback = Some(Arc::new(FallbackSystem::new(
-                disk_cache.lock().unwrap().cache_dir().clone(),
+                disk_cache.lock().cache_dir().clone(),
                 config,
             )));
         }
@@ -166,7 +166,7 @@ impl DdsFileSystem {
     /// Create with a persistent disk cache for DDS tiles.
     pub fn with_disk_cache(
         fetcher: Arc<TileFetcher>,
-        disk_cache: Arc<std::sync::Mutex<DdsCache>>,
+        disk_cache: Arc<parking_lot::Mutex<DdsCache>>,
         provider_id: &str,
     ) -> Self {
         Self::builder(fetcher, provider_id)
@@ -221,7 +221,7 @@ impl DdsFileSystem {
     /// Create with a persistent disk cache and custom map support.
     pub fn with_disk_cache_and_custom_map(
         fetcher: Arc<TileFetcher>,
-        disk_cache: Arc<std::sync::Mutex<DdsCache>>,
+        disk_cache: Arc<parking_lot::Mutex<DdsCache>>,
         custom_map: Arc<CustomMapStore>,
         provider_id: &str,
     ) -> Self {
@@ -234,7 +234,7 @@ impl DdsFileSystem {
     /// Create with a fallback system for missing tiles.
     pub fn with_fallback(
         fetcher: Arc<TileFetcher>,
-        disk_cache: Arc<std::sync::Mutex<DdsCache>>,
+        disk_cache: Arc<parking_lot::Mutex<DdsCache>>,
         provider_id: &str,
         fallback_config: FallbackConfig,
     ) -> Self {
@@ -372,8 +372,7 @@ impl DdsFileSystem {
 
         // Check disk cache for requested zoom
         if let Some(ref dc) = self.disk_cache
-            && let Ok(cache) = dc.lock()
-            && let Ok((dds_data, _meta)) = cache.get(&tile_key)
+            && let Some((dds_data, _meta)) = dc.lock().get(&tile_key).ok()
         {
             debug!("DDS disk cache hit: {}", tile_key);
             let arc = Arc::new(dds_data);
@@ -388,9 +387,8 @@ impl DdsFileSystem {
         }
 
         // Try upserving: check if higher-zoom DDS is cached
-        if let Some(ref dc) = self.disk_cache
-            && let Ok(cache) = dc.lock()
-        {
+        if let Some(ref dc) = self.disk_cache {
+            let cache = dc.lock();
             for higher_zoom in (zoom + 1)..=22 {
                 let upserve_key = format!("{}_{}_{}_{}", row, col, maptype, higher_zoom);
                 if let Ok((dds_data, _meta)) = cache.get(&upserve_key) {
@@ -398,7 +396,7 @@ impl DdsFileSystem {
                         "DDS upserving from zoom {} to {}: {}",
                         higher_zoom, zoom, upserve_key
                     );
-                    let arc = Arc::new(dds_data);
+                    let arc: Arc<Vec<u8>> = Arc::new(dds_data);
                     let mut mem_cache = self.dds_cache.write();
                     let was_full = mem_cache.len() >= mem_cache.cap().get();
                     // Store at the requested zoom key so future requests work
@@ -457,9 +455,8 @@ impl DdsFileSystem {
         }
 
         // Write to disk cache
-        if let Some(ref dc) = self.disk_cache
-            && let Ok(mut cache) = dc.lock()
-        {
+        if let Some(ref dc) = self.disk_cache {
+            let mut cache = dc.lock();
             let config = AssemblyConfig {
                 chunks_per_side: 16,
                 chunk_size: 256,
@@ -587,8 +584,7 @@ impl DdsFileSystem {
     pub fn disk_cache_size_bytes(&self) -> u64 {
         self.disk_cache
             .as_ref()
-            .and_then(|dc| dc.lock().ok())
-            .map(|c| c.size_bytes())
+            .map(|dc| dc.lock().size_bytes())
             .unwrap_or(0)
     }
 
@@ -645,11 +641,11 @@ impl DdsFileSystem {
     /// Clear the in-memory DDS cache and the disk cache.
     pub fn clear_cache(&self) {
         self.dds_cache.write().clear();
-        if let Some(ref dc) = self.disk_cache
-            && let Ok(mut cache) = dc.lock()
-            && let Err(e) = cache.clear()
-        {
-            warn!("Failed to clear DDS disk cache: {}", e);
+        if let Some(ref dc) = self.disk_cache {
+            let mut cache = dc.lock();
+            if let Err(e) = cache.clear() {
+                warn!("Failed to clear DDS disk cache: {}", e);
+            }
         }
     }
 
