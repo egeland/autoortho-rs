@@ -53,6 +53,10 @@ pub fn set_use_simbrief_altitude(state: &mut AppState, enabled: bool) {
     state.config.use_simbrief_altitude = enabled;
 }
 
+pub fn set_simheaven_compat(state: &mut AppState, enabled: bool) {
+    state.config.simheaven_compat = enabled;
+}
+
 pub fn set_ui_scale(state: &mut AppState, scale: f64) {
     state.config.ui_scale = scale;
 }

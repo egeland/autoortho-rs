@@ -387,6 +387,31 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .spacing(8);
 
+    // -- SimHeaven compatibility section --
+    let simheaven_section = column![
+    text("SimHeaven Compatibility").size(18),
+    rule::horizontal(1),
+    row![
+        text("Enable:").width(Length::Fixed(100.0)),
+        button(text(if state.config.simheaven_compat {
+            "Enabled"
+        } else {
+            "Disabled"
+        }))
+        .style(if state.config.simheaven_compat {
+            button::success
+        } else {
+            button::secondary
+        })
+        .on_press(Message::SetSimHeavenCompat(!state.config.simheaven_compat)),
+    ]
+    .spacing(12)
+    .align_y(iced::Alignment::Center),
+    text("Enable if using SimHeaven X-World scenery.\nDisables AutoOrtho overlays to use SimHeaven instead.")
+        .size(12),
+]
+.spacing(8);
+
     // -- Cache section --
     let cache_size_mb = state.dds_cache_size_bytes / (1024 * 1024);
     let cache_max_mb = state.config.dds_cache_size_mb;
@@ -750,6 +775,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         tiles,
         space::vertical().height(16),
         cache_section,
+        space::vertical().height(16),
+        simheaven_section,
         space::vertical().height(16),
         advanced,
         space::vertical().height(16),

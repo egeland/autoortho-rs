@@ -69,6 +69,7 @@ pub enum Message {
     SetMaxZoom(u32),
     SetEnableDynamicZoom(bool),
     SetUseSimBriefAltitude(bool),
+    SetSimHeavenCompat(bool),
     SetUIScale(f64),
 
     // Configuration persistence
@@ -305,6 +306,9 @@ impl AutoOrthoApp {
             Message::SetUseSimBriefAltitude(enabled) => {
                 handlers::set_use_simbrief_altitude(&mut self.state, enabled);
             }
+            Message::SetSimHeavenCompat(enabled) => {
+                handlers::set_simheaven_compat(&mut self.state, enabled);
+            }
             Message::SetUIScale(scale) => {
                 handlers::set_ui_scale(&mut self.state, scale);
             }
@@ -533,6 +537,35 @@ impl AutoOrthoApp {
             }
             Message::SaveConfiguration => {
                 self.state.save_config();
+
+                // Apply SimHeaven compatibility setting
+                let xplane_dir = std::path::Path::new(&self.state.config.xplane_path);
+                let active_regions: Vec<String> = self
+                    .state
+                    .installed_packs
+                    .iter()
+                    .filter_map(|p| {
+                        // Only include regions with ortho packs (z_*) not overlays (y_*)
+                        if p.id.starts_with("z_") || !p.id.starts_with("y_") {
+                            Some(p.id.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if !active_regions.is_empty() {
+                    match crate::scenery::simheaven::apply_simheaven_compat(
+                        xplane_dir,
+                        self.state.config.simheaven_compat,
+                        &active_regions,
+                    ) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            log::warn!("SimHeaven compatibility apply failed: {}", e);
+                        }
+                    }
+                }
             }
             Message::LoadConfiguration => {
                 self.state.load_config();
