@@ -73,6 +73,13 @@ winfsp = "0.12"
 tempfile = "3"
 mockall = "0.14"
 criterion = "0.5"
+cargo-dist = "0.26"
+
+[package.metadata.dist]
+dist-version = "0.2.0"
+targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]
+upload-github-release = true
+generate-checksums = true
 
 [lib]
 name = "autoortho_lib"
