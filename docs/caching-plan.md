@@ -18,9 +18,11 @@ Implement persistent disk caching for both raw JPEG tiles and pre-built DDS text
 
 ### What's NOT Implemented ❌
 - **JPEG disk cache** — Raw downloaded tiles never persisted to disk (only in-memory)
-- **DDS in-memory cache size from config** — Hardcoded to 256 entries, config value not used
 - **DiskBudgetManager eviction** — Not wired up, cache grows without bound
 - FallbackLevel::None (disabled)
+
+### Recently Fixed
+- ~~DDS in-memory cache size from config~~ — ✅ Fixed: `dds_memory_cache_mb` now wired through convenience constructors to DdsFileSystem
 
 ---
 
@@ -31,9 +33,8 @@ The DDS caching is fully functional with disk persistence. The main missing piec
 ### Remaining Work (Priority Order)
 
 1. **JPEG disk cache** - Highest priority missing feature
-2. **Wire DDS in-memory cache size from config** - Currently hardcoded to 256
-3. **Add DiskBudgetManager eviction** - Cache grows without bound
-4. **Add FallbackLevel::None option**
+2. **Add DiskBudgetManager eviction** - Cache grows without bound
+3. **Add FallbackLevel::None option**
 
 ---
 
@@ -49,22 +50,9 @@ The DDS caching is fully functional with disk persistence. The main missing piec
 
 ---
 
-## BCn Compression Upgrade
+## BCn Compression ✅
 
 ### Current State
-`src/pipeline/compress.rs` uses hand-rolled pure Rust BC1/BC3 compressor.
+Using **texpresso** v2.0.2 with rayon for parallel BC1/BC3 compression.
 
-### Plan: texpresso Integration
-
-Replace with **texpresso** v2 — a pure Rust BCn texture compression suite that is significantly faster.
-
-**Status: NOT STARTED** - This is an optional performance enhancement.
-
-### Implementation
-
-```toml
-# Cargo.toml
-texpresso = "2.0"
-```
-
-Use behind feature flag, benchmark before enabling by default.
+`texpresso = "2.0.2"` is in Cargo.toml and actively used in the pipeline. The original hand-rolled compressor in `src/pipeline/compress.rs` has been replaced. Criterion benchmarks exist in `benches/bench.rs` for BC1 and BC3 compression performance.
