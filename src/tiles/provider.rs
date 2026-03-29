@@ -6,6 +6,8 @@ use thiserror::Error;
 
 use crate::tiles::coords::TileCoords;
 
+include!(concat!(env!("OUT_DIR"), "/user_agent.rs"));
+
 /// Shared HTTP client for tile providers.
 /// Uses OnceLock for lazy initialization with connection pooling.
 static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
@@ -29,7 +31,7 @@ pub fn http_client() -> &'static reqwest::Client {
 pub fn google_http_client() -> &'static reqwest::Client {
     GOOGLE_CLIENT.get_or_init(|| {
         reqwest::Client::builder()
-            .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+            .user_agent(CHROME_USER_AGENT)
             .tcp_keepalive(std::time::Duration::from_secs(60))
             .build()
             .expect("failed to build Google HTTP client")
