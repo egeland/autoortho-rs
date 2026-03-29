@@ -25,7 +25,3 @@ license-files = [{ path = "LICENSE", hash = 0x677f2d98 }]
 
 [advisories]
 version = 2
-
-[spdx]
-# Not included in deny.toml by default but useful
-include-only = ["Apache-2.0", "GPL-3.0"]
