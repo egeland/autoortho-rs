@@ -231,6 +231,13 @@
   - Reliable sim start/aircraft loaded detection
   - IPC to autoortho-rs via UDP relay (backward compatible) or shared memory
 
+### Phase 12 — SimHeaven Compatibility ✅
+- [x] **SimHeaven Compatibility** — Manage overlay visibility when using SimHeaven X-World scenery. See [docs/simheaven-compat-plan.md](docs/simheaven-compat-plan.md)
+- Config setting: `simheaven_compat = false`
+- Disable road/label overlays (`yAutoOrtho_Overlays`) when SimHeaven packages present (all active regions must have SimHeaven)
+- Keep ortho imagery packs (`z_ao_*`) enabled (SimHeaven overrides them)
+- UI checkbox in Settings, applies on save
+
 ---
 
 ## Phase 8c — UI Improvements (Proposed)

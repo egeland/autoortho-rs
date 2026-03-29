@@ -179,6 +179,8 @@ pub struct AutoOrthoConfig {
     pub enable_dynamic_zoom: bool,
     #[serde(default = "default_use_simbrief_altitude")]
     pub use_simbrief_altitude: bool,
+    #[serde(default = "default_simheaven_compat")]
+    pub simheaven_compat: bool,
     #[serde(default = "default_zoom_rules")]
     pub zoom_rules: Vec<ZoomRule>,
     #[serde(default = "default_dds_memory_cache_mb")]
@@ -386,6 +388,10 @@ fn default_use_simbrief_altitude() -> bool {
     true
 }
 
+fn default_simheaven_compat() -> bool {
+    false
+}
+
 fn default_zoom_rules() -> Vec<ZoomRule> {
     vec![
         ZoomRule {
@@ -445,6 +451,7 @@ impl Default for AutoOrthoConfig {
             near_airport_zoom: 19,
             enable_dynamic_zoom: true,
             use_simbrief_altitude: true,
+            simheaven_compat: false,
             zoom_rules: default_zoom_rules(),
             dds_memory_cache_mb: default_dds_memory_cache_mb(),
             chunk_memory_cache_mb: default_chunk_memory_cache_mb(),
