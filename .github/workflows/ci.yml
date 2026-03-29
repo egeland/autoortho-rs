@@ -1,12 +1,17 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   check:
@@ -22,9 +27,8 @@ jobs:
             libxkbcommon-dev libwayland-dev libvulkan-dev \
             libfuse-dev pkg-config
 
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: "1.93.0"
           components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@v2
@@ -52,9 +56,7 @@ jobs:
             libxkbcommon-dev libwayland-dev libvulkan-dev \
             libfuse-dev pkg-config
 
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: "1.93.0"
+      - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
 
@@ -81,9 +83,7 @@ jobs:
             libxkbcommon-dev libwayland-dev libvulkan-dev \
             libfuse-dev pkg-config
 
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: "1.93.0"
+      - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
 

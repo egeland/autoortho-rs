@@ -5,9 +5,13 @@ on:
     tags:
       - 'v*'
 
+# Required permissions for cargo-dist
 permissions:
   contents: write
+  id-token: write  # Required for GitHub Releases
+  attestations: write
+  checkout: write
 
 jobs:
   release:
-    uses: cargo-dist/gha-dist@v0.26.0
+    uses: cargo-dist/gha-dist@v0.31.0
