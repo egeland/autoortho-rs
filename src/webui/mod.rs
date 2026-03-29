@@ -105,7 +105,9 @@ mod tests {
     async fn test_server_starts_on_random_port() {
         let stats = Arc::new(StatsStore::new());
         let tracker = Arc::new(DatarefTracker::new());
-        let config = Arc::new(parking_lot::RwLock::new(crate::config::AutoOrthoConfig::default()));
+        let config = Arc::new(parking_lot::RwLock::new(
+            crate::config::AutoOrthoConfig::default(),
+        ));
         // Uses default custom map store (temp path won't persist)
 
         let addr = start_server(0, stats, tracker, config).await.unwrap();

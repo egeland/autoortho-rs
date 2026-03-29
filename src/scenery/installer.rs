@@ -337,12 +337,9 @@ pub fn extract_zip(zip_path: &Path, target_dir: &Path) -> Result<(), InstallErro
 
         // For existing paths, verify canonicalization
         if out_path.exists() {
-            let canonical = out_path
-                .canonicalize()
-                .map_err(|_| InstallError::Extract(format!(
-                    "Path traversal attempt blocked: {}",
-                    name
-                )))?;
+            let canonical = out_path.canonicalize().map_err(|_| {
+                InstallError::Extract(format!("Path traversal attempt blocked: {}", name))
+            })?;
 
             if !canonical.starts_with(&canonical_target) {
                 return Err(InstallError::Extract(format!(
@@ -595,8 +592,8 @@ mod tests {
         // Create a zip with path traversal entries
         let file = std::fs::File::create(&zip_path).unwrap();
         let mut zip = ZipWriter::new(file);
-        let options = SimpleFileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
         // Try to escape the target directory
         zip.start_file("../../../etc/evil.txt", options).unwrap();
@@ -608,7 +605,10 @@ mod tests {
         assert!(result.is_err(), "Path traversal should be blocked");
 
         // Verify the malicious file was NOT created
-        assert!(!PathBuf::from("/etc/evil.txt").exists() || true, "Path should not escape");
+        assert!(
+            !PathBuf::from("/etc/evil.txt").exists() || true,
+            "Path should not escape"
+        );
     }
 
     #[test]
@@ -623,8 +623,8 @@ mod tests {
         // Create a zip with parent directory traversal
         let file = std::fs::File::create(&zip_path).unwrap();
         let mut zip = ZipWriter::new(file);
-        let options = SimpleFileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
         zip.start_file("../escape.txt", options).unwrap();
         zip.write_all(b"escape content").unwrap();
@@ -647,8 +647,8 @@ mod tests {
         // Create a normal zip with regular files
         let file = std::fs::File::create(&zip_path).unwrap();
         let mut zip = ZipWriter::new(file);
-        let options = SimpleFileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
         // Normal file inside target
         zip.start_file("subdir/normal.txt", options).unwrap();

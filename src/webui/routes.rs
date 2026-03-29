@@ -2,7 +2,7 @@
 
 use crate::webui::{PositionUpdate, WebState};
 use axum::extract::{Query, State, ws};
-use axum::response::{Html, Json, IntoResponse};
+use axum::response::{Html, IntoResponse, Json};
 use axum::routing::{Router, get, post};
 use futures_util::{SinkExt, StreamExt};
 use log::warn;
@@ -154,7 +154,11 @@ async fn ws_position(socket: ws::WebSocket, state: Arc<WebState>) {
     })
     .unwrap_or_default();
 
-    if sender.send(ws::Message::Text(initial.into())).await.is_err() {
+    if sender
+        .send(ws::Message::Text(initial.into()))
+        .await
+        .is_err()
+    {
         return;
     }
 
@@ -677,7 +681,9 @@ mod tests {
             Arc::new(StatsStore::new()),
             Arc::new(DatarefTracker::new()),
             CustomMapStore::load(tmp),
-            Arc::new(parking_lot::RwLock::new(crate::config::AutoOrthoConfig::default())),
+            Arc::new(parking_lot::RwLock::new(
+                crate::config::AutoOrthoConfig::default(),
+            )),
         ))
     }
 

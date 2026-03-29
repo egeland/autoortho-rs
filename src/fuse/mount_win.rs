@@ -6,16 +6,16 @@ pub use self::winfsp_impl::mount;
 
 mod winfsp_impl {
     use crate::fuse::filesystem::DdsFileSystem;
-    use crate::fuse::{is_poison_path, MARKER_FILE, VIRTUAL_DIRS};
+    use crate::fuse::{MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
     use log::{debug, info, warn};
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
     use std::time::SystemTime;
 
+    use winfsp::WCHAR;
     use winfsp::filesystem::{DirInfo, FileInfo, FileSecurity, FileType, OpenFileInfo, VolInfo};
     use winfsp::host::{FileSystemHost, MountOptions, VolumeParams};
-    use winfsp::WCHAR;
 
     const ROOT_INO: u64 = 1;
     const TEXTURES_INO: u64 = 2;

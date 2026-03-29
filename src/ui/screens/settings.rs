@@ -1,8 +1,8 @@
 use crate::config::{FallbackLevel, Season};
 use crate::dynamic_zoom::DynamicZoom;
 use crate::tiles::provider::{PROVIDER_IDS, PROVIDER_INFO};
-use crate::ui::state::AppState;
 use crate::ui::Message;
+use crate::ui::state::AppState;
 use iced::widget::{
     button, column, container, pick_list, row, rule, slider, space, text, text_input, tooltip,
 };

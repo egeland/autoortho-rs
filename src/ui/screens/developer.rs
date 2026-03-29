@@ -1,7 +1,7 @@
 use crate::tiles::provider;
 use crate::tiles::provider::PROVIDER_IDS;
-use crate::ui::state::AppState;
 use crate::ui::Message;
+use crate::ui::state::AppState;
 use iced::widget::{
     button, column, container, image as iced_image, pick_list, row, rule, scrollable, slider,
     space, text, text_input,

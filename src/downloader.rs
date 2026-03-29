@@ -37,12 +37,12 @@ fn validate_extract_path(target_dir: &Path, entry_path: &Path) -> Result<PathBuf
 
     // For existing paths, verify canonicalization
     if out_path.exists() {
-        let canonical = out_path
-            .canonicalize()
-            .map_err(|_| DownloadError::ExtractFailed(format!(
+        let canonical = out_path.canonicalize().map_err(|_| {
+            DownloadError::ExtractFailed(format!(
                 "Path traversal attempt blocked: {}",
                 entry_path.display()
-            )))?;
+            ))
+        })?;
 
         if !canonical.starts_with(&canonical_target) {
             return Err(DownloadError::ExtractFailed(format!(
@@ -259,8 +259,8 @@ mod tests {
         // Create a zip with path traversal
         let file = std::fs::File::create(&zip_path).unwrap();
         let mut zip = ZipWriter::new(file);
-        let options = SimpleFileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
         zip.start_file("../../../etc/evil.txt", options).unwrap();
         zip.write_all(b"malicious").unwrap();
@@ -285,8 +285,8 @@ mod tests {
         // Create a normal zip
         let file = std::fs::File::create(&zip_path).unwrap();
         let mut zip = ZipWriter::new(file);
-        let options = SimpleFileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
 
         // Add directory first
         zip.add_directory("subdir", options).unwrap();

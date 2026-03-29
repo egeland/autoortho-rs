@@ -365,7 +365,7 @@ Documentation is needed but tracked separately. See [autoortho4xplane docs](http
 - [x] Deduplicate `get_chunk_data()` and `get_chunk_data_with_provider()`
 - [x] Remove unused `BufferPool` code
 - [x] Remove unused `_key` field from `BingMapsProvider`
-- [ ] Add builder pattern for `DdsFileSystem` constructors (deferred)
+- [x] Add builder pattern for `DdsFileSystem` constructors
 - [ ] Replace silent `.ok()` error handling with proper logging (acceptable as-is)
 - [ ] Split large `update()` functions in UI
 
