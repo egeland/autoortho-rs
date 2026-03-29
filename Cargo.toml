@@ -73,13 +73,14 @@ winfsp = "0.12"
 tempfile = "3"
 mockall = "0.14"
 criterion = "0.5"
-cargo-dist = "0.26"
+cargo-dist = "0.30"
 
 [package.metadata.dist]
 dist-version = "0.2.0"
 targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]
 upload-github-release = true
 generate-checksums = true
+installer-suffix = "-unsigned"
 
 [lib]
 name = "autoortho_lib"
@@ -99,3 +100,8 @@ opt-level = 3
 codegen-units = 1
 strip = true
 panic = "abort"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
