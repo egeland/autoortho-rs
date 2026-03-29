@@ -269,3 +269,37 @@ async fn test_provider_firefly() {
         );
     }
 }
+
+#[tokio::test]
+async fn test_bing_https_url() {
+    use autoortho_lib::tiles::coords::TileCoords;
+
+    let client = reqwest::Client::builder()
+        .use_rustls_tls()
+        .build()
+        .expect("Failed to create HTTP client");
+
+    let quadkey = TileCoords::tile_to_quadkey(614, 768, 10);
+    let https_url = format!(
+        "https://ecn.t3.tiles.virtualearth.net/tiles/a{}.jpeg?g=1",
+        quadkey
+    );
+
+    let response = client.get(&https_url).send().await.expect("Failed to send request");
+    assert!(response.status().is_success(), "Bing HTTPS should return success: {}", response.status());
+}
+
+#[tokio::test]
+async fn test_naip_https_url() {
+    let client = reqwest::Client::builder()
+        .use_rustls_tls()
+        .build()
+        .expect("Failed to create HTTP client");
+
+    // NAIP only covers US, use a US location (New York at zoom 10: row ~585, col ~778)
+    let https_url = "https://naip.maptiles.arcgis.com/arcgis/rest/services/NAIP/MapServer/tile/10/585/778";
+
+    let response = client.get(https_url).send().await.expect("Failed to send request");
+    // NAIP may return 404 for missing tiles, but should respond over HTTPS
+    assert!(response.status() == 200 || response.status() == 404, "NAIP HTTPS should respond: {}", response.status());
+}

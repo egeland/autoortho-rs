@@ -276,7 +276,7 @@ impl TileProvider for BingMapsProvider {
 
             let quadkey = TileCoords::tile_to_quadkey(col, row, zoom);
             let url = format!(
-                "http://ecn.t3.tiles.virtualearth.net/tiles/a{}.jpeg?g=1",
+                "https://ecn.t3.tiles.virtualearth.net/tiles/a{}.jpeg?g=1",
                 quadkey
             );
             fetch_image(self.client, &url).await
@@ -380,7 +380,7 @@ impl TileProvider for UsgsNaipProvider {
     ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, TileProviderError>> + Send + '_>> {
         Box::pin(async move {
             let url = format!(
-                "http://naip.maptiles.arcgis.com/arcgis/rest/services/NAIP/MapServer/tile/{}/{}/{}",
+                "https://naip.maptiles.arcgis.com/arcgis/rest/services/NAIP/MapServer/tile/{}/{}/{}",
                 zoom, row, col
             );
             fetch_image(self.client, &url).await
