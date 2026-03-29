@@ -40,10 +40,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     if let Some(pos) = args.iter().position(|a| a == "--test-tile") {
-        let provider = args
-            .get(pos + 1)
-            .map(|s| s.as_str())
-            .unwrap_or("ARC");
+        let provider = args.get(pos + 1).map(|s| s.as_str()).unwrap_or("ARC");
         let rt = tokio::runtime::Runtime::new()?;
         return rt.block_on(test_tile_generation(provider));
     }
@@ -240,7 +237,10 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     use autoortho_lib::webui::custommap::CustomMapStore;
     use std::path::Path;
 
-    info!("AutoOrtho Rust v0.1.0 starting with FUSE mount");
+    info!(
+        "AutoOrtho Rust v{} starting with FUSE mount",
+        env!("CARGO_PKG_VERSION")
+    );
 
     let config = AutoOrthoConfig::default();
     let provider = ProviderFactory::create(&config.tile_provider).expect("Unknown tile provider");
@@ -543,7 +543,7 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
 async fn run_server() -> Result<(), Box<dyn Error>> {
     use autoortho_lib::webui::custommap::CustomMapStore;
 
-    info!("AutoOrtho Rust v0.1.0 starting");
+    info!("AutoOrtho Rust v{} starting", env!("CARGO_PKG_VERSION"));
 
     let config = AutoOrthoConfig::default();
     info!("Using tile provider: {}", config.tile_provider);

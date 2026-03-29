@@ -123,7 +123,9 @@ pub const PROVIDER_INFO: &[ProviderInfo] = &[
 ];
 
 /// Provider IDs for UI pick lists (mirrors order in PROVIDER_INFO)
-pub const PROVIDER_IDS: &[&str] = &["GO2", "BI", "ARC", "NAIP", "USGS", "EOX", "FIREFLY", "YNDX", "APPLE"];
+pub const PROVIDER_IDS: &[&str] = &[
+    "GO2", "BI", "ARC", "NAIP", "USGS", "EOX", "FIREFLY", "YNDX", "APPLE",
+];
 
 /// Get provider info by ID. Returns None for unknown providers.
 pub fn provider_info(id: &str) -> Option<&'static ProviderInfo> {
@@ -345,7 +347,9 @@ impl ProviderFactory {
 
     /// List available provider names
     pub fn available_providers() -> Vec<&'static str> {
-        vec!["GO2", "BI", "ARC", "NAIP", "USGS", "EOX", "FIREFLY", "YNDX", "APPLE"]
+        vec![
+            "GO2", "BI", "ARC", "NAIP", "USGS", "EOX", "FIREFLY", "YNDX", "APPLE",
+        ]
     }
 }
 
