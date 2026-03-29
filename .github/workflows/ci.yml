@@ -29,7 +29,7 @@ jobs:
             libxkbcommon-dev libwayland-dev libvulkan-dev \
             libfuse-dev pkg-config
 
-      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
@@ -61,7 +61,7 @@ jobs:
             libxkbcommon-dev libwayland-dev libvulkan-dev \
             libfuse-dev pkg-config
 
-      - uses: dtolnay/rust-toolchain@1.85.0
+      - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
         with:
