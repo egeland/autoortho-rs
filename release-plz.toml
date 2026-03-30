@@ -3,3 +3,8 @@
 git_tag_enable = true
 # cargo-dist owns the GitHub Release (with binary artifacts)
 git_release_enable = false
+
+[[package]]
+name = "autoortho"
+# Not published to crates.io — binary-only distribution via cargo-dist
+publish = false
