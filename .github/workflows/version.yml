@@ -38,6 +38,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
-          gh workflow run release.yml \
-            --repo ${{ github.repository }} \
-            --ref ${{ steps.release.outputs.tag_name }}
+          gh api repos/${{ github.repository }}/dispatches \
+            --input - <<EOF
+          {"event_type":"release-build","client_payload":{"tag":"${{ steps.release.outputs.tag_name }}"}}
+          EOF
