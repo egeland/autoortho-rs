@@ -33,3 +33,12 @@ jobs:
           gh pr merge ${{ fromJSON(steps.release.outputs.pr).number }} \
             --repo ${{ github.repository }} \
             --squash --auto
+
+      - name: Trigger release build
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          gh workflow run release.yml \
+            --repo ${{ github.repository }} \
+            --ref ${{ steps.release.outputs.tag_name }}
