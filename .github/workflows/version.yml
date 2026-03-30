@@ -35,9 +35,18 @@ jobs:
 
       - name: Trigger release build
         if: steps.release.outputs.release_created == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Push tag to trigger release workflow
+        if: steps.release.outputs.release_created == 'true'
         run: |
-          gh workflow run release.yml \
-            --repo ${{ github.repository }} \
-            --ref ${{ steps.release.outputs.tag_name }}
+          git fetch --tags
+          TAG="${{ steps.release.outputs.tag_name }}"
+          SHA=$(git rev-list -n 1 "$TAG")
+          git tag -d "$TAG"
+          git push origin ":refs/tags/$TAG"
+          git tag "$TAG" "$SHA"
+          git push origin "$TAG"
