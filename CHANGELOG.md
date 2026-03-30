@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.6](https://github.com/egeland/autoortho-rs/compare/v0.5.5...v0.5.6) (2026-03-30)
+
+
+### Bug Fixes
+
+* fix Windows compilation errors in main.rs ([#43](https://github.com/egeland/autoortho-rs/issues/43)) ([89a43e7](https://github.com/egeland/autoortho-rs/commit/89a43e76918cd75246e47376b2d1f91f6d6ecb1c))
+
 ## [0.5.5](https://github.com/egeland/autoortho-rs/compare/v0.5.4...v0.5.5) (2026-03-30)
 
 
