@@ -1,5 +1,6 @@
+use lru::LruCache;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use thiserror::Error;
 
@@ -71,12 +72,15 @@ impl DdsCacheMetadata {
     }
 }
 
-/// DDS disk cache with zstd compression and DDM metadata.
+/// Maximum number of entries the LRU index can track.
+const MAX_CACHE_ENTRIES: usize = 50_000;
+
+/// DDS disk cache with zstd compression, DDM metadata, and LRU eviction.
 pub struct DdsCache {
     cache_dir: PathBuf,
     max_size_bytes: u64,
     current_size_bytes: u64,
-    index: HashMap<String, u64>, // key → compressed size on disk
+    index: LruCache<String, u64>, // key → compressed size on disk (LRU ordered)
 }
 
 impl DdsCache {
@@ -85,7 +89,7 @@ impl DdsCache {
             cache_dir,
             max_size_bytes,
             current_size_bytes: 0,
-            index: HashMap::new(),
+            index: LruCache::new(NonZeroUsize::new(MAX_CACHE_ENTRIES).unwrap()),
         }
     }
 
@@ -93,7 +97,7 @@ impl DdsCache {
     pub fn open(cache_dir: PathBuf, max_size_bytes: u64) -> Result<Self, CacheError> {
         std::fs::create_dir_all(&cache_dir)?;
 
-        let mut index = HashMap::new();
+        let mut index = LruCache::new(NonZeroUsize::new(MAX_CACHE_ENTRIES).unwrap());
         let mut current_size_bytes: u64 = 0;
 
         for entry in std::fs::read_dir(&cache_dir)? {
@@ -103,7 +107,7 @@ impl DdsCache {
                 && let Some(key) = name.strip_suffix(".dds.zst")
             {
                 let size = entry.metadata()?.len();
-                index.insert(key.to_string(), size);
+                index.put(key.to_string(), size);
                 current_size_bytes += size;
             }
         }
@@ -141,6 +145,25 @@ impl DdsCache {
         Ok(())
     }
 
+    /// Evict least-recently-used entries until there's space for `needed_bytes`.
+    fn evict_until_fits(&mut self, needed_bytes: u64) {
+        while self.current_size_bytes + needed_bytes > self.max_size_bytes && !self.index.is_empty()
+        {
+            if let Some((key, size)) = self.index.pop_lru() {
+                let dds_path = self.dds_path(&key);
+                let ddm_path = self.ddm_path(&key);
+                if let Err(e) = std::fs::remove_file(&dds_path) {
+                    log::warn!("Failed to evict {}: {}", dds_path.display(), e);
+                }
+                let _ = std::fs::remove_file(&ddm_path);
+                self.current_size_bytes = self.current_size_bytes.saturating_sub(size);
+                log::debug!("Cache evicted {} ({} bytes)", key, size);
+            } else {
+                break;
+            }
+        }
+    }
+
     /// Generate the cache key for a tile.
     pub fn tile_key(tile_col: u32, tile_row: u32, zoom: u32, maptype: &str) -> String {
         format!("{}_{}_{}_z{}", tile_col, tile_row, maptype, zoom)
@@ -155,7 +178,10 @@ impl DdsCache {
     }
 
     /// Get a DDS from cache (decompressed), along with its metadata.
-    pub fn get(&self, key: &str) -> Result<(Vec<u8>, DdsCacheMetadata), CacheError> {
+    /// Promotes the entry in the LRU so it won't be evicted soon.
+    pub fn get(&mut self, key: &str) -> Result<(Vec<u8>, DdsCacheMetadata), CacheError> {
+        // Touch the LRU entry to mark as recently used
+        self.index.promote(key);
         let dds_path = self.dds_path(key);
         let ddm_path = self.ddm_path(key);
 
@@ -191,6 +217,7 @@ impl DdsCache {
 
     /// Put a DDS into cache (compressed), with metadata.
     /// Uses atomic write (temp file + rename) for crash safety.
+    /// Evicts LRU entries if the cache would exceed its size budget.
     pub fn put(
         &mut self,
         key: String,
@@ -208,6 +235,11 @@ impl DdsCache {
 
         let compressed_size = compressed.len() as u64;
 
+        // Evict LRU entries if needed to stay within budget
+        if self.current_size_bytes + compressed_size > self.max_size_bytes {
+            self.evict_until_fits(compressed_size);
+        }
+
         // Atomic write: temp file → rename
         let tmp_dds = self.cache_dir.join(format!("{}.dds.zst.tmp", key));
         std::fs::write(&tmp_dds, &compressed)?;
@@ -220,8 +252,8 @@ impl DdsCache {
         std::fs::write(&tmp_ddm, &meta_json)?;
         std::fs::rename(&tmp_ddm, &ddm_path)?;
 
-        // Update index
-        if let Some(old_size) = self.index.insert(key, compressed_size) {
+        // Update index — use push to also update LRU position
+        if let Some((_, old_size)) = self.index.push(key, compressed_size) {
             self.current_size_bytes -= old_size;
         }
         self.current_size_bytes += compressed_size;
@@ -247,7 +279,7 @@ impl DdsCache {
         if ddm_path.exists() {
             std::fs::remove_file(&ddm_path)?;
         }
-        self.index.remove(key);
+        self.index.pop(key);
         Ok(())
     }
 
@@ -306,7 +338,7 @@ mod tests {
     #[test]
     fn test_cache_get_missing_key() {
         let tmp_dir = TempDir::new().unwrap();
-        let cache = DdsCache::new(tmp_dir.path().to_path_buf(), 1024 * 1024);
+        let mut cache = DdsCache::new(tmp_dir.path().to_path_buf(), 1024 * 1024);
         assert!(cache.get("nonexistent").is_err());
     }
 
@@ -420,5 +452,77 @@ mod tests {
             let name = entry.file_name().to_string_lossy().to_string();
             assert!(!name.ends_with(".tmp"), "Found tmp file: {}", name);
         }
+    }
+
+    #[test]
+    fn test_cache_eviction_on_budget() {
+        let tmp_dir = TempDir::new().unwrap();
+        // Small budget: 200 bytes (compressed data is ~20 bytes per entry)
+        let mut cache = DdsCache::new(tmp_dir.path().to_path_buf(), 200);
+        let meta = sample_metadata();
+
+        // Fill the cache with entries
+        cache.put("a".to_string(), b"data_a", &meta).unwrap();
+        cache.put("b".to_string(), b"data_b", &meta).unwrap();
+        cache.put("c".to_string(), b"data_c", &meta).unwrap();
+
+        let size_before = cache.entry_count();
+        assert!(size_before > 0);
+
+        // Keep adding — eviction should keep cache within budget
+        for i in 0..20 {
+            cache
+                .put(format!("key_{}", i), b"more data here", &meta)
+                .unwrap();
+        }
+
+        // Cache should stay within budget
+        assert!(
+            cache.size_bytes() <= cache.max_size_bytes(),
+            "Cache size {} exceeds budget {}",
+            cache.size_bytes(),
+            cache.max_size_bytes()
+        );
+    }
+
+    #[test]
+    fn test_cache_eviction_removes_files() {
+        let tmp_dir = TempDir::new().unwrap();
+        let mut cache = DdsCache::new(tmp_dir.path().to_path_buf(), 100);
+        let meta = sample_metadata();
+
+        cache.put("first".to_string(), b"data1", &meta).unwrap();
+        assert!(cache.contains("first"));
+
+        // Add enough to force eviction of "first"
+        for i in 0..10 {
+            cache
+                .put(format!("fill_{}", i), b"more data", &meta)
+                .unwrap();
+        }
+
+        // "first" should have been evicted (LRU)
+        assert!(!cache.contains("first"));
+    }
+
+    #[test]
+    fn test_cache_lru_order_respected() {
+        let tmp_dir = TempDir::new().unwrap();
+        let mut cache = DdsCache::new(tmp_dir.path().to_path_buf(), 150);
+        let meta = sample_metadata();
+
+        cache.put("old".to_string(), b"data_old", &meta).unwrap();
+        cache.put("mid".to_string(), b"data_mid", &meta).unwrap();
+
+        // Access "old" to make it recently used
+        let _ = cache.get("old");
+
+        // Add entries to force eviction — "mid" should be evicted first (least recently used)
+        for i in 0..10 {
+            cache.put(format!("new_{}", i), b"new_data", &meta).unwrap();
+        }
+
+        // "mid" was LRU, should be evicted
+        assert!(!cache.contains("mid"));
     }
 }
