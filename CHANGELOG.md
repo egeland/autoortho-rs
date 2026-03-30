@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/egeland/autoortho-rs/compare/v0.4.0...v0.4.1) (2026-03-30)
+
+
+### Bug Fixes
+
+* trigger cargo-dist release build after release-please creates tag ([#22](https://github.com/egeland/autoortho-rs/issues/22)) ([10e92cf](https://github.com/egeland/autoortho-rs/commit/10e92cf384e9ac26ed9978d8d6c19ed4959ba279))
+
 ## [0.4.0](https://github.com/egeland/autoortho-rs/compare/v0.3.0...v0.4.0) (2026-03-30)
 
 
