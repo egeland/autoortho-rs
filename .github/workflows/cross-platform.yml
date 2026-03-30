@@ -39,7 +39,7 @@ jobs:
         if: matrix.deps != ''
         run: ${{ matrix.deps }}
 
-      - uses: dtolnay/rust-toolchain@1.100.0
+      - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
 
