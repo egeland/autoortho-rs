@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.4](https://github.com/egeland/autoortho-rs/compare/v0.4.3...v0.4.4) (2026-03-30)
+
+
+### Bug Fixes
+
+* re-push tag to trigger release.yml instead of workflow_dispatch ([#28](https://github.com/egeland/autoortho-rs/issues/28)) ([3af69d6](https://github.com/egeland/autoortho-rs/commit/3af69d6095405d34f1518737a5be29c52e1cf615))
+
 ## [0.4.3](https://github.com/egeland/autoortho-rs/compare/v0.4.2...v0.4.3) (2026-03-30)
 
 
