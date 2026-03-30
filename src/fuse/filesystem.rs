@@ -398,7 +398,7 @@ impl DdsFileSystem {
 
         // Try upserving: check if higher-zoom DDS is cached
         if let Some(ref dc) = self.disk_cache {
-            let cache = dc.lock();
+            let mut cache = dc.lock();
             for higher_zoom in (zoom + 1)..=22 {
                 let upserve_key = format!("{}_{}_{}_{}", row, col, maptype, higher_zoom);
                 if let Ok((dds_data, _meta)) = cache.get(&upserve_key) {

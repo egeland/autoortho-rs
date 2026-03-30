@@ -213,12 +213,13 @@
 
 ### Phase 9 — Packaging & Distribution ✅
 - [x] GitHub Actions CI: format, lint, test (ubuntu), build (ubuntu, macos arm64, windows)
-- [x] release-please for conventional-commit semver + changelog (`version.yml`)
-- [x] Release workflow via cargo-dist (`release.yml`) builds and uploads binaries
+- [x] Release workflow via cargo-dist (`release.yml`) with dispatch-releases mode
+- [x] release-plz for automated version bumps, changelog, and tagging (`release-plz.yml`)
 - [x] Security workflow: cargo-audit + cargo-deny (`security.yml`)
 - [x] Cross-platform test matrix: Linux/macOS/Windows (`cross-platform.yml`)
 - [x] Dockerfile.fuse-test for container-based FUSE testing
 - [x] `.dockerignore` for clean builds
+- [x] v0.5.8 released with binaries for all 3 platforms
 
 ### Phase 10 — Final 🔄
 - [x] Benchmarks with criterion (benches/bench.rs) — 6 benchmark groups
@@ -233,12 +234,8 @@
   - Reliable sim start/aircraft loaded detection
   - IPC to autoortho-rs via UDP relay (backward compatible) or shared memory
 
-### Phase 12 — SimHeaven Compatibility ✅
-- [x] **SimHeaven Compatibility** — Manage overlay visibility when using SimHeaven X-World scenery. See [docs/simheaven-compat-plan.md](docs/simheaven-compat-plan.md)
-- Config setting: `simheaven_compat = false`
-- Disable road/label overlays (`yAutoOrtho_Overlays`) when SimHeaven packages present (all active regions must have SimHeaven)
-- Keep ortho imagery packs (`z_ao_*`) enabled (SimHeaven overrides them)
-- UI checkbox in Settings, applies on save
+### Phase 12 — SimHeaven Compatibility ✅ (merged)
+- [x] SimHeaven X-World overlay management — [docs/simheaven-compat-plan.md](docs/simheaven-compat-plan.md)
 
 ---
 
@@ -297,7 +294,7 @@
 
 ## Test Summary
 
-347 tests passing (326 unit + 21 integration), 6 criterion benchmark groups
+359 tests passing (338 unit + 21 integration), 6 criterion benchmark groups
 
 ---
 
@@ -317,31 +314,25 @@
 ## Remaining Known Issues
 
 1. ~~macFUSE kext not loaded~~ → Tested via Podman container (macFUSE blocked by corporate MDM)
-2. **Windows FUSE** — WinFsp implementation not started
+2. ~~Windows FUSE~~ → WinFsp implementation done (`fuse/mount_win.rs`), untested on real hardware
 3. **Google Maps auth** — May still block under heavy use (ARC/BI recommended)
 4. **iced Position::Specific broken on macOS** — Workaround: use move_to() after WindowOpened
 5. ~~Cache eviction tracking bug~~ → Fixed: properly tracks before/after cache length
 6. ~~HTTP instead of HTTPS~~ → Fixed: all providers now use HTTPS
 7. ~~Hardcoded User-Agent~~ → Fixed: configurable UA with Chrome version rotation
 8. ~~DDS in-memory cache size hardcoded~~ → Fixed: `dds_memory_cache_mb` config now wired through to DdsFileSystem constructors
-9. **DiskBudgetManager not wired** — DDS disk cache grows without bound; no eviction
+9. ~~DiskBudgetManager not wired~~ → Fixed: LRU eviction built into DdsCache.put()
 10. **Vertical speed not computed** — `dataref.rs:156` TODO: compute from altitude delta
 
 ---
 
 ## Next Steps
 
-1. ~~Fallback system~~ — ✅ Done
-2. ~~DynamicZoom wiring~~ — ✅ Done
-3. **Windows Dokan** — Implement Windows FUSE support (deferred - no Windows test machine)
-4. ~~WebSocket~~ — ✅ Done - Replace polling with WebSocket push
-5. ~~Phase R1 Code Quality~~ — ✅ Done (`.ok()` handling accepted as-is)
-6. ~~Phase R2 Security~~ — ✅ Done (HTTPS, UA, input validation)
-7. ~~Documentation~~ — ✅ Done (USER_GUIDE.md, CONFIGURATION.md, INSTALLATION.md)
-8. **SimHeaven compatibility** — PR #11 open, adds SimHeaven X-World overlay management
-9. ~~Wire DDS cache config~~ — ✅ Done: `dds_memory_cache_mb` now used by DdsFileSystem
-10. **DiskBudgetManager eviction** — Wire up cache eviction to prevent unbounded growth
-11. **Merge dependabot PRs** — 7 pending dependency updates (criterion, tokio-tungstenite, cargo-dist, etc.)
+1. ~~DiskBudgetManager eviction~~ — ✅ Done: LRU eviction in DdsCache
+2. **JPEG disk cache** — Raw tiles only in memory LRU
+3. **Request rate limiting** — Prevent provider blocking under heavy use
+4. **Remove `mockall` dev-dependency** — Unused
+5. **X-Plane Plugin** — Phase 11
 
 ---
 
@@ -364,7 +355,7 @@ Reference: [autoortho4xplane docs](https://github.com/ProgrammingDinosaur/autoor
 ### High Priority
 - **X-Plane Plugin** — Thin Rust plugin with direct XPLM SDK calls (zero latency) + scenery pack management
 - **JPEG disk cache** — Raw downloaded tiles not persisted to disk (only in-memory LRU)
-- **DiskBudgetManager** — Wire up cache eviction so DDS disk cache doesn't grow without bound
+- ~~DiskBudgetManager~~ → ✅ Done: LRU eviction in DdsCache.put()
 
 ### Medium Priority
 - Performance presets UI — Fast/Balanced/Quality dropdown in Settings
@@ -379,17 +370,6 @@ Reference: [autoortho4xplane docs](https://github.com/ProgrammingDinosaur/autoor
 - ~~Windows installer (NSIS/WiX)~~ → Partially done via cargo-dist (release.yml exists)
 - macOS Fuse-T support
 - FallbackLevel::None option
-
----
-
-## Phase 12 — SimHeaven X-World Compatibility 🔄 (PR #11)
-- [x] `simheaven_compat` config field (bool, default false)
-- [x] `src/scenery/simheaven.rs` — Region mapping (Kubilus ↔ SimHeaven), package detection, overlay toggle
-- [x] Settings UI toggle for SimHeaven compatibility mode
-- [x] Auto-disable yAutoOrtho_Overlays when enabled, re-enable when disabled
-- [x] 9 unit tests for region mapping, detection, enable/disable
-- [x] Implementation plan: [docs/simheaven-compat-plan.md](docs/simheaven-compat-plan.md)
-- [ ] Merge PR #11
 
 ---
 
@@ -425,4 +405,4 @@ Reference: [autoortho4xplane docs](https://github.com/ProgrammingDinosaur/autoor
 4. **`fetcher.rs` constructors** — 3 constructor variants still exist alongside builder; minor API bloat.
 5. **`dataref.rs:156`** — `vertical_speed_fpm: 0.0` with TODO to compute from altitude delta.
 6. **`mockall` dev-dependency** — Listed in Cargo.toml but unused in any test file.
-7. **Rust toolchain drift** — `cross-platform.yml` pins Rust 1.85.0 but dependabot PR updates to 1.100.0. AGENTS.md says 1.93.0.
+7. ~~Rust toolchain drift~~ → Resolved: all workflows use `@stable`.
