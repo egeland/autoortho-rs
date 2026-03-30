@@ -3,7 +3,6 @@
 
 use autoortho_lib::config::AutoOrthoConfig;
 use autoortho_lib::dynamic_zoom::DynamicZoom;
-#[cfg(not(windows))]
 use autoortho_lib::fuse::filesystem::DdsFileSystem;
 use autoortho_lib::pipeline::cache::DdsCache;
 use autoortho_lib::stats::StatsStore;
@@ -16,6 +15,7 @@ use parking_lot::Mutex;
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
+#[cfg(not(windows))]
 use tokio::sync::broadcast;
 
 fn main() -> Result<(), Box<dyn Error>> {
