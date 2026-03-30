@@ -1,0 +1,5 @@
+[workspace]
+# release-plz creates the git tag
+git_tag_enable = true
+# cargo-dist owns the GitHub Release (with binary artifacts)
+git_release_enable = false
