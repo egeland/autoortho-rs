@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.2](https://github.com/egeland/autoortho-rs/compare/v0.5.1...v0.5.2) (2026-03-30)
+
+
+### Bug Fixes
+
+* use repository_dispatch to trigger release build ([#35](https://github.com/egeland/autoortho-rs/issues/35)) ([284eceb](https://github.com/egeland/autoortho-rs/commit/284eceba3b128ab6c11fac0973ea7b658e8e014f))
+
 ## [0.5.1](https://github.com/egeland/autoortho-rs/compare/v0.5.0...v0.5.1) (2026-03-30)
 
 
