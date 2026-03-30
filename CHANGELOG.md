@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/egeland/autoortho-rs/compare/v0.5.0...v0.5.1) (2026-03-30)
+
+
+### Bug Fixes
+
+* add gate job so workflow_dispatch works with reusable workflow ([#33](https://github.com/egeland/autoortho-rs/issues/33)) ([d72dcd2](https://github.com/egeland/autoortho-rs/commit/d72dcd2a47f88b94f4e856201ba4b4383e2d3e1a))
+
 ## [0.5.0](https://github.com/egeland/autoortho-rs/compare/v0.4.5...v0.5.0) (2026-03-30)
 
 
