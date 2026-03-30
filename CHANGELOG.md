@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/egeland/autoortho-rs/compare/v0.3.0...v0.4.0) (2026-03-30)
+
+
+### Features
+
+* auto-merge release-please PRs ([#20](https://github.com/egeland/autoortho-rs/issues/20)) ([0d41246](https://github.com/egeland/autoortho-rs/commit/0d41246fb405236fcfebc5612f21f8ee72367859))
+
 ## [0.3.0](https://github.com/egeland/autoortho-rs/compare/v0.2.0...v0.3.0) (2026-03-30)
 
 
