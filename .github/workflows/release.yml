@@ -39,6 +39,9 @@ permissions:
 # If there's a prerelease-style suffix to the version, then the release(s)
 # will be marked as a prerelease.
 on:
+  push:
+    tags:
+      - '**[0-9]+.[0-9]+.[0-9]+*'
   pull_request:
   workflow_dispatch:
     inputs:
@@ -279,9 +282,6 @@ jobs:
         run: |
           # Write and read notes from a file to avoid quoting breaking things
           echo "$ANNOUNCEMENT_BODY" > $RUNNER_TEMP/notes.txt
-
-          # Delete existing release if release-please already created one
-          gh release delete "${{ needs.plan.outputs.tag }}" --yes --cleanup-tag=false 2>/dev/null || true
 
           gh release create "${{ needs.plan.outputs.tag }}" --target "$RELEASE_COMMIT" $PRERELEASE_FLAG --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt" artifacts/*
 
