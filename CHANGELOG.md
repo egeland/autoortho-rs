@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.5](https://github.com/egeland/autoortho-rs/compare/v0.5.4...v0.5.5) (2026-03-30)
+
+
+### Bug Fixes
+
+* use cargo-dist expanded workflow with dispatch-releases ([#41](https://github.com/egeland/autoortho-rs/issues/41)) ([60c6db8](https://github.com/egeland/autoortho-rs/commit/60c6db8475a5b9620afd20d6a25e384ed58c1dde))
+
 ## [0.5.4](https://github.com/egeland/autoortho-rs/compare/v0.5.3...v0.5.4) (2026-03-30)
 
 
