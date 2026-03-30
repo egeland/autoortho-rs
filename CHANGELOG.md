@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.8](https://github.com/egeland/autoortho-rs/compare/v0.5.7...v0.5.8) (2026-03-30)
+
+
+### Bug Fixes
+
+* delete existing release before cargo-dist creates new one ([#47](https://github.com/egeland/autoortho-rs/issues/47)) ([037f5f0](https://github.com/egeland/autoortho-rs/commit/037f5f0bac222d6c05f9a4872d4c632ce12577c3))
+
 ## [0.5.7](https://github.com/egeland/autoortho-rs/compare/v0.5.6...v0.5.7) (2026-03-30)
 
 
