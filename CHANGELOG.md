@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.3](https://github.com/egeland/autoortho-rs/compare/v0.4.2...v0.4.3) (2026-03-30)
+
+
+### Bug Fixes
+
+* remove commit message filter from version.yml ([#26](https://github.com/egeland/autoortho-rs/issues/26)) ([e22c50d](https://github.com/egeland/autoortho-rs/commit/e22c50dc1b6fafd874c7276c2bd38818745e04ff))
+
 ## [0.4.2](https://github.com/egeland/autoortho-rs/compare/v0.4.1...v0.4.2) (2026-03-30)
 
 
