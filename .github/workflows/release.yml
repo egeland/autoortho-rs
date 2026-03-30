@@ -4,20 +4,15 @@ on:
   push:
     tags:
       - 'v[0-9]*'
-  workflow_dispatch:
+  repository_dispatch:
+    types: [release-build]
 
 # Required permissions for cargo-dist
 permissions:
   contents: write
 
 jobs:
-  gate:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "Starting release build for ${{ github.ref }}"
-
   release:
-    needs: gate
     uses: cargo-dist/gha-dist@v0.31.0
     with:
       cargo-dist-version: "0.31.0"
