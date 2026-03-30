@@ -33,12 +33,18 @@ jobs:
             --repo ${{ github.repository }} \
             --squash --auto
 
-      - name: Trigger release build
+      - name: Recreate tag to trigger release build
         if: steps.release.outputs.release_created == 'true'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
-          gh api repos/${{ github.repository }}/dispatches \
+          TAG="${{ steps.release.outputs.tag_name }}"
+          SHA="${{ steps.release.outputs.sha }}"
+          echo "Recreating tag $TAG at $SHA to trigger release workflow"
+          # Delete the tag created by release-please
+          gh api -X DELETE "repos/${{ github.repository }}/git/refs/tags/$TAG" || true
+          # Recreate it — PAT-created refs trigger push events
+          gh api "repos/${{ github.repository }}/git/refs" \
             --input - <<EOF
-          {"event_type":"release-build","client_payload":{"tag":"${{ steps.release.outputs.tag_name }}"}}
+          {"ref":"refs/tags/$TAG","sha":"$SHA"}
           EOF
