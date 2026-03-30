@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/egeland/autoortho-rs/compare/v0.4.1...v0.4.2) (2026-03-30)
+
+
+### Bug Fixes
+
+* remove required input from release.yml workflow_dispatch ([#24](https://github.com/egeland/autoortho-rs/issues/24)) ([aa3421d](https://github.com/egeland/autoortho-rs/commit/aa3421db97dfa0248f3e19b4057aae592bde8e79))
+
 ## [0.4.1](https://github.com/egeland/autoortho-rs/compare/v0.4.0...v0.4.1) (2026-03-30)
 
 
