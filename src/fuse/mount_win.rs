@@ -14,8 +14,8 @@ mod winfsp_impl {
     use std::time::SystemTime;
 
     use winfsp::filesystem::{
-        DirInfo, DirMarker, FileInfo, FileSecurity, FileSystemContext, OpenFileInfo, VolumeInfo,
-        WideNameInfo,
+        DirBuffer, DirInfo, DirMarker, FileInfo, FileSecurity, FileSystemContext, OpenFileInfo,
+        VolumeInfo, WideNameInfo,
     };
     use winfsp::host::{FileSystemHost, VolumeParams};
 
@@ -32,6 +32,7 @@ mod winfsp_impl {
         next_inode: Mutex<u64>,
         open_files: Mutex<HashMap<u64, PathBuf>>,
         next_file_handle: Mutex<u64>,
+        dir_buffer: DirBuffer,
     }
 
     impl AutoOrthoWinFsp {
@@ -43,6 +44,7 @@ mod winfsp_impl {
                 next_inode: Mutex::new(DYNAMIC_INO_START),
                 open_files: Mutex::new(HashMap::new()),
                 next_file_handle: Mutex::new(1),
+                dir_buffer: DirBuffer::new(),
             }
         }
 
@@ -249,36 +251,36 @@ mod winfsp_impl {
             &self,
             _context: &Self::FileContext,
             _pattern: Option<&winfsp::U16CStr>,
-            _marker: DirMarker,
+            marker: DirMarker,
             buffer: &mut [u8],
         ) -> winfsp::Result<u32> {
             debug!("read_directory");
 
-            let mut cursor = 0u32;
+            if marker.is_none() {
+                let lock = self.dir_buffer.acquire(true, None)?;
 
-            let mut add_entry = |name: &str, is_dir: bool, size: u64| -> bool {
-                let mut dir_info = DirInfo::new();
-                if dir_info.set_name(name).is_err() {
-                    return false;
+                let mut add_entry = |name: &str, is_dir: bool, size: u64| -> winfsp::Result<()> {
+                    let mut dir_info = DirInfo::new();
+                    dir_info.set_name(name)?;
+                    let fi = dir_info.file_info_mut();
+                    fi.file_attributes = if is_dir { 0x10 } else { 0x80 };
+                    fi.file_size = size;
+                    fi.allocation_size = (size + 4095) / 4096 * 4096;
+                    lock.write(&mut dir_info)?;
+                    Ok(())
+                };
+
+                let _ = add_entry(".", true, 4096);
+                let _ = add_entry("..", true, 4096);
+
+                for dir in VIRTUAL_DIRS {
+                    let _ = add_entry(dir, true, 4096);
                 }
-                let fi = dir_info.file_info_mut();
-                fi.file_attributes = if is_dir { 0x10 } else { 0x80 };
-                fi.file_size = size;
-                fi.allocation_size = (size + 4095) / 4096 * 4096;
-                DirInfo::add_to_buffer(Some(&dir_info), buffer, &mut cursor)
-            };
-
-            add_entry(".", true, 4096);
-            add_entry("..", true, 4096);
-
-            for dir in VIRTUAL_DIRS {
-                add_entry(dir, true, 4096);
+                // lock is dropped here, releasing the buffer
             }
 
-            // Finalize the buffer
-            DirInfo::finalize_buffer(buffer, &mut cursor);
-
-            Ok(cursor)
+            let bytes_read = self.dir_buffer.read(marker, buffer);
+            Ok(bytes_read)
         }
 
         fn get_volume_info(&self, out_volume_info: &mut VolumeInfo) -> winfsp::Result<()> {
@@ -307,16 +309,16 @@ mod winfsp_impl {
 
         let mut volume_params = VolumeParams::new();
         volume_params
-            .set_sector_size(4096)
-            .set_sectors_per_allocation_unit(1)
-            .set_volume_serial_number(0x20260328)
-            .set_file_info_timeout(1000)
-            .set_case_sensitive_search(false)
-            .set_case_preserved_names(true)
-            .set_unicode_on_disk(true)
-            .set_persistent_acls(true)
-            .set_post_cleanup_when_modified_only(true)
-            .set_file_system_name("AutoOrtho");
+            .sector_size(4096)
+            .sectors_per_allocation_unit(1)
+            .volume_serial_number(0x20260328)
+            .file_info_timeout(1000)
+            .case_sensitive_search(false)
+            .case_preserved_names(true)
+            .unicode_on_disk(true)
+            .persistent_acls(true)
+            .post_cleanup_when_modified_only(true)
+            .filesystem_name("AutoOrtho");
 
         let mut host = FileSystemHost::new(volume_params, winfsp_fs)?;
         let mount_str = mountpoint.to_string_lossy().to_string();
