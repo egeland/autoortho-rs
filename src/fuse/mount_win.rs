@@ -13,9 +13,11 @@ mod winfsp_impl {
     use std::sync::{Arc, Mutex};
     use std::time::SystemTime;
 
-    use winfsp::WCHAR;
-    use winfsp::filesystem::{DirInfo, FileInfo, FileSecurity, FileType, OpenFileInfo, VolInfo};
-    use winfsp::host::{FileSystemHost, MountOptions, VolumeParams};
+    use winfsp::filesystem::{
+        DirInfo, DirMarker, FileInfo, FileSecurity, FileSystemContext, OpenFileInfo, VolumeInfo,
+        WideNameInfo,
+    };
+    use winfsp::host::{FileSystemHost, VolumeParams};
 
     const ROOT_INO: u64 = 1;
     const TEXTURES_INO: u64 = 2;
@@ -77,9 +79,33 @@ mod winfsp_impl {
         fn path_to_string(&self, path: &Path) -> String {
             path.to_string_lossy().replace('\\', "/")
         }
+
+        fn system_time_to_u64(time: SystemTime) -> u64 {
+            // Windows FILETIME: 100-nanosecond intervals since 1601-01-01
+            // Unix epoch offset from Windows epoch: 11644473600 seconds
+            const EPOCH_DIFF: u64 = 11_644_473_600;
+            let duration = time
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .unwrap_or_default();
+            (duration.as_secs() + EPOCH_DIFF) * 10_000_000
+                + u64::from(duration.subsec_nanos()) / 100
+        }
+
+        fn fill_file_info(file_info: &mut FileInfo, is_dir: bool, size: u64, ino: u64) {
+            let now = Self::system_time_to_u64(SystemTime::now());
+            file_info.file_attributes = if is_dir { 0x10 } else { 0x80 };
+            file_info.file_size = size;
+            file_info.allocation_size = (size + 4095) / 4096 * 4096;
+            file_info.creation_time = now;
+            file_info.last_access_time = now;
+            file_info.last_write_time = now;
+            file_info.change_time = now;
+            file_info.index_number = ino;
+            file_info.hard_links = 0;
+        }
     }
 
-    impl winfsp::filesystem::FileSystemContext for AutoOrthoWinFsp {
+    impl FileSystemContext for AutoOrthoWinFsp {
         type FileContext = u64;
 
         fn get_security_by_name(
@@ -87,26 +113,32 @@ mod winfsp_impl {
             file_name: &winfsp::U16CStr,
             _security_descriptor: Option<&mut [std::ffi::c_void]>,
             _reparse_point_resolver: impl FnOnce(&winfsp::U16CStr) -> Option<FileSecurity>,
-        ) -> Result<FileSecurity, winfsp::Result<()>> {
+        ) -> winfsp::Result<FileSecurity> {
             let path = file_name.to_string_lossy();
             debug!("get_security_by_name: {:?}", path);
 
             let path_str = self.path_to_string(&Path::new(&path));
             if is_poison_path(&path_str) {
                 info!("Poison pill detected at {}. Shutting down.", path_str);
-                return Err(Err(()));
+                return Err(winfsp::FspError::NTSTATUS(
+                    windows::Win32::Foundation::STATUS_OBJECT_NAME_NOT_FOUND,
+                ));
             }
 
-            Ok(FileSecurity::from_access(0xFFFFFFFF).unwrap_or_default())
+            Ok(FileSecurity {
+                attributes: 0x80, // FILE_ATTRIBUTE_NORMAL
+                reparse: false,
+                sz_security_descriptor: 0,
+            })
         }
 
         fn open(
             &self,
             file_name: &winfsp::U16CStr,
             _create_options: u32,
-            _granted_access: u32,
+            _granted_access: windows::Win32::Storage::FileSystem::FILE_ACCESS_RIGHTS,
             file_info: &mut OpenFileInfo,
-        ) -> Result<Self::FileContext, winfsp::Result<()>> {
+        ) -> winfsp::Result<Self::FileContext> {
             let path = file_name.to_string_lossy();
             debug!("open: {:?}", path);
 
@@ -114,7 +146,9 @@ mod winfsp_impl {
 
             if is_poison_path(&path_str) {
                 info!("Poison pill detected at {}. Shutting down.", path_str);
-                return Err(Err(()));
+                return Err(winfsp::FspError::NTSTATUS(
+                    windows::Win32::Foundation::STATUS_OBJECT_NAME_NOT_FOUND,
+                ));
             }
 
             let ino = self.path_to_inode(Path::new(&path));
@@ -132,20 +166,14 @@ mod winfsp_impl {
                         .unwrap()
                         .insert(fh, PathBuf::from(&path));
 
-                    file_info
-                        .set_file_size(file_attr.size)
-                        .set_allocation_size((file_attr.size + 4095) / 4096 * 4096)
-                        .set_file_attributes(if file_attr.is_dir { 0x10 } else { 0x80 })
-                        .set_creation_time(SystemTime::now())
-                        .set_last_access_time(SystemTime::now())
-                        .set_last_write_time(SystemTime::now())
-                        .set_change_time(SystemTime::now())
-                        .set_index_number(ino)
-                        .set_hard_links(1);
+                    let fi: &mut FileInfo = file_info.as_mut();
+                    Self::fill_file_info(fi, file_attr.is_dir, file_attr.size, ino);
 
                     Ok(fh)
                 }
-                Err(_) => Err(Err(())),
+                Err(_) => Err(winfsp::FspError::NTSTATUS(
+                    windows::Win32::Foundation::STATUS_OBJECT_NAME_NOT_FOUND,
+                )),
             }
         }
 
@@ -158,28 +186,20 @@ mod winfsp_impl {
             &self,
             context: &Self::FileContext,
             file_info: &mut FileInfo,
-        ) -> Result<(), winfsp::Result<()>> {
+        ) -> winfsp::Result<()> {
             let path = self.open_files.lock().unwrap().get(context).cloned();
             if let Some(path) = path {
                 let path_str = self.path_to_string(&path);
                 let ino = self.path_to_inode(&path);
 
                 if let Ok(attr) = self.runtime.block_on(self.fs.get_attr(&path_str)) {
-                    file_info
-                        .set_file_size(attr.size)
-                        .set_allocation_size((attr.size + 4095) / 4096 * 4096)
-                        .set_file_attributes(if attr.is_dir { 0x10 } else { 0x80 })
-                        .set_creation_time(SystemTime::now())
-                        .set_last_access_time(SystemTime::now())
-                        .set_last_write_time(SystemTime::now())
-                        .set_change_time(SystemTime::now())
-                        .set_index_number(ino)
-                        .set_hard_links(1);
-
+                    Self::fill_file_info(file_info, attr.is_dir, attr.size, ino);
                     return Ok(());
                 }
             }
-            Err(Err(()))
+            Err(winfsp::FspError::NTSTATUS(
+                windows::Win32::Foundation::STATUS_OBJECT_NAME_NOT_FOUND,
+            ))
         }
 
         fn read(
@@ -187,14 +207,16 @@ mod winfsp_impl {
             context: &Self::FileContext,
             buffer: &mut [u8],
             offset: u64,
-        ) -> Result<u32, winfsp::Result<()>> {
+        ) -> winfsp::Result<u32> {
             let path = self
                 .open_files
                 .lock()
                 .unwrap()
                 .get(context)
                 .cloned()
-                .ok_or(Err(()))?;
+                .ok_or(winfsp::FspError::NTSTATUS(
+                    windows::Win32::Foundation::STATUS_INVALID_HANDLE,
+                ))?;
             let path_str = self.path_to_string(&path);
 
             debug!(
@@ -216,7 +238,9 @@ mod winfsp_impl {
                 }
                 Err(e) => {
                     warn!("read error for {:?}: {:?}", path, e);
-                    Err(Err(()))
+                    Err(winfsp::FspError::NTSTATUS(
+                        windows::Win32::Foundation::STATUS_UNSUCCESSFUL,
+                    ))
                 }
             }
         }
@@ -225,42 +249,42 @@ mod winfsp_impl {
             &self,
             _context: &Self::FileContext,
             _pattern: Option<&winfsp::U16CStr>,
-            _marker: winfsp::filesystem::DirMarker,
+            _marker: DirMarker,
             buffer: &mut [u8],
-        ) -> Result<u32, winfsp::Result<()>> {
+        ) -> winfsp::Result<u32> {
             debug!("read_directory");
 
             let mut cursor = 0u32;
+
             let mut add_entry = |name: &str, is_dir: bool, size: u64| -> bool {
-                let dir_info =
-                    DirInfo::create(name, 0, 0, size, 0, 0, 0, 0, 0, 0).map_err(|_| Err(()))?;
-                let entry_size = dir_info.size() as u32;
-                if cursor + entry_size > buffer.len() as u32 {
+                let mut dir_info = DirInfo::new();
+                if dir_info.set_name(name).is_err() {
                     return false;
                 }
-                dir_info
-                    .write_to_buffer(&mut buffer[cursor as usize..], &mut cursor)
-                    .map_err(|_| Err(()))?;
-                true
+                let fi = dir_info.file_info_mut();
+                fi.file_attributes = if is_dir { 0x10 } else { 0x80 };
+                fi.file_size = size;
+                fi.allocation_size = (size + 4095) / 4096 * 4096;
+                DirInfo::add_to_buffer(Some(&dir_info), buffer, &mut cursor)
             };
 
-            add_entry(".", true, 4096)?;
-            add_entry("..", true, 4096)?;
+            add_entry(".", true, 4096);
+            add_entry("..", true, 4096);
 
             for dir in VIRTUAL_DIRS {
-                if !add_entry(dir, true, 4096) {
-                    return Err(Ok(cursor));
-                }
+                add_entry(dir, true, 4096);
             }
+
+            // Finalize the buffer
+            DirInfo::finalize_buffer(buffer, &mut cursor);
 
             Ok(cursor)
         }
 
-        fn get_volume_info(&self, out_volume_info: &mut VolInfo) -> Result<(), winfsp::Result<()>> {
-            out_volume_info
-                .set_total_size(1_000_000_000_000)
-                .set_free_size(500_000_000_000)
-                .set_volume_label("AutoOrtho");
+        fn get_volume_info(&self, out_volume_info: &mut VolumeInfo) -> winfsp::Result<()> {
+            out_volume_info.total_size = 1_000_000_000_000;
+            out_volume_info.free_size = 500_000_000_000;
+            out_volume_info.set_volume_label("AutoOrtho");
 
             Ok(())
         }
@@ -271,6 +295,9 @@ mod winfsp_impl {
         mountpoint: &Path,
         runtime: tokio::runtime::Handle,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        // Initialize WinFSP library (must be called before creating FileSystemHost)
+        let _init = winfsp::winfsp_init_or_die();
+
         let winfsp_fs = AutoOrthoWinFsp::new(fs, runtime);
 
         info!(
@@ -282,7 +309,6 @@ mod winfsp_impl {
         volume_params
             .set_sector_size(4096)
             .set_sectors_per_allocation_unit(1)
-            .set_volume_creation_time(SystemTime::now())
             .set_volume_serial_number(0x20260328)
             .set_file_info_timeout(1000)
             .set_case_sensitive_search(false)
@@ -292,12 +318,14 @@ mod winfsp_impl {
             .set_post_cleanup_when_modified_only(true)
             .set_file_system_name("AutoOrtho");
 
-        let mut mount_options = MountOptions::new();
-        mount_options.set_volfs(false);
+        let mut host = FileSystemHost::new(volume_params, winfsp_fs)?;
+        let mount_str = mountpoint.to_string_lossy().to_string();
+        host.mount(&mount_str)?;
 
-        let mut host = FileSystemHost::new(winfsp_fs, volume_params);
-        let mount_str = mountpoint.to_string_lossy();
-        host.mount(&mount_str, &mount_options)?;
+        info!("AutoOrtho mounted at {}", mountpoint.display());
+
+        // Block until unmounted (WinFSP handles this internally via the service loop)
+        // The mount call returns when the filesystem is unmounted.
 
         info!("AutoOrtho unmounted from {}", mountpoint.display());
         Ok(())
