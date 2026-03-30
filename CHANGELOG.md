@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.3.0](https://github.com/egeland/autoortho-rs/compare/v0.2.0...v0.3.0) (2026-03-30)
+
+
+### Features
+
+* add SimHeaven X-World compatibility support ([#11](https://github.com/egeland/autoortho-rs/issues/11)) ([e7bdd44](https://github.com/egeland/autoortho-rs/commit/e7bdd4411b7db0fcc8b1a16bec60a9a3026da1d4)), closes [#6](https://github.com/egeland/autoortho-rs/issues/6)
+* Add Windows FUSE support using winfsp ([3be466d](https://github.com/egeland/autoortho-rs/commit/3be466d27430013fd1f8969cab589bdad667169a))
+* Implement fallback system and fix security/memory issues ([dba5bff](https://github.com/egeland/autoortho-rs/commit/dba5bff79ea0029c580fe495ab6e87f9f76a81fc))
+* Implement WebSocket for live position updates ([4b8c49b](https://github.com/egeland/autoortho-rs/commit/4b8c49b619e2e5aa3c0e05ff66da80835bafd0ef))
+
+
+### Bug Fixes
+
+* Address silent errors, WinFSP runtime, and duplicate providers ([68b12ce](https://github.com/egeland/autoortho-rs/commit/68b12ce67a36f043cd2acb83862f5b6ecdcb0b20))
+* correct version.yml workflow_run condition paths ([#17](https://github.com/egeland/autoortho-rs/issues/17)) ([e739d28](https://github.com/egeland/autoortho-rs/commit/e739d28dcc9c6f9ba84ca41d5e32a16b8bd828e5))
+* correct winfsp 0.12 API for Windows build ([#15](https://github.com/egeland/autoortho-rs/issues/15)) ([98a1363](https://github.com/egeland/autoortho-rs/commit/98a1363b60b405a57b80e66c5651bc5f3794226c))
+* Disable FUSE on Windows due to unifuse/winFSP incompatibility ([e03a8ee](https://github.com/egeland/autoortho-rs/commit/e03a8eecdb6fc0497823a752ef5b0f8816b3587a))
+* resolve Windows build errors (texpresso, winfsp types) ([#16](https://github.com/egeland/autoortho-rs/issues/16)) ([6d54c15](https://github.com/egeland/autoortho-rs/commit/6d54c154288feae36433f180823c058cc1d238aa))
+* rewrite mount_win.rs for winfsp 0.12 API compatibility ([#14](https://github.com/egeland/autoortho-rs/issues/14)) ([c535dc5](https://github.com/egeland/autoortho-rs/commit/c535dc53f7933fcbe823093283b8aa9a02107f21))
+* use RELEASE_TOKEN for release-please permissions ([#18](https://github.com/egeland/autoortho-rs/issues/18)) ([3ad52ac](https://github.com/egeland/autoortho-rs/commit/3ad52aca9c8d7929ce2f12504abe2fc1bd2b75c8))
+* use stable Rust toolchain in cross-platform CI ([#13](https://github.com/egeland/autoortho-rs/issues/13)) ([f132930](https://github.com/egeland/autoortho-rs/commit/f13293055d75df9246904633e725b6ed05338b8a))
+* wire DDS in-memory cache size from config ([#12](https://github.com/egeland/autoortho-rs/issues/12)) ([e3df78a](https://github.com/egeland/autoortho-rs/commit/e3df78afa65dd0bbde41904df43defb48c3536f1))
+
+
+### Performance Improvements
+
+* Consolidate multiple Tokio runtimes into one ([eabaffb](https://github.com/egeland/autoortho-rs/commit/eabaffbc411af18da87218028d13b344ebb2a885))
+* Replace Mutex with RwLock in DdsFileSystem ([d8ec852](https://github.com/egeland/autoortho-rs/commit/d8ec85217e1d23b8f6c6fa240869fe5ab2f512c4))
+* Share HTTP clients across tile providers ([6c61afe](https://github.com/egeland/autoortho-rs/commit/6c61afe5d8e88387712f0d9c4dcf616f0ffc224c))
+
 ## [0.2.0](https://github.com/egeland/autoortho-rs/compare/v0.1.0...v0.2.0) (2026-03-28)
 
 
