@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.7](https://github.com/egeland/autoortho-rs/compare/v0.5.6...v0.5.7) (2026-03-30)
+
+
+### Bug Fixes
+
+* skip GitHub Release creation in release-please ([#45](https://github.com/egeland/autoortho-rs/issues/45)) ([849efb2](https://github.com/egeland/autoortho-rs/commit/849efb240a1b6ace8624d5540e528c170a153464))
+
 ## [0.5.6](https://github.com/egeland/autoortho-rs/compare/v0.5.5...v0.5.6) (2026-03-30)
 
 
