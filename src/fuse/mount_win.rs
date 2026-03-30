@@ -19,6 +19,11 @@ mod winfsp_impl {
     };
     use winfsp::host::{FileSystemHost, VolumeParams};
 
+    // Raw NTSTATUS values (avoids direct dependency on `windows` crate)
+    const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC0000034_u32 as i32;
+    const STATUS_INVALID_HANDLE: i32 = 0xC0000008_u32 as i32;
+    const STATUS_UNSUCCESSFUL: i32 = 0xC0000001_u32 as i32;
+
     const ROOT_INO: u64 = 1;
     const TEXTURES_INO: u64 = 2;
     const TERRAIN_INO: u64 = 3;
@@ -122,9 +127,7 @@ mod winfsp_impl {
             let path_str = self.path_to_string(&Path::new(&path));
             if is_poison_path(&path_str) {
                 info!("Poison pill detected at {}. Shutting down.", path_str);
-                return Err(winfsp::FspError::NTSTATUS(
-                    windows::Win32::Foundation::STATUS_OBJECT_NAME_NOT_FOUND,
-                ));
+                return Err(winfsp::FspError::NTSTATUS(STATUS_OBJECT_NAME_NOT_FOUND));
             }
 
             Ok(FileSecurity {
@@ -138,7 +141,7 @@ mod winfsp_impl {
             &self,
             file_name: &winfsp::U16CStr,
             _create_options: u32,
-            _granted_access: windows::Win32::Storage::FileSystem::FILE_ACCESS_RIGHTS,
+            _granted_access: u32,
             file_info: &mut OpenFileInfo,
         ) -> winfsp::Result<Self::FileContext> {
             let path = file_name.to_string_lossy();
@@ -148,9 +151,7 @@ mod winfsp_impl {
 
             if is_poison_path(&path_str) {
                 info!("Poison pill detected at {}. Shutting down.", path_str);
-                return Err(winfsp::FspError::NTSTATUS(
-                    windows::Win32::Foundation::STATUS_OBJECT_NAME_NOT_FOUND,
-                ));
+                return Err(winfsp::FspError::NTSTATUS(STATUS_OBJECT_NAME_NOT_FOUND));
             }
 
             let ino = self.path_to_inode(Path::new(&path));
@@ -173,9 +174,7 @@ mod winfsp_impl {
 
                     Ok(fh)
                 }
-                Err(_) => Err(winfsp::FspError::NTSTATUS(
-                    windows::Win32::Foundation::STATUS_OBJECT_NAME_NOT_FOUND,
-                )),
+                Err(_) => Err(winfsp::FspError::NTSTATUS(STATUS_OBJECT_NAME_NOT_FOUND)),
             }
         }
 
@@ -199,9 +198,7 @@ mod winfsp_impl {
                     return Ok(());
                 }
             }
-            Err(winfsp::FspError::NTSTATUS(
-                windows::Win32::Foundation::STATUS_OBJECT_NAME_NOT_FOUND,
-            ))
+            Err(winfsp::FspError::NTSTATUS(STATUS_OBJECT_NAME_NOT_FOUND))
         }
 
         fn read(
@@ -216,9 +213,7 @@ mod winfsp_impl {
                 .unwrap()
                 .get(context)
                 .cloned()
-                .ok_or(winfsp::FspError::NTSTATUS(
-                    windows::Win32::Foundation::STATUS_INVALID_HANDLE,
-                ))?;
+                .ok_or(winfsp::FspError::NTSTATUS(STATUS_INVALID_HANDLE))?;
             let path_str = self.path_to_string(&path);
 
             debug!(
@@ -240,9 +235,7 @@ mod winfsp_impl {
                 }
                 Err(e) => {
                     warn!("read error for {:?}: {:?}", path, e);
-                    Err(winfsp::FspError::NTSTATUS(
-                        windows::Win32::Foundation::STATUS_UNSUCCESSFUL,
-                    ))
+                    Err(winfsp::FspError::NTSTATUS(STATUS_UNSUCCESSFUL))
                 }
             }
         }
@@ -260,7 +253,7 @@ mod winfsp_impl {
                 let lock = self.dir_buffer.acquire(true, None)?;
 
                 let mut add_entry = |name: &str, is_dir: bool, size: u64| -> winfsp::Result<()> {
-                    let mut dir_info = DirInfo::new();
+                    let mut dir_info = DirInfo::<255>::new();
                     dir_info.set_name(name)?;
                     let fi = dir_info.file_info_mut();
                     fi.file_attributes = if is_dir { 0x10 } else { 0x80 };
