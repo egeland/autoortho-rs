@@ -20,6 +20,9 @@ Implement persistent disk caching for both raw JPEG tiles and pre-built DDS text
 - **JPEG disk cache** — Raw downloaded tiles never persisted to disk (only in-memory)
 - FallbackLevel::None — No "disabled" option available in UI (only Cache, Downserve, Network, Solid)
 
+### Recently Fixed
+- ~~DDS in-memory cache size from config~~ — ✅ Fixed: `dds_memory_cache_mb` now wired through convenience constructors to DdsFileSystem
+
 ---
 
 ## Summary
