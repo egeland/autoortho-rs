@@ -6,7 +6,7 @@ Enable AutoOrtho to coexist with SimHeaven X-World scenery by managing overlay v
 
 When SimHeaven compatibility is enabled, AutoOrtho disables its road/label overlays (`yAutoOrtho_Overlays`) while keeping the ortho imagery packs (`z_ao_*`) enabled. This allows SimHeaven's roads/labels to show through while retaining AutoOrtho ortho imagery as a fallback.
 
-## Current Status: 📋 PLANNED
+## Current Status: ✅ COMPLETE
 
 ### Reference: Python Implementation
 
@@ -37,35 +37,34 @@ The Python version (`~/Programming/autoortho4xplane/autoortho/`) implements this
 
 ### Phase 1 — Core Module (`src/scenery/simheaven.rs`)
 
-- [ ] Create `SimHeavenRegion` enum with mapping from/to Kubilus regions
-- [ ] `check_simheaven_packages(xplane_dir, active_regions: &[Region]) -> Result<SimHeavenCheckResult>`:
-  - Scan `scenery_packs.ini` for SimHeaven entries (both XP11 and XP12 patterns)
-  - Return whether all active regions have SimHeaven packages
-  - If any missing, return list of missing regions
-- [ ] `apply_simheaven_compat(xplane_dir, enabled, active_regions: &[Region]) -> Result<()>`:
-  - If enabled: require ALL active regions to have SimHeaven packages
-    - If all present: disable `yAutoOrtho_Overlays` in scenery_packs.ini
-    - If missing any: return error (don't modify anything)
-  - If disabled: enable `yAutoOrtho_Overlays` in scenery_packs.ini
+- [x] Create `SimHeavenRegion` enum with mapping from/to Kubilus regions
+- [x] `check_simheaven_packages(xplane_dir, active_regions: &[Region]) -> Result<SimHeavenCheckResult>`:
+- [x] Scan `scenery_packs.ini` for SimHeaven entries (both XP11 and XP12 patterns)
+- [x] Return whether all active regions have SimHeaven packages
+- [x] If any missing, return list of missing regions
+- [x] `apply_simheaven_compat(xplane_dir, enabled, active_regions: &[Region]) -> Result<()>`:
+- [x] If enabled: require ALL active regions to have SimHeaven packages
+- [x] If all present: disable `yAutoOrtho_Overlays` in scenery_packs.ini
+- [x] If missing any: return error (don't modify anything)
+- [x] If disabled: enable `yAutoOrtho_Overlays` in scenery_packs.ini
 
 ### Phase 2 — Config Integration
 
-- [ ] Add `simheaven_compat: bool` to `Config` struct (default: `false`)
-- [ ] Add to TOML serialization/deserialization
+- [x] Add `simheaven_compat: bool` to `Config` struct (default: `false`)
+- [x] Add to TOML serialization/deserialization
 
 ### Phase 3 — UI Integration
 
-- [ ] Settings screen: Add checkbox with tooltip matching Python:
-  - "Enable this if you are using SimHeaven scenery.\nThis will disable AutoOrtho Overlays to use the SimHeaven overlay instead. This is done by changing values within scenery_packs.ini.\nUse with caution, this may cause issues with other scenery packs."
-- [ ] Apply on Settings save (via `refresh_scenery()` triggers `apply_simheaven_compat()`)
-- [ ] Show warning message box if SimHeaven enabled but packages not found
+- [x] Settings screen: Add checkbox with tooltip matching Python:
+- [x] Apply on Settings save (via `refresh_scenery()` triggers `apply_simheaven_compat()`)
+- [x] Show warning message box if SimHeaven enabled but packages not found
 
 ### Phase 4 — Testing
 
-- [ ] Unit tests for region mapping (Kubilus ↔ SimHeaven)
-- [ ] Unit tests for `check_simheaven_packages()` with mocked ini
-- [ ] Unit tests for `apply_simheaven_compat()` enable/disable
-- [ ] Integration test: SimHeaven packages missing → returns error without modifying
+- [x] Unit tests for region mapping (Kubilus ↔ SimHeaven)
+- [x] Unit tests for `check_simheaven_packages()` with mocked ini
+- [x] Unit tests for `apply_simheaven_compat()` enable/disable
+- [x] Integration test: SimHeaven packages missing → returns error without modifying
 
 ---
 
@@ -107,15 +106,28 @@ else:
 
 ---
 
-## Files to Create/Modify
+## Files Created/Modified
 
-| File | Action |
-|------|--------|
-| `src/scenery/simheaven.rs` | **Create** — Core SimHeaven detection and compatibility logic |
-| `src/scenery/mod.rs` | **Modify** — Add `pub mod simheaven;` |
-| `src/config.rs` | **Modify** — Add `simheaven_compat` field |
-| `src/ui/screens/settings.rs` | **Modify** — Add checkbox and status display |
-| `PLAN.md` | **Modify** — Add section note |
+| File | Action | Status |
+|------|--------|--------|
+| `src/scenery/simheaven.rs` | Created | ✅ Complete |
+| `src/scenery/mod.rs` | Modified | ✅ Complete |
+| `src/config.rs` | Modified | ✅ Complete |
+| `src/ui/screens/settings.rs` | Modified | ✅ Complete |
+| `src/ui/mod.rs` | Modified | ✅ Complete |
+| `src/ui/handlers.rs` | Modified | ✅ Complete |
+| `PLAN.md` | Modified | ✅ Complete |
+
+## Implementation Notes
+
+The implementation uses a `KubilusRegion` enum with the following mapping to SimHeaven regions:
+- `NorthAmerica`, `SouthAmerica` → `America`
+- `Europe` → `Europe`
+- `Asia` → `Asia`
+- `Africa` → `Africa`
+- `AustraliaPacific` → `Australia-Oceania`
+
+The `apply_simheaven_compat()` function is called in `ui/mod.rs` during scenery refresh when `simheaven_compat` is enabled.
 
 ---
 

@@ -367,7 +367,9 @@ Reference: [autoortho4xplane docs](https://github.com/ProgrammingDinosaur/autoor
 
 ### Lower Priority
 - ~~New imagery sources (Yandex, Apple, etc.)~~ → ✅ Done (Yandex + Apple Maps providers)
-- ~~Windows installer (NSIS/WiX)~~ → Partially done via cargo-dist (release.yml exists)
+- ~~Windows installer (NSIS)~~ → Not supported by cargo-dist; MSI available (see [docs/installer-plan.md](docs/installer-plan.md))
+- ~~Missing tile providers plan~~ → ✅ Done: deleted plan file
+- macOS DMG / Linux AppImage → Not supported by cargo-dist (see [docs/installer-plan.md](docs/installer-plan.md))
 - macOS Fuse-T support
 - FallbackLevel::None option
 
