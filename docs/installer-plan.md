@@ -32,7 +32,7 @@ Using **cargo-dist** v0.30+ for cross-platform release automation.
 | `.github/workflows/security.yml` — cargo-audit + cargo-deny | ✅ |
 | Release profile (LTO thin, strip, panic abort) | ✅ |
 | Three target triples configured | ✅ |
-| Windows MSI installer | ✅ |
+| Windows MSI installer | ✅ (with `allow-dirty = ["msi"]`) |
 
 ## What's NOT Done ❌
 
@@ -48,9 +48,11 @@ Using **cargo-dist** v0.30+ for cross-platform release automation.
 
 ### Current State
 cargo-dist currently produces:
-- **Windows**: `.zip` archives + `.msi` (after this change)
+- **Windows**: `.zip` archives + `.msi` (enabled via `installers = ["msi"]`)
 - **macOS**: `.tar.xz` archives
 - **Linux**: `.tar.xz` archives
+
+**Note:** MSI requires `allow-dirty = ["msi"]` in dist-workspace.toml because cargo-dist requires WiX template regeneration via `dist init`, which we skip with dirty allow.
 
 ### Windows MSI
 - MSI is the only Windows bundling installer available in cargo-dist
@@ -108,7 +110,7 @@ installers = ["shell", "powershell"]
 - [x] GitHub Release created on tag push (via cargo-dist + release-plz)
 - [x] Release builds for Linux x86_64, macOS arm64, Windows x86_64
 - [x] All artifacts have checksums (generate-checksums = true)
-- [x] Windows .msi installer (added `installers = ["msi"]` to Cargo.toml)
+- [x] Windows .msi installer (enabled via `installers = ["msi"]` + `allow-dirty`)
 - [ ] macOS .zip (change `unix-archive = ".zip"` in Cargo.toml) - SIMPLE
 - [ ] macOS .dmg (requires app bundle + create-dmg-actions) - COMPLEX
 - [ ] Linux .AppImage (NOT supported by cargo-dist - needs third-party tool)
