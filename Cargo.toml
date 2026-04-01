@@ -79,12 +79,7 @@ targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu", "aarch64-apple-
 upload-github-release = true
 generate-checksums = true
 installer-suffix = "-unsigned"
-installers = ["msi"]
-allow-dirty = ["msi"]
-
-[package.metadata.wix]
-upgrade-guid = "A1B2C3D4-E5F6-7890-ABCD-EF1234567890"
-path-guid = "B2C3D4E5-F6A7-8901-BCDE-F12345678901"
+# installers = ["msi"]  # TODO: Re-enable once WiX GUIDs are properly configured
 
 [lib]
 name = "autoortho_lib"
