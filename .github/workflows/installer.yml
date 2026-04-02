@@ -19,32 +19,35 @@ jobs:
 
       - name: Download Windows binary from release
         run: |
-          gh release download ${{ inputs.tag }} --pattern "*.zip" --dir artifacts
-          cd artifacts
-          Expand-Archive -Path *.zip -DestinationPath .
-          ls
+          gh release download ${{ inputs.tag }} --pattern "*.zip" -D artifacts
+          Get-ChildItem artifacts
+          Expand-Archive -Path "artifacts\*.zip" -DestinationPath "artifacts" -Force
+          Get-ChildItem artifacts
 
       - name: Install NSIS
         run: choco install nsis -y
 
       - name: Create NSIS installer
         run: |
+          # Find the exe inside artifacts folder
+          $exe = Get-ChildItem -Path artifacts -Filter "*.exe" -Recurse | Select-Object -First 1
+          Write-Host "Found exe: $($exe.FullName)"
+
           # Create NSIS script
           @"
           !include "MUI2.nsh"
           Name "autoortho"
           OutFile "autoortho-setup.exe"
           InstallDir "`$PROGRAMFILES64\autoortho`"
-          File "artifacts\autoortho.exe"
           Section "Install"
             SetOutPath "`$INSTDIR`"
-            File "artifacts\autoortho.exe"
+            File "$($exe.FullName)"
           SectionEnd
           "@ | Out-File -FilePath installer.nsi -Encoding ASCII
 
           # Build installer
           & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
-          ls autoortho-setup.exe
+          Get-ChildItem autoortho-setup.exe
 
       - name: Upload installer to release
         uses: softprops/action-gh-release@v2
