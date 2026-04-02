@@ -80,12 +80,11 @@ upload-github-release = true
 generate-checksums = true
 installer-suffix = "-unsigned"
 installers = ["msi"]
+allow-dirty = ["msi"]
 
 [package.metadata.wix]
 upgrade-guid = "AD21EF92-F10A-4D00-832F-FFCB96F6B99B"
 path-guid = "CA9C6D8C-9E4F-4E00-8799-C18210FC3D7C"
-license = false
-eula = false
 
 [lib]
 name = "autoortho_lib"
