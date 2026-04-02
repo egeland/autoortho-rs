@@ -17,14 +17,9 @@ jobs:
         with:
           ref: ${{ inputs.tag }}
 
-      - name: Download Windows artifact
-        uses: actions/download-artifact@v7
-        with:
-          name: artifacts-build-local-x86_64-pc-windows-msvc
-          path: artifacts
-
-      - name: Extract Windows binary
+      - name: Download Windows binary from release
         run: |
+          gh release download ${{ inputs.tag }} --pattern "*.zip" --dir artifacts --repo ${{ github.repository }}
           cd artifacts
           unzip -o *.zip
           ls -la
