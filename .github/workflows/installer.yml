@@ -21,8 +21,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $release = gh release view ${{ inputs.tag }} --json assets -q '.assets[] | select(.name | endswith(".zip"))'
-          $zipUrl = $release.browser_download_url
+          $assets = gh release view ${{ inputs.tag }} --json assets | ConvertFrom-Json
+          $zipAsset = $assets.assets | Where-Object { $_.name -like "*.zip" } | Select-Object -First 1
+          $zipUrl = $zipAsset.browser_download_url
           Write-Host "Downloading: $zipUrl"
           Invoke-WebRequest -Uri $zipUrl -OutFile "autoortho.zip"
           Expand-Archive -Path autoortho.zip -DestinationPath artifacts -Force
