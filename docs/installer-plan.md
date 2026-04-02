@@ -12,11 +12,21 @@ Create native installers for AutoOrtho Rust across all three platforms:
 
 ## Current Status: PARTIALLY COMPLETE 🔄
 
-cargo-dist is configured and release automation works. Windows builds fail on MSI but the binary ZIP archive is successfully published. MSI is known to be broken in cargo-dist for this project.
+cargo-dist is configured and release automation works. Windows binary is published as ZIP. MSI is broken in cargo-dist, so we're using a separate Inno Setup workflow to create the installer.
+
+## New Approach: Inno Setup Installer
+
+We've added a separate workflow (`.github/workflows/installer.yml`) that:
+1. Downloads the Windows binary from the release artifacts
+2. Extracts the ZIP file
+3. Creates an Inno Setup installer using `amake/innosetup-docker`
+4. Uploads the installer to the GitHub Release
+
+This bypasses cargo-dist's broken MSI builder and provides a working Windows installer (.exe).
 
 ## Known Issues
 
-- **MSI Installer**: MSI builds fail in CI with a generic "WiX returned an error" message, even when explicitly disabled in config. This appears to be a cargo-dist bug where MSI is always attempted for Windows targets regardless of configuration. The binary builds successfully but the MSI compilation step fails. Release still succeeds with ZIP archives for all platforms.
+- **cargo-dist MSI**: MSI builds fail in CI with a generic "WiX returned an error" message, even when explicitly disabled in config. This appears to be a cargo-dist bug where MSI is always attempted for Windows targets regardless of configuration. Workaround: Use separate installer.yml workflow instead.
 
 ## Strategy
 
@@ -43,7 +53,7 @@ Using **cargo-dist** v0.30+ for cross-platform release automation.
 
 | Item | Status | Complexity |
 |------|--------|------------|
-| Windows MSI installer | ❌ Failing in CI | cargo-dist always attempts MSI regardless of config |
+| Windows Inno Setup installer (.exe) | ✅ Implemented | Separate workflow builds after release |
 | macOS ZIP (change archive format) | ❌ | SIMPLE - one config change |
 | macOS DMG bundle | ❌ | COMPLEX - needs app bundle + GitHub Action |
 | Linux AppImage | ❌ | COMPLEX - needs third-party tool |
