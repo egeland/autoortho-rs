@@ -22,7 +22,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $assets = gh release view ${{ inputs.tag }} --json assets | ConvertFrom-Json
+          Write-Host "Debug: Asset count = $($assets.assets.Count)"
+          foreach ($a in $assets.assets) {
+            Write-Host "Debug: Found asset: $($a.name)"
+          }
           $zipAsset = $assets.assets | Where-Object { $_.name -like "*.zip" } | Select-Object -First 1
+          if ($null -eq $zipAsset) {
+            Write-Host "ERROR: No zip asset found!"
+            exit 1
+          }
           $zipUrl = $zipAsset.browser_download_url
           Write-Host "Downloading: $zipUrl"
           Invoke-WebRequest -Uri $zipUrl -OutFile "autoortho.zip"
