@@ -17,24 +17,28 @@ jobs:
         with:
           ref: ${{ inputs.tag }}
 
-      - name: Download Windows binary from release
+      - name: Set up GitHub CLI
         run: |
-          gh release download ${{ inputs.tag }} --pattern "*.zip" -D artifacts
-          Get-ChildItem artifacts
-          Expand-Archive -Path "artifacts\*.zip" -DestinationPath "artifacts" -Force
-          Get-ChildItem artifacts
+          gh auth setup --hostname github.com
+
+      - name: Download Windows binary from release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download ${{ inputs.tag }} --pattern "*.zip" --dir artifacts
+          Get-ChildItem -Path artifacts
+          Get-ChildItem -Path artifacts -Filter "*.zip" | ForEach-Object { Expand-Archive -Path $_.FullName -DestinationPath "artifacts" -Force }
+          Get-ChildItem -Path artifacts
 
       - name: Install NSIS
         run: choco install nsis -y
 
       - name: Create NSIS installer
         run: |
-          # Find the exe inside artifacts folder
           $exe = Get-ChildItem -Path artifacts -Filter "*.exe" -Recurse | Select-Object -First 1
           Write-Host "Found exe: $($exe.FullName)"
 
-          # Create NSIS script
-          @"
+          $nsisScript = @"
           !include "MUI2.nsh"
           Name "autoortho"
           OutFile "autoortho-setup.exe"
@@ -43,9 +47,9 @@ jobs:
             SetOutPath "`$INSTDIR`"
             File "$($exe.FullName)"
           SectionEnd
-          "@ | Out-File -FilePath installer.nsi -Encoding ASCII
+          "@
 
-          # Build installer
+          $nsisScript | Out-File -FilePath installer.nsi -Encoding ASCII
           & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
           Get-ChildItem autoortho-setup.exe
 
