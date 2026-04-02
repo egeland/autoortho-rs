@@ -10,7 +10,7 @@ on:
 
 jobs:
   build-installer:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -19,20 +19,37 @@ jobs:
 
       - name: Download Windows binary from release
         run: |
-          gh release download ${{ inputs.tag }} --pattern "*.zip" --dir artifacts --repo ${{ github.repository }}
+          gh release download ${{ inputs.tag }} --pattern "*.zip" --dir artifacts
           cd artifacts
-          unzip -o *.zip
-          ls -la
+          Expand-Archive -Path *.zip -DestinationPath .
+          ls
 
-      - name: Create Inno Setup installer
-        uses: amake/innosetup-docker@latest
-        with:
-          script: installer.iss
+      - name: Install NSIS
+        run: choco install nsis -y
+
+      - name: Create NSIS installer
+        run: |
+          # Create NSIS script
+          @"
+          !include "MUI2.nsh"
+          Name "autoortho"
+          OutFile "autoortho-setup.exe"
+          InstallDir "`$PROGRAMFILES64\autoortho`"
+          File "artifacts\autoortho.exe"
+          Section "Install"
+            SetOutPath "`$INSTDIR`"
+            File "artifacts\autoortho.exe"
+          SectionEnd
+          "@ | Out-File -FilePath installer.nsi -Encoding ASCII
+
+          # Build installer
+          & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
+          ls autoortho-setup.exe
 
       - name: Upload installer to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag }}
-          files: autoortho-setup-*.exe
+          files: autoortho-setup.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
