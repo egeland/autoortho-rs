@@ -10,13 +10,13 @@ Create native installers for AutoOrtho Rust across all three platforms:
 - **macOS**: ZIP (simplest), DMG (traditional, requires extra tooling), Homebrew
 - **Linux**: Tarball and AppImage (AppImage not supported - requires third-party tool)
 
-## Current Status: IN PROGRESS 🔄
+## Current Status: PARTIALLY COMPLETE 🔄
 
-cargo-dist is configured and MSI is enabled. The release workflow builds successfully but MSI compilation fails in CI with a generic WiX error. Investigation ongoing.
+cargo-dist is configured and release automation works. Windows builds fail on MSI but the binary ZIP archive is successfully published. MSI is known to be broken in cargo-dist for this project.
 
 ## Known Issues
 
-- **MSI Installer**: MSI is enabled and the template is generated, but the build fails in CI with "WiX returned an error while building autoortho-x86_64-pc-windows-msvc.msi". The binary builds successfully but the MSI step fails. Further investigation needed.
+- **MSI Installer**: MSI builds fail in CI with a generic "WiX returned an error" message, even when explicitly disabled in config. This appears to be a cargo-dist bug where MSI is always attempted for Windows targets regardless of configuration. The binary builds successfully but the MSI compilation step fails. Release still succeeds with ZIP archives for all platforms.
 
 ## Strategy
 
@@ -43,7 +43,7 @@ Using **cargo-dist** v0.30+ for cross-platform release automation.
 
 | Item | Status | Complexity |
 |------|--------|------------|
-| Windows MSI installer | 🔄 Enabled but failing in CI | WiX error - investigation needed |
+| Windows MSI installer | ❌ Failing in CI | cargo-dist always attempts MSI regardless of config |
 | macOS ZIP (change archive format) | ❌ | SIMPLE - one config change |
 | macOS DMG bundle | ❌ | COMPLEX - needs app bundle + GitHub Action |
 | Linux AppImage | ❌ | COMPLEX - needs third-party tool |
