@@ -27,7 +27,13 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v6
       with:
-        ref: ${{ steps.determine-tag.outputs.tag }}
+        ref: main
+
+    - name: Get version from Cargo.toml
+      id: version
+      run: |
+        $version = (Get-Content Cargo.toml | Select-String "^version" | ForEach-Object { $_.ToString().Replace("version = ","").Replace('"',"") }).Trim()
+        echo "version=$version" >> $env:GITHUB_OUTPUT
 
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
@@ -58,7 +64,7 @@ jobs:
     - name: Upload to release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ steps.determine-tag.outputs.tag }}
+        tag_name: v${{ steps.version.outputs.version }}
         files: |
           autoortho-x86_64-pc-windows-msvc.zip
           autoortho-x86_64-pc-windows-msvc.msi
