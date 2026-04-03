@@ -44,17 +44,18 @@ jobs:
       run: |
         Compress-Archive -Path "artifacts/autoortho.exe" -DestinationPath "autoortho-x86_64-pc-windows-msvc.zip"
 
-    - name: Build Inno Setup installer
-      uses: Minionguyjpro/Inno-Setup-Action@v1.2.7
-      with:
-        path: installer.iss
+    - name: Install WiX CLI
+      run: dotnet tool install --global wix
 
-    - name: Upload binary and installer to release
+    - name: Build MSI installer
+      run: wix build wix/main.wxs -o autoortho-x86_64-pc-windows-msvc.msi
+
+    - name: Upload to release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ steps.determine-tag.outputs.tag }}
         files: |
           autoortho-x86_64-pc-windows-msvc.zip
-          autoortho-setup.exe
+          autoortho-x86_64-pc-windows-msvc.msi
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
