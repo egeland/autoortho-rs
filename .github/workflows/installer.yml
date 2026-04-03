@@ -1,3 +1,4 @@
+# Build Windows Installer - Inno Setup version
 name: Build Windows Installer
 
 on:
