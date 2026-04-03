@@ -29,51 +29,34 @@ jobs:
       with:
         ref: ${{ steps.determine-tag.outputs.tag }}
 
-    - name: Download Windows binary from release
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        $tag = "${{ steps.determine-tag.outputs.tag }}"
-        $assets = gh release view $tag --json assets | ConvertFrom-Json
-        Write-Host "Debug: Asset count = $($assets.assets.Count)"
-        foreach ($a in $assets.assets) {
-            Write-Host "Debug: Found asset: $($a.name)"
-        }
-        $zipAsset = $assets.assets | Where-Object { $_.name -like "*-x86_64-pc-windows-msvc.zip" } | Select-Object -First 1
-        if ($null -eq $zipAsset) {
-            $zipAsset = $assets.assets | Where-Object { $_.name -like "*.zip" } | Select-Object -First 1
-        }
-        if ($null -eq $zipAsset) {
-            Write-Host "ERROR: No zip asset found!"
-            exit 1
-        }
-        $zipUrl = $zipAsset.browser_download_url
-        Write-Host "Downloading: $zipUrl"
-        Invoke-WebRequest -Uri $zipUrl -OutFile "autoortho.zip"
-        Expand-Archive -Path autoortho.zip -DestinationPath temp_artifacts -Force
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: x86_64-pc-windows-msvc
 
-        # Find the exe and copy to artifacts directory
-        $exe = Get-ChildItem -Path temp_artifacts -Filter "*.exe" -Recurse | Select-Object -First 1
-        if ($null -eq $exe) {
-            Write-Host "ERROR: No exe found in zip!"
-            exit 1
-        }
-        Write-Host "Found exe: $($exe.FullName)"
-        
-        # Create artifacts directory and copy exe
+    - name: Build Windows binary
+      run: |
+        cargo build --release --target x86_64-pc-windows-msvc
+        # Create artifacts directory
         New-Item -ItemType Directory -Force -Path artifacts | Out-Null
-        Copy-Item $exe.FullName -Destination artifacts/autoortho.exe -Force
-        Get-ChildItem artifacts
+        # Copy the binary
+        Copy-Item "target/x86_64-pc-windows-msvc/release/autoortho.exe" -Destination "artifacts/autoortho.exe" -Force
+
+    - name: Create ZIP archive
+      run: |
+        Compress-Archive -Path "artifacts/autoortho.exe" -DestinationPath "autoortho-x86_64-pc-windows-msvc.zip"
 
     - name: Build Inno Setup installer
       uses: Minionguyjpro/Inno-Setup-Action@v1.2.7
       with:
         path: installer.iss
 
-    - name: Upload installer to release
+    - name: Upload binary and installer to release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ steps.determine-tag.outputs.tag }}
-        files: autoortho-setup.exe
+        files: |
+          autoortho-x86_64-pc-windows-msvc.zip
+          autoortho-setup.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
