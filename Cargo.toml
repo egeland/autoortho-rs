@@ -78,11 +78,6 @@ dist-version = "0.2.0"
 targets = ["x86_64-pc-windows-msvc", "x86_64-unknown-linux-gnu", "aarch64-apple-darwin"]
 upload-github-release = true
 generate-checksums = true
-installer-suffix = "-unsigned"
-
-[package.metadata.wix]
-upgrade-guid = "B36177BE-EA4D-44FB-B05C-EDDABDAA95CA"
-path-guid = "BFD25009-65A4-4D1E-97F1-0030465D90D6"
 
 [lib]
 name = "autoortho_lib"
