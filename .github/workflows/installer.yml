@@ -1,6 +1,8 @@
 name: Build Windows Installer
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
@@ -12,58 +14,66 @@ jobs:
   build-installer:
     runs-on: windows-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ inputs.tag }}
+    - name: Determine release tag
+      id: determine-tag
+      run: |
+        $tag = "${{ github.event.release.tag_name || inputs.tag }}"
+        if (-not $tag) {
+            Write-Host "ERROR: No tag provided!"
+            exit 1
+        }
+        echo "tag=$tag" >> $env:GITHUB_OUTPUT
 
-      - name: Download Windows binary from release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          $assets = gh release view ${{ inputs.tag }} --json assets | ConvertFrom-Json
-          Write-Host "Debug: Asset count = $($assets.assets.Count)"
-          foreach ($a in $assets.assets) {
+    - name: Checkout repository
+      uses: actions/checkout@v6
+      with:
+        ref: ${{ steps.determine-tag.outputs.tag }}
+
+    - name: Download Windows binary from release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        $tag = "${{ steps.determine-tag.outputs.tag }}"
+        $assets = gh release view $tag --json assets | ConvertFrom-Json
+        Write-Host "Debug: Asset count = $($assets.assets.Count)"
+        foreach ($a in $assets.assets) {
             Write-Host "Debug: Found asset: $($a.name)"
-          }
-          $zipAsset = $assets.assets | Where-Object { $_.name -like "*.zip" } | Select-Object -First 1
-          if ($null -eq $zipAsset) {
+        }
+        $zipAsset = $assets.assets | Where-Object { $_.name -like "*-x86_64-pc-windows-msvc.zip" } | Select-Object -First 1
+        if ($null -eq $zipAsset) {
+            $zipAsset = $assets.assets | Where-Object { $_.name -like "*.zip" } | Select-Object -First 1
+        }
+        if ($null -eq $zipAsset) {
             Write-Host "ERROR: No zip asset found!"
             exit 1
-          }
-          $zipUrl = $zipAsset.browser_download_url
-          Write-Host "Downloading: $zipUrl"
-          Invoke-WebRequest -Uri $zipUrl -OutFile "autoortho.zip"
-          Expand-Archive -Path autoortho.zip -DestinationPath artifacts -Force
-          Get-ChildItem artifacts
+        }
+        $zipUrl = $zipAsset.browser_download_url
+        Write-Host "Downloading: $zipUrl"
+        Invoke-WebRequest -Uri $zipUrl -OutFile "autoortho.zip"
+        Expand-Archive -Path autoortho.zip -DestinationPath temp_artifacts -Force
 
-      - name: Install NSIS
-        run: choco install nsis -y
+        # Find the exe and copy to artifacts directory
+        $exe = Get-ChildItem -Path temp_artifacts -Filter "*.exe" -Recurse | Select-Object -First 1
+        if ($null -eq $exe) {
+            Write-Host "ERROR: No exe found in zip!"
+            exit 1
+        }
+        Write-Host "Found exe: $($exe.FullName)"
+        
+        # Create artifacts directory and copy exe
+        New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+        Copy-Item $exe.FullName -Destination artifacts/autoortho.exe -Force
+        Get-ChildItem artifacts
 
-      - name: Create NSIS installer
-        run: |
-          $exe = Get-ChildItem -Path artifacts -Filter "*.exe" -Recurse | Select-Object -First 1
-          Write-Host "Found exe: $($exe.FullName)"
+    - name: Build Inno Setup installer
+      uses: Minionguyjpro/Inno-Setup-Action@v1.2.7
+      with:
+        path: installer.iss
 
-          $nsisScript = @"
-          !include "MUI2.nsh"
-          Name "autoortho"
-          OutFile "autoortho-setup.exe"
-          InstallDir "`$PROGRAMFILES64\autoortho`"
-          Section "Install"
-            SetOutPath "`$INSTDIR`"
-            File "$($exe.FullName)"
-          SectionEnd
-          "@
-
-          $nsisScript | Out-File -FilePath installer.nsi -Encoding ASCII
-          & "C:\Program Files (x86)\NSIS\makensis.exe" installer.nsi
-          Get-ChildItem autoortho-setup.exe
-
-      - name: Upload installer to release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ inputs.tag }}
-          files: autoortho-setup.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Upload installer to release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.determine-tag.outputs.tag }}
+        files: autoortho-setup.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
