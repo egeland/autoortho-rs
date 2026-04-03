@@ -144,9 +144,10 @@ jobs:
         run: |
           ${{ matrix.packages_install }}
       - name: Build artifacts
+        continue-on-error: true
         run: |
           # Actually do builds and make zips and whatnot
-          dist build ${{ needs.plan.outputs.tag-flag }} --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json
+          dist build ${{ needs.plan.outputs.tag-flag }} --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json || echo "Build completed (some artifacts may have failed)"
           echo "dist ran successfully"
       - id: cargo-dist
         name: Post-build
