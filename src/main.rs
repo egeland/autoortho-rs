@@ -1,19 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
 // Copyright (c) 2024 the AutoOrtho contributors
 
+use autoortho_lib::app_context::AppContext;
 use autoortho_lib::config::AutoOrthoConfig;
 use autoortho_lib::dynamic_zoom::DynamicZoom;
-use autoortho_lib::fuse::filesystem::DdsFileSystem;
-use autoortho_lib::pipeline::cache::DdsCache;
-use autoortho_lib::stats::StatsStore;
 use autoortho_lib::tiles::fetcher::TileFetcher;
 use autoortho_lib::tiles::prefetch::{RoutePrefetchConfig, SpatialPrefetcher};
 use autoortho_lib::tiles::provider::ProviderFactory;
-use autoortho_lib::xplane::dataref::DatarefTracker;
 use log::{info, warn};
-use parking_lot::Mutex;
 use std::error::Error;
-use std::path::PathBuf;
 use std::sync::Arc;
 #[cfg(not(windows))]
 use tokio::sync::broadcast;
@@ -234,7 +229,6 @@ async fn test_tile_generation(provider_name: &str) -> Result<(), Box<dyn Error>>
 /// Only available on Linux and macOS.
 #[cfg(not(windows))]
 async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
-    use autoortho_lib::webui::custommap::CustomMapStore;
     use std::path::Path;
 
     info!(
@@ -243,81 +237,38 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     );
 
     let config = AutoOrthoConfig::default();
-    let provider = ProviderFactory::create(&config.tile_provider).expect("Unknown tile provider");
-    info!("Provider: {} ({})", provider.name(), config.tile_provider);
+    let context = AppContext::init(config).await?;
 
-    let dynamic_zoom = DynamicZoom::new(config.zoom_rules.clone(), &config.tile_provider);
-    if config.enable_dynamic_zoom {
+    let dynamic_zoom = DynamicZoom::new(
+        context.config.read().zoom_rules.clone(),
+        &context.config.read().tile_provider,
+    );
+    if context.config.read().enable_dynamic_zoom {
         info!(
             "Dynamic zoom enabled with {} rules",
             dynamic_zoom.zoom_rules().len()
         );
     }
 
-    let custom_map_path = dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("autoortho")
-        .join("custom_map.json");
-    let custom_map = CustomMapStore::load(custom_map_path);
-    info!("Custom map: {} cells defined", custom_map.get_cells().len());
+    info!(
+        "Custom map: {} cells defined",
+        context.custom_map.get_cells().len()
+    );
 
-    let chunk_cache_entries = config.chunk_memory_cache_entries();
-    let dds_cache_entries = config.dds_memory_cache_entries();
+    let chunk_cache_entries = context.config.read().chunk_memory_cache_entries();
+    let dds_cache_entries = context.config.read().dds_memory_cache_entries();
     info!(
         "Memory cache: {} chunk entries, {} DDS tile entries",
         chunk_cache_entries, dds_cache_entries
     );
 
-    let fetcher = Arc::new(TileFetcher::with_cache_size(
-        chunk_cache_entries,
-        &config.tile_provider,
-    ));
-
-    let dds_cache = if config.enable_dds_cache {
-        let cache_dir = PathBuf::from(&config.cache_dir).join("dds");
-        match DdsCache::open(cache_dir, config.dds_cache_size_mb * 1024 * 1024) {
-            Ok(cache) => {
-                info!(
-                    "DDS cache: {} entries, {} MB",
-                    cache.entry_count(),
-                    cache.size_bytes() / (1024 * 1024)
-                );
-                Some(Arc::new(Mutex::new(cache)))
-            }
-            Err(e) => {
-                warn!(
-                    "Failed to open DDS cache: {}. Running without disk cache.",
-                    e
-                );
-                None
-            }
-        }
-    } else {
-        info!("DDS disk cache disabled");
-        None
-    };
-
-    let fs = if let Some(dc) = dds_cache {
-        Arc::new(DdsFileSystem::with_disk_cache_and_custom_map(
-            fetcher.clone(),
-            dc,
-            custom_map,
-            &config.tile_provider,
-            dds_cache_entries,
-        ))
-    } else {
-        Arc::new(DdsFileSystem::new_with_custom_map(
-            fetcher.clone(),
-            custom_map,
-            &config.tile_provider,
-            dds_cache_entries,
-        ))
-    };
+    let provider_name = context.config.read().tile_provider.clone();
+    info!("Provider: {} ({})", provider_name, provider_name);
 
     // Start web server
-    let stats = Arc::new(StatsStore::new());
-    let tracker = Arc::new(DatarefTracker::new());
-    let web_config = Arc::new(parking_lot::RwLock::new(config.clone()));
+    let stats = context.stats.clone();
+    let tracker = context.tracker.clone();
+    let web_config = context.config.clone();
 
     // Shutdown channel for graceful termination of background tasks
     let (shutdown_tx, _) = broadcast::channel(1);
@@ -334,11 +285,14 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
 
     // Night exclusion: poll sun_pitch from the dataref tracker and update the
     // filesystem's night exclusion flag accordingly.
-    if config.enable_night_exclusion {
+    let fs = context.fs.clone();
+    let (enable_night_exclusion, night_threshold, day_threshold) = {
+        let c = context.config.read();
+        (c.enable_night_exclusion, c.night_threshold, c.day_threshold)
+    };
+    if enable_night_exclusion {
         let night_flag = fs.night_exclusion_flag();
         let tracker_for_night = tracker.clone();
-        let night_threshold = config.night_threshold;
-        let day_threshold = config.day_threshold;
         info!(
             "Night exclusion enabled (night <= {}°, day >= {}°)",
             night_threshold, day_threshold
@@ -364,9 +318,9 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     const PREFETCH_MAX_LOOKAHEAD_NM: f32 = 99999.0;
     const PREFETCH_POLL_INTERVAL_SECS: u64 = 30;
 
-    if !config.simbrief_user_id.is_empty() {
+    let simbrief_user_id = context.config.read().simbrief_user_id.clone();
+    if !simbrief_user_id.is_empty() {
         info!("Fetching SimBrief flight plan for route prefetching...");
-        let simbrief_user_id = config.simbrief_user_id.clone();
         match tokio::runtime::Handle::current().block_on(
             autoortho_lib::xplane::simbrief::fetch_flight_plan(&simbrief_user_id),
         ) {
@@ -375,24 +329,29 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
                     "SimBrief route loaded: {} -> {}",
                     plan.origin, plan.destination
                 );
-                let fetcher_for_prefetch = fetcher.clone();
-                let tracker_for_prefetch = tracker.clone();
-                let config_for_prefetch = config.clone();
+                let fetcher = context.fetcher.clone();
+                let tracker = context.tracker.clone();
+                let config = context.config.clone();
                 let mut shutdown_rx = shutdown_tx.subscribe();
 
                 tokio::spawn(async move {
+                    let (prefetch_route_percent, route_prefetch_radius_nm, airport_radius_nm, prefetch_airports, max_zoom, zoom_rules, tile_provider, enable_dynamic_zoom, use_simbrief_altitude, route_consideration_radius_nm) = {
+                        let c = config.read();
+                        (c.prefetch_route_percent, c.route_prefetch_radius_nm, c.airport_radius_nm, c.prefetch_airports, c.max_zoom, c.zoom_rules.clone(), c.tile_provider.clone(), c.enable_dynamic_zoom, c.use_simbrief_altitude, c.route_consideration_radius_nm as f64)
+                    };
+
                     let mut prefetcher = SpatialPrefetcher::new();
                     let route_config = RoutePrefetchConfig {
-                        percent_ahead: config_for_prefetch.prefetch_route_percent,
-                        waypoint_radius_nm: config_for_prefetch.route_prefetch_radius_nm as f64,
-                        airport_radius_nm: config_for_prefetch.airport_radius_nm as f64,
-                        include_airports: config_for_prefetch.prefetch_airports,
-                        zoom: config_for_prefetch.max_zoom,
+                        percent_ahead: prefetch_route_percent,
+                        waypoint_radius_nm: route_prefetch_radius_nm as f64,
+                        airport_radius_nm: airport_radius_nm as f64,
+                        include_airports: prefetch_airports,
+                        zoom: max_zoom,
                     };
 
                     let dynamic_zoom_for_prefetch = DynamicZoom::new(
-                        config_for_prefetch.zoom_rules.clone(),
-                        &config_for_prefetch.tile_provider,
+                        zoom_rules.clone(),
+                        &tile_provider,
                     );
 
                     loop {
@@ -402,21 +361,19 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
                                 break;
                             }
                             _ = tokio::time::sleep(std::time::Duration::from_secs(PREFETCH_POLL_INTERVAL_SECS)) => {
-                                // Continue with prefetch logic
                             }
                         };
 
-                        let flight_data = tracker_for_prefetch.get_flight_data();
+                        let flight_data = tracker.get_flight_data();
 
                         if flight_data.data_valid {
                             let lat = flight_data.lat;
                             let lon = flight_data.lon;
 
-                            // Check if on route
                             if plan.is_on_route(
                                 lat,
                                 lon,
-                                config_for_prefetch.route_consideration_radius_nm as f64,
+                                route_consideration_radius_nm,
                             ) {
                                 // Get prefetch points along route
                                 let points = plan.get_prefetch_points(
@@ -442,8 +399,8 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
 
                                     // Trigger fetches for queued tiles
                                     while let Some((row, col)) = prefetcher.next_tile() {
-                                        let zoom = if config_for_prefetch.enable_dynamic_zoom {
-                                            if config_for_prefetch.use_simbrief_altitude
+                                        let zoom = if enable_dynamic_zoom {
+                                            if use_simbrief_altitude
                                                 && !points.is_empty()
                                             {
                                                 let mut closest_dist = f64::MAX;
@@ -465,14 +422,14 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
                                                     .zoom_for_altitude_agl(alt_agl_ft)
                                             }
                                         } else {
-                                            config_for_prefetch.max_zoom
+                                            max_zoom
                                         };
 
-                                        if let Err(e) = fetcher_for_prefetch
+                                        if let Err(e) = fetcher
                                             .get_chunk_data(
                                                 row,
                                                 col,
-                                                &config_for_prefetch.tile_provider,
+                                                &tile_provider,
                                                 zoom,
                                             )
                                             .await
@@ -549,86 +506,34 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
 }
 
 async fn run_server() -> Result<(), Box<dyn Error>> {
-    use autoortho_lib::webui::custommap::CustomMapStore;
-
     info!("AutoOrtho Rust v{} starting", env!("CARGO_PKG_VERSION"));
 
     let config = AutoOrthoConfig::default();
     info!("Using tile provider: {}", config.tile_provider);
     info!("Zoom levels: {} - {}", config.min_zoom, config.max_zoom);
 
-    let provider = ProviderFactory::create(&config.tile_provider).expect("Unknown tile provider");
-    info!("Initialized {} provider", provider.name());
-
-    let custom_map_path = dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("autoortho")
-        .join("custom_map.json");
-    let custom_map = CustomMapStore::load(custom_map_path);
-    info!("Custom map: {} cells defined", custom_map.get_cells().len());
-
-    let chunk_cache_entries = config.chunk_memory_cache_entries();
-    let dds_cache_entries = config.dds_memory_cache_entries();
+    let context = AppContext::init(config).await?;
+    info!(
+        "Custom map: {} cells defined",
+        context.custom_map.get_cells().len()
+    );
+    let chunk_cache_entries = context.config.read().chunk_memory_cache_entries();
+    let dds_cache_entries = context.config.read().dds_memory_cache_entries();
     info!(
         "Memory cache: {} chunk entries, {} DDS tile entries",
         chunk_cache_entries, dds_cache_entries
     );
 
-    let fetcher = Arc::new(TileFetcher::with_cache_size(
-        chunk_cache_entries,
-        &config.tile_provider,
-    ));
-
-    let dds_cache = if config.enable_dds_cache {
-        let cache_dir = PathBuf::from(&config.cache_dir).join("dds");
-        match DdsCache::open(cache_dir, config.dds_cache_size_mb * 1024 * 1024) {
-            Ok(cache) => {
-                info!(
-                    "DDS cache: {} entries, {} MB",
-                    cache.entry_count(),
-                    cache.size_bytes() / (1024 * 1024)
-                );
-                Some(Arc::new(Mutex::new(cache)))
-            }
-            Err(e) => {
-                warn!(
-                    "Failed to open DDS cache: {}. Running without disk cache.",
-                    e
-                );
-                None
-            }
-        }
-    } else {
-        info!("DDS disk cache disabled");
-        None
-    };
-
-    let _fs = if let Some(dc) = dds_cache {
-        DdsFileSystem::with_disk_cache_and_custom_map(
-            fetcher,
-            dc,
-            custom_map,
-            &config.tile_provider,
-            dds_cache_entries,
-        )
-    } else {
-        DdsFileSystem::new_with_custom_map(
-            fetcher,
-            custom_map,
-            &config.tile_provider,
-            dds_cache_entries,
-        )
-    };
-
-    let stats = Arc::new(StatsStore::new());
-    let tracker = Arc::new(DatarefTracker::new());
-    let web_config = Arc::new(parking_lot::RwLock::new(config.clone()));
+    let web_config = context.config.clone();
+    let stats = context.stats.clone();
+    let tracker = context.tracker.clone();
     let addr = autoortho_lib::webui::start_server(5847, stats, tracker, web_config)
         .await
         .map_err(|e| format!("Web server error: {}", e))?;
     info!("Web UI at http://{}", addr);
 
-    info!("AutoOrtho ready. Mount: {}", config.mount_dir().display());
+    let mount_dir = context.config.read().mount_dir();
+    info!("AutoOrtho ready. Mount: {}", mount_dir.display());
     info!("Press Ctrl+C to shut down.");
 
     tokio::signal::ctrl_c().await?;
