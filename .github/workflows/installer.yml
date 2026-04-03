@@ -45,16 +45,24 @@ jobs:
         Compress-Archive -Path "artifacts/autoortho.exe" -DestinationPath "autoortho-x86_64-pc-windows-msvc.zip"
 
     - name: Build Inno Setup installer
+      continue-on-error: true
       uses: Minionguyjpro/Inno-Setup-Action@v1.2.7
       with:
         path: installer.iss
 
-    - name: Upload binary and installer to release
+    - name: Upload binary to release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ steps.determine-tag.outputs.tag }}
-        files: |
-          autoortho-x86_64-pc-windows-msvc.zip
-          autoortho-setup.exe
+        files: autoortho-x86_64-pc-windows-msvc.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Upload installer to release
+      if: success() && hashFiles('autoortho-setup.exe')
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.determine-tag.outputs.tag }}
+        files: autoortho-setup.exe
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
