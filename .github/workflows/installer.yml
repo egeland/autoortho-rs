@@ -47,6 +47,11 @@ jobs:
     - name: Install WiX CLI
       run: dotnet tool install --global wix
 
+    - name: Debug - list files
+      run: |
+        Write-Host "Current directory: $(Get-Location)"
+        Write-Host "Contents: $(Get-ChildItem -Recurse | Select-Object -First 20)"
+
     - name: Build MSI installer
       run: wix build wix/main.wxs -o autoortho-x86_64-pc-windows-msvc.msi
 
