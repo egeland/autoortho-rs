@@ -10,6 +10,7 @@ ci = "github"
 # Installers to generate - MSI is broken, using separate installer.yml workflow instead
 installers = []
 # Target platforms to build apps for (Rust target-triple syntax)
-targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+# Windows built separately in installer.yml to avoid MSI issues with cargo-dist
+targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu"]
 # Use workflow_dispatch so release-please can trigger builds
 dispatch-releases = true
