@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
 // Copyright (c) 2024 the AutoOrtho contributors
 
+use parking_lot::{Mutex, RwLock};
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
-use parking_lot::{Mutex, RwLock};
 
 use crate::config::AutoOrthoConfig;
 use crate::fuse::filesystem::DdsFileSystem;
 use crate::pipeline::cache::DdsCache;
 use crate::stats::StatsStore;
 use crate::tiles::fetcher::TileFetcher;
-use crate::xplane::dataref::DatarefTracker;
-use crate::webui::custommap::CustomMapStore;
 use crate::tiles::provider::ProviderFactory;
+use crate::webui::custommap::CustomMapStore;
+use crate::xplane::dataref::DatarefTracker;
 
 pub struct AppContext {
     pub config: Arc<RwLock<AutoOrthoConfig>>,
@@ -96,8 +96,10 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let mut config = AutoOrthoConfig::default();
         config.cache_dir = tmp.path().to_string_lossy().to_string();
-        
-        let context = AppContext::init(config).await.expect("Failed to init context");
+
+        let context = AppContext::init(config)
+            .await
+            .expect("Failed to init context");
         assert_eq!(context.config.read().tile_provider, "ARC");
     }
 }

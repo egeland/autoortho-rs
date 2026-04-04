@@ -335,9 +335,31 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
                 let mut shutdown_rx = shutdown_tx.subscribe();
 
                 tokio::spawn(async move {
-                    let (prefetch_route_percent, route_prefetch_radius_nm, airport_radius_nm, prefetch_airports, max_zoom, zoom_rules, tile_provider, enable_dynamic_zoom, use_simbrief_altitude, route_consideration_radius_nm) = {
+                    let (
+                        prefetch_route_percent,
+                        route_prefetch_radius_nm,
+                        airport_radius_nm,
+                        prefetch_airports,
+                        max_zoom,
+                        zoom_rules,
+                        tile_provider,
+                        enable_dynamic_zoom,
+                        use_simbrief_altitude,
+                        route_consideration_radius_nm,
+                    ) = {
                         let c = config.read();
-                        (c.prefetch_route_percent, c.route_prefetch_radius_nm, c.airport_radius_nm, c.prefetch_airports, c.max_zoom, c.zoom_rules.clone(), c.tile_provider.clone(), c.enable_dynamic_zoom, c.use_simbrief_altitude, c.route_consideration_radius_nm as f64)
+                        (
+                            c.prefetch_route_percent,
+                            c.route_prefetch_radius_nm,
+                            c.airport_radius_nm,
+                            c.prefetch_airports,
+                            c.max_zoom,
+                            c.zoom_rules.clone(),
+                            c.tile_provider.clone(),
+                            c.enable_dynamic_zoom,
+                            c.use_simbrief_altitude,
+                            c.route_consideration_radius_nm as f64,
+                        )
                     };
 
                     let mut prefetcher = SpatialPrefetcher::new();
@@ -349,10 +371,8 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
                         zoom: max_zoom,
                     };
 
-                    let dynamic_zoom_for_prefetch = DynamicZoom::new(
-                        zoom_rules.clone(),
-                        &tile_provider,
-                    );
+                    let dynamic_zoom_for_prefetch =
+                        DynamicZoom::new(zoom_rules.clone(), &tile_provider);
 
                     loop {
                         tokio::select! {
@@ -370,11 +390,7 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
                             let lat = flight_data.lat;
                             let lon = flight_data.lon;
 
-                            if plan.is_on_route(
-                                lat,
-                                lon,
-                                route_consideration_radius_nm,
-                            ) {
+                            if plan.is_on_route(lat, lon, route_consideration_radius_nm) {
                                 // Get prefetch points along route
                                 let points = plan.get_prefetch_points(
                                     lat,
@@ -400,9 +416,7 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
                                     // Trigger fetches for queued tiles
                                     while let Some((row, col)) = prefetcher.next_tile() {
                                         let zoom = if enable_dynamic_zoom {
-                                            if use_simbrief_altitude
-                                                && !points.is_empty()
-                                            {
+                                            if use_simbrief_altitude && !points.is_empty() {
                                                 let mut closest_dist = f64::MAX;
                                                 let mut best_alt_agl = 0.0f32;
                                                 for point in &points {
@@ -426,12 +440,7 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
                                         };
 
                                         if let Err(e) = fetcher
-                                            .get_chunk_data(
-                                                row,
-                                                col,
-                                                &tile_provider,
-                                                zoom,
-                                            )
+                                            .get_chunk_data(row, col, &tile_provider, zoom)
                                             .await
                                         {
                                             log::debug!(
