@@ -7,59 +7,90 @@ use autoortho_lib::dynamic_zoom::DynamicZoom;
 use autoortho_lib::tiles::fetcher::TileFetcher;
 use autoortho_lib::tiles::prefetch::{RoutePrefetchConfig, SpatialPrefetcher};
 use autoortho_lib::tiles::provider::ProviderFactory;
+use clap::{Parser, Subcommand};
 use log::{info, warn};
 use std::error::Error;
 use std::sync::Arc;
 #[cfg(not(windows))]
 use tokio::sync::broadcast;
 
+#[derive(Parser)]
+#[command(name = "autoortho")]
+#[command(version = env!("CARGO_PKG_VERSION"))]
+#[command(about = "AutoOrtho - X-Plane satellite scenery", long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Reset the window position to centered
+    ResetWindow,
+    /// Launch the desktop UI
+    Gui,
+    /// Test tile generation for a provider
+    TestTile {
+        /// Tile provider name (default: ARC)
+        provider: Option<String>,
+    },
+    /// Mount the filesystem at the specified path
+    Mount {
+        /// Mount point path (default: from config)
+        mountpoint: Option<String>,
+    },
+    /// Run the server (default if no subcommand given)
+    Run,
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     // Default to info level, RUST_LOG=debug for verbose output
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    let args: Vec<String> = std::env::args().collect();
+    let cli = Cli::parse();
 
-    if args.iter().any(|a| a == "--reset-window") {
-        let mut config = autoortho_lib::config::AutoOrthoConfig::load();
-        config.reset_window_position();
-        config.save().map_err(|e| e.to_string())?;
-        println!("Window position reset to centered. Launch with --gui to see the change.");
-        return Ok(());
-    }
-
-    if args.iter().any(|a| a == "--gui") {
-        info!("Launching desktop UI");
-        let runtime = autoortho_lib::create_runtime();
-        autoortho_lib::ui::run(runtime).map_err(|e| format!("GUI error: {}", e))?;
-        return Ok(());
-    }
-
-    if let Some(pos) = args.iter().position(|a| a == "--test-tile") {
-        let provider = args.get(pos + 1).map(|s| s.as_str()).unwrap_or("ARC");
-        let rt = tokio::runtime::Runtime::new()?;
-        return rt.block_on(test_tile_generation(provider));
-    }
-
-    if let Some(pos) = args.iter().position(|a| a == "--mount") {
-        #[cfg(not(windows))]
-        {
-            let config = autoortho_lib::config::AutoOrthoConfig::load();
-            let config_mount_dir = config.mount_dir().to_string_lossy().into_owned();
-            let mountpoint = args
-                .get(pos + 1)
-                .map(|s| s.as_str())
-                .unwrap_or(&config_mount_dir);
+    match cli.command.unwrap_or(Commands::Run) {
+        Commands::ResetWindow => {
+            let mut config = AutoOrthoConfig::load();
+            config.reset_window_position();
+            config.save().map_err(|e| e.to_string())?;
+            println!(
+                "Window position reset to centered. Launch with autoortho gui to see the change."
+            );
+        }
+        Commands::Gui => {
+            info!("Launching desktop UI");
+            let runtime = autoortho_lib::create_runtime();
+            autoortho_lib::ui::run(runtime).map_err(|e| format!("GUI error: {}", e))?;
+        }
+        Commands::TestTile { provider } => {
+            let provider_name = provider.as_deref().unwrap_or("ARC");
             let rt = tokio::runtime::Runtime::new()?;
-            return rt.block_on(run_with_mount(mountpoint));
+            return rt.block_on(test_tile_generation(provider_name));
         }
-        #[cfg(windows)]
-        {
-            eprintln!("FUSE mounting is not supported on Windows. Starting server without mount.");
+        Commands::Mount { mountpoint } => {
+            #[cfg(not(windows))]
+            {
+                let config = AutoOrthoConfig::load();
+                let config_mount_dir = config.mount_dir().to_string_lossy().into_owned();
+                let mount = mountpoint.unwrap_or(config_mount_dir);
+                let rt = tokio::runtime::Runtime::new()?;
+                return rt.block_on(run_with_mount(&mount));
+            }
+            #[cfg(windows)]
+            {
+                eprintln!(
+                    "FUSE mounting is not supported on Windows. Starting server without mount."
+                );
+            }
+        }
+        Commands::Run => {
+            let rt = tokio::runtime::Runtime::new()?;
+            rt.block_on(run_server())?;
         }
     }
 
-    let rt = tokio::runtime::Runtime::new()?;
-    rt.block_on(run_server())
+    Ok(())
 }
 
 /// Fetch a real satellite tile and write it as a DDS file for inspection.
