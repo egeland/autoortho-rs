@@ -431,6 +431,7 @@ dependencies = [
  "axum",
  "cargo-dist",
  "chrono",
+ "clap",
  "config",
  "criterion",
  "crossbeam-channel",
