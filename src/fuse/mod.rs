@@ -161,4 +161,17 @@ mod tests {
         assert!(is_poison_path("/some/path/.poison"));
         assert!(!is_poison_path("/textures/tile.dds"));
     }
+
+    #[test]
+    fn test_platform_name_windows() {
+        #[cfg(target_os = "windows")]
+        {
+            assert_eq!(platform::platform_name(), "Windows (WinFsp)");
+        }
+    }
+
+    #[test]
+    fn test_is_fuse_available() {
+        assert!(platform::is_fuse_available());
+    }
 }
