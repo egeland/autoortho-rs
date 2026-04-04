@@ -8,6 +8,7 @@ use autoortho_lib::tiles::fetcher::TileFetcher;
 use autoortho_lib::tiles::prefetch::{RoutePrefetchConfig, SpatialPrefetcher};
 use autoortho_lib::tiles::provider::ProviderFactory;
 use log::{info, warn};
+use parking_lot::RwLock;
 use std::error::Error;
 use std::sync::Arc;
 #[cfg(not(windows))]
@@ -314,154 +315,21 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     }
 
     // SimBrief route prefetch: if user_id is configured, fetch flight plan and start prefetch
-    const PREFETCH_SPACING_NM: f64 = 10.0;
-    const PREFETCH_MAX_LOOKAHEAD_NM: f32 = 99999.0;
-    const PREFETCH_POLL_INTERVAL_SECS: u64 = 30;
-
     let simbrief_user_id = context.config.read().simbrief_user_id.clone();
     if !simbrief_user_id.is_empty() {
-        info!("Fetching SimBrief flight plan for route prefetching...");
-        match tokio::runtime::Handle::current().block_on(
-            autoortho_lib::xplane::simbrief::fetch_flight_plan(&simbrief_user_id),
-        ) {
-            Ok(plan) => {
-                info!(
-                    "SimBrief route loaded: {} -> {}",
-                    plan.origin, plan.destination
-                );
-                let fetcher = context.fetcher.clone();
-                let tracker = context.tracker.clone();
-                let config = context.config.clone();
-                let mut shutdown_rx = shutdown_tx.subscribe();
-
-                tokio::spawn(async move {
-                    let (
-                        prefetch_route_percent,
-                        route_prefetch_radius_nm,
-                        airport_radius_nm,
-                        prefetch_airports,
-                        max_zoom,
-                        zoom_rules,
-                        tile_provider,
-                        enable_dynamic_zoom,
-                        use_simbrief_altitude,
-                        route_consideration_radius_nm,
-                    ) = {
-                        let c = config.read();
-                        (
-                            c.prefetch_route_percent,
-                            c.route_prefetch_radius_nm,
-                            c.airport_radius_nm,
-                            c.prefetch_airports,
-                            c.max_zoom,
-                            c.zoom_rules.clone(),
-                            c.tile_provider.clone(),
-                            c.enable_dynamic_zoom,
-                            c.use_simbrief_altitude,
-                            c.route_consideration_radius_nm as f64,
-                        )
-                    };
-
-                    let mut prefetcher = SpatialPrefetcher::new();
-                    let route_config = RoutePrefetchConfig {
-                        percent_ahead: prefetch_route_percent,
-                        waypoint_radius_nm: route_prefetch_radius_nm as f64,
-                        airport_radius_nm: airport_radius_nm as f64,
-                        include_airports: prefetch_airports,
-                        zoom: max_zoom,
-                    };
-
-                    let dynamic_zoom_for_prefetch =
-                        DynamicZoom::new(zoom_rules.clone(), &tile_provider);
-
-                    loop {
-                        tokio::select! {
-                            _ = shutdown_rx.recv() => {
-                                info!("Route prefetch shutting down");
-                                break;
-                            }
-                            _ = tokio::time::sleep(std::time::Duration::from_secs(PREFETCH_POLL_INTERVAL_SECS)) => {
-                            }
-                        };
-
-                        let flight_data = tracker.get_flight_data();
-
-                        if flight_data.data_valid {
-                            let lat = flight_data.lat;
-                            let lon = flight_data.lon;
-
-                            if plan.is_on_route(lat, lon, route_consideration_radius_nm) {
-                                // Get prefetch points along route
-                                let points = plan.get_prefetch_points(
-                                    lat,
-                                    lon,
-                                    PREFETCH_SPACING_NM,
-                                    PREFETCH_MAX_LOOKAHEAD_NM,
-                                );
-
-                                if !points.is_empty() {
-                                    // Calculate total route distance
-                                    let route_distance_nm = points
-                                        .last()
-                                        .map(|p| p.distance_along_route_nm)
-                                        .unwrap_or(0.0);
-
-                                    // Update prefetch queue
-                                    prefetcher.prefetch_route(
-                                        &points,
-                                        route_distance_nm,
-                                        route_config,
-                                    );
-
-                                    // Trigger fetches for queued tiles
-                                    while let Some((row, col)) = prefetcher.next_tile() {
-                                        let zoom = if enable_dynamic_zoom {
-                                            if use_simbrief_altitude && !points.is_empty() {
-                                                let mut closest_dist = f64::MAX;
-                                                let mut best_alt_agl = 0.0f32;
-                                                for point in &points {
-                                                    let dist = ((point.lat - lat).powi(2)
-                                                        + (point.lon - lon).powi(2))
-                                                    .sqrt();
-                                                    if dist < closest_dist {
-                                                        closest_dist = dist;
-                                                        best_alt_agl = point.altitude_agl_ft();
-                                                    }
-                                                }
-                                                dynamic_zoom_for_prefetch
-                                                    .zoom_for_altitude_agl(best_alt_agl)
-                                            } else {
-                                                let alt_agl_ft = flight_data.alt_agl_m * 3.28084;
-                                                dynamic_zoom_for_prefetch
-                                                    .zoom_for_altitude_agl(alt_agl_ft)
-                                            }
-                                        } else {
-                                            max_zoom
-                                        };
-
-                                        if let Err(e) = fetcher
-                                            .get_chunk_data(row, col, &tile_provider, zoom)
-                                            .await
-                                        {
-                                            log::debug!(
-                                                "Prefetch failed for tile ({}, {}) at zoom {}: {}",
-                                                row,
-                                                col,
-                                                zoom,
-                                                e
-                                            );
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
+        let config = context.config.clone();
+        let fetcher = context.fetcher.clone();
+        let tracker = context.tracker.clone();
+        let fs = context.fs.clone();
+        let shutdown_rx = shutdown_tx.subscribe();
+        tokio::spawn(async move {
+            if let Err(e) =
+                run_simbrief_prefetch(&simbrief_user_id, config, fetcher, tracker, fs, shutdown_rx)
+                    .await
+            {
+                warn!("SimBrief prefetch error: {}", e);
             }
-            Err(e) => {
-                warn!("Failed to fetch SimBrief flight plan: {}", e);
-            }
-        }
+        });
     }
 
     // Create mount point if it doesn't exist
@@ -547,6 +415,138 @@ async fn run_server() -> Result<(), Box<dyn Error>> {
 
     tokio::signal::ctrl_c().await?;
     info!("Shutting down...");
+
+    Ok(())
+}
+
+async fn run_simbrief_prefetch(
+    simbrief_user_id: &str,
+    config: Arc<RwLock<AutoOrthoConfig>>,
+    fetcher: Arc<TileFetcher>,
+    tracker: Arc<autoortho_lib::xplane::dataref::DatarefTracker>,
+    _fs: Arc<autoortho_lib::fuse::filesystem::DdsFileSystem>,
+    mut shutdown_rx: broadcast::Receiver<()>,
+) -> Result<(), Box<dyn Error>> {
+    const PREFETCH_SPACING_NM: f64 = 10.0;
+    const PREFETCH_MAX_LOOKAHEAD_NM: f32 = 99999.0;
+    const PREFETCH_POLL_INTERVAL_SECS: u64 = 30;
+
+    info!("Fetching SimBrief flight plan for route prefetching...");
+    let plan = autoortho_lib::xplane::simbrief::fetch_flight_plan(simbrief_user_id).await?;
+
+    info!(
+        "SimBrief route loaded: {} -> {}",
+        plan.origin, plan.destination
+    );
+
+    let (
+        prefetch_route_percent,
+        route_prefetch_radius_nm,
+        airport_radius_nm,
+        prefetch_airports,
+        max_zoom,
+        zoom_rules,
+        tile_provider,
+        enable_dynamic_zoom,
+        use_simbrief_altitude,
+        route_consideration_radius_nm,
+    ) = {
+        let c = config.read();
+        (
+            c.prefetch_route_percent,
+            c.route_prefetch_radius_nm,
+            c.airport_radius_nm,
+            c.prefetch_airports,
+            c.max_zoom,
+            c.zoom_rules.clone(),
+            c.tile_provider.clone(),
+            c.enable_dynamic_zoom,
+            c.use_simbrief_altitude,
+            c.route_consideration_radius_nm as f64,
+        )
+    };
+
+    let mut prefetcher = SpatialPrefetcher::new();
+    let route_config = RoutePrefetchConfig {
+        percent_ahead: prefetch_route_percent,
+        waypoint_radius_nm: route_prefetch_radius_nm as f64,
+        airport_radius_nm: airport_radius_nm as f64,
+        include_airports: prefetch_airports,
+        zoom: max_zoom,
+    };
+
+    let dynamic_zoom_for_prefetch = DynamicZoom::new(zoom_rules.clone(), &tile_provider);
+
+    loop {
+        tokio::select! {
+            _ = shutdown_rx.recv() => {
+                info!("Route prefetch shutting down");
+                break;
+            }
+            _ = tokio::time::sleep(std::time::Duration::from_secs(PREFETCH_POLL_INTERVAL_SECS)) => {
+            }
+        };
+
+        let flight_data = tracker.get_flight_data();
+
+        if flight_data.data_valid {
+            let lat = flight_data.lat;
+            let lon = flight_data.lon;
+
+            if plan.is_on_route(lat, lon, route_consideration_radius_nm) {
+                let points = plan.get_prefetch_points(
+                    lat,
+                    lon,
+                    PREFETCH_SPACING_NM,
+                    PREFETCH_MAX_LOOKAHEAD_NM,
+                );
+
+                if !points.is_empty() {
+                    let route_distance_nm = points
+                        .last()
+                        .map(|p| p.distance_along_route_nm)
+                        .unwrap_or(0.0);
+
+                    prefetcher.prefetch_route(&points, route_distance_nm, route_config);
+
+                    while let Some((row, col)) = prefetcher.next_tile() {
+                        let zoom = if enable_dynamic_zoom {
+                            if use_simbrief_altitude && !points.is_empty() {
+                                let mut closest_dist = f64::MAX;
+                                let mut best_alt_agl = 0.0f32;
+                                for point in &points {
+                                    let dist = ((point.lat - lat).powi(2)
+                                        + (point.lon - lon).powi(2))
+                                    .sqrt();
+                                    if dist < closest_dist {
+                                        closest_dist = dist;
+                                        best_alt_agl = point.altitude_agl_ft();
+                                    }
+                                }
+                                dynamic_zoom_for_prefetch.zoom_for_altitude_agl(best_alt_agl)
+                            } else {
+                                let alt_agl_ft = flight_data.alt_agl_m * 3.28084;
+                                dynamic_zoom_for_prefetch.zoom_for_altitude_agl(alt_agl_ft)
+                            }
+                        } else {
+                            max_zoom
+                        };
+
+                        if let Err(e) = fetcher.get_chunk_data(row, col, &tile_provider, zoom).await
+                        {
+                            log::debug!(
+                                "Prefetch failed for tile ({}, {}) at zoom {}: {}",
+                                row,
+                                col,
+                                zoom,
+                                e
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     Ok(())
 }
