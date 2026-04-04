@@ -15,6 +15,8 @@
 pub mod custommap;
 pub mod routes;
 
+pub const WEB_UI_PORT: u16 = 5847;
+
 use crate::config::AutoOrthoConfig;
 use crate::stats::StatsStore;
 use crate::xplane::dataref::DatarefTracker;
@@ -112,5 +114,10 @@ mod tests {
 
         let addr = start_server(0, stats, tracker, config).await.unwrap();
         assert_ne!(addr.port(), 0); // Should have been assigned a real port
+    }
+
+    #[test]
+    fn test_web_ui_port_constant() {
+        assert_eq!(WEB_UI_PORT, 5847);
     }
 }

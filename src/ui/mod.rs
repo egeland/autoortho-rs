@@ -587,9 +587,14 @@ impl AutoOrthoApp {
                 let rt = self.runtime.clone();
 
                 rt.spawn(async move {
-                    let result =
-                        start_all_services(5847, &xplane_host, xplane_port, config, shutdown_rx)
-                            .await;
+                    let result = start_all_services(
+                        crate::webui::WEB_UI_PORT,
+                        &xplane_host,
+                        xplane_port,
+                        config,
+                        shutdown_rx,
+                    )
+                    .await;
                     let _ = result_tx.send(result);
                 });
 
@@ -1677,15 +1682,11 @@ mod tests {
     fn test_services_started() {
         setup_test_runtime();
         let mut app = AutoOrthoApp::new();
-        let _ = app.update(Message::ServicesStarted(
-            "http://127.0.0.1:5847".to_string(),
-        ));
+        let url = format!("http://127.0.0.1:{}", crate::webui::WEB_UI_PORT);
+        let _ = app.update(Message::ServicesStarted(url.clone()));
         assert_eq!(app.state.web_server, ServiceStatus::Running);
         assert_eq!(app.state.xplane_tracker, ServiceStatus::Running);
-        assert_eq!(
-            app.state.web_server_url,
-            Some("http://127.0.0.1:5847".to_string())
-        );
+        assert_eq!(app.state.web_server_url, Some(url));
     }
 
     #[test]
@@ -1701,9 +1702,8 @@ mod tests {
     fn test_stop_services() {
         setup_test_runtime();
         let mut app = AutoOrthoApp::new();
-        let _ = app.update(Message::ServicesStarted(
-            "http://127.0.0.1:5847".to_string(),
-        ));
+        let url = format!("http://127.0.0.1:{}", crate::webui::WEB_UI_PORT);
+        let _ = app.update(Message::ServicesStarted(url));
         assert!(app.state.any_service_running());
 
         let _ = app.update(Message::StopServices);
@@ -1717,10 +1717,14 @@ mod tests {
         let mut app = AutoOrthoApp::new();
         assert!(!app.title().contains("[Running]"));
 
-        let _ = app.update(Message::ServicesStarted(
-            "http://127.0.0.1:5847".to_string(),
-        ));
+        let url = format!("http://127.0.0.1:{}", crate::webui::WEB_UI_PORT);
+        let _ = app.update(Message::ServicesStarted(url));
         assert!(app.title().contains("[Running]"));
+    }
+
+    #[test]
+    fn test_web_ui_port_constant() {
+        assert_eq!(crate::webui::WEB_UI_PORT, 5847);
     }
 
     #[test]
