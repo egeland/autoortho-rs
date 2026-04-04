@@ -49,6 +49,7 @@ rfd = "0.17"
 toml = "0.8"
 chrono = "0.4"
 uuid = { version = "1.16", features = ["v4", "serde"] }
+clap = { version = "4.5", features = ["derive"] }
 
 # JPEG/image
 image = "0.25"
