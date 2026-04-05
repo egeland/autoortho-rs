@@ -12,7 +12,6 @@ use log::{info, warn};
 use parking_lot::RwLock;
 use std::error::Error;
 use std::sync::Arc;
-#[cfg(not(windows))]
 use tokio::sync::broadcast;
 
 #[derive(Parser)]
@@ -80,9 +79,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             #[cfg(windows)]
             {
-                eprintln!(
-                    "FUSE mounting is not supported on Windows. Starting server without mount."
-                );
+                let config = AutoOrthoConfig::load();
+                let config_mount_dir = config.mount_dir().to_string_lossy().into_owned();
+                let mount = mountpoint.unwrap_or(config_mount_dir);
+                let rt = tokio::runtime::Runtime::new()?;
+                return rt.block_on(run_with_mount(&mount));
             }
         }
         Commands::Run => {
