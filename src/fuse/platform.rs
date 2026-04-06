@@ -3,11 +3,11 @@
 //! Each platform has a different FUSE implementation:
 //! - macOS: macFUSE via the `fuser` crate
 //! - Linux: libfuse via the `fuser` crate (deferred)
-//! - Windows: WinFsp (future — not yet implemented)
+//! - Windows: WinFsp via the `winfsp` crate
 //!
 //! The `mount::AutoOrthoFuse` struct implements the fuser Filesystem trait
-//! and works on both macOS and Linux. Windows will need a separate
-//! implementation using the `winfsp` crate when that's added.
+//! and works on both macOS and Linux. Windows uses a separate
+//! implementation using the `winfsp` crate.
 
 /// Check if FUSE/virtual filesystem support is available on this platform.
 pub fn is_fuse_available() -> bool {
@@ -21,7 +21,7 @@ pub fn platform_name() -> &'static str {
     } else if cfg!(target_os = "linux") {
         "Linux (libfuse)"
     } else if cfg!(target_os = "windows") {
-        "Windows (WinFsp — not yet implemented)"
+        "Windows (WinFsp)"
     } else {
         "Unknown platform"
     }

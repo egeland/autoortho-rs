@@ -39,8 +39,6 @@ impl Default for DdsPathParser {
 
 impl DdsPathParser {
     pub fn new() -> Self {
-        // Pattern: {row}_{col}_{maptype}{zoomlevel}.dds
-        // Also accepts hyphens as separators
         let regex = Regex::new(r".*/(\d+)[-_](\d+)[-_](\S*)(\d{2})\.dds")
             .expect("DDS path regex is a valid constant pattern");
         Self { regex }
@@ -172,5 +170,18 @@ mod tests {
         use crate::fuse::mount as fuse_mount;
         let _fuse_mount = fuse_mount::mount;
         assert!(true, "FUSE mount module available on Windows");
+    }
+
+    #[test]
+    fn test_platform_name_windows() {
+        #[cfg(target_os = "windows")]
+        {
+            assert_eq!(platform::platform_name(), "Windows (WinFsp)");
+        }
+    }
+
+    #[test]
+    fn test_is_fuse_available() {
+        assert!(platform::is_fuse_available());
     }
 }
