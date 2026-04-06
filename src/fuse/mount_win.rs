@@ -242,34 +242,52 @@ mod winfsp_impl {
 
         fn read_directory(
             &self,
-            _context: &Self::FileContext,
+            context: &Self::FileContext,
             _pattern: Option<&winfsp::U16CStr>,
             marker: DirMarker,
             buffer: &mut [u8],
         ) -> winfsp::Result<u32> {
-            debug!("read_directory");
+            debug!("read_directory: context={}", context);
+
+            let dir_path = self
+                .open_files
+                .lock()
+                .unwrap()
+                .get(context)
+                .cloned()
+                .unwrap_or_else(|| PathBuf::from("/"));
+            let dir_path_str = dir_path.to_string_lossy().replace('\\', "/");
+            let is_root = dir_path_str == "/" || dir_path_str.is_empty();
+            let is_textures = dir_path_str.ends_with("/textures");
+            let is_terrain = dir_path_str.ends_with("/terrain");
 
             if marker.is_none() {
                 let lock = self.dir_buffer.acquire(true, None)?;
 
-                let add_entry = |name: &str, is_dir: bool, size: u64| -> winfsp::Result<()> {
+                let mut add_entry = |name: &str, is_dir: bool, size: u64| -> winfsp::Result<()> {
                     let mut dir_info = DirInfo::<255>::new();
-                    dir_info.set_name(name)?;
+                    dir_info
+                        .set_name(name)
+                        .map_err(|_| winfsp::FspError::NTSTATUS(STATUS_UNSUCCESSFUL))?;
                     let fi = dir_info.file_info_mut();
                     fi.file_attributes = if is_dir { 0x10 } else { 0x80 };
                     fi.file_size = size;
                     fi.allocation_size = (size + 4095) / 4096 * 4096;
-                    lock.write(&mut dir_info)?;
+                    lock.write(&mut dir_info)
+                        .map_err(|_| winfsp::FspError::NTSTATUS(STATUS_UNSUCCESSFUL))?;
                     Ok(())
                 };
 
-                let _ = add_entry(".", true, 4096);
-                let _ = add_entry("..", true, 4096);
+                add_entry(".", true, 4096)?;
+                add_entry("..", true, 4096)?;
 
-                for dir in VIRTUAL_DIRS {
-                    let _ = add_entry(dir, true, 4096);
+                if is_root {
+                    for dir in VIRTUAL_DIRS {
+                        add_entry(dir, true, 4096)?;
+                    }
+                } else if is_textures || is_terrain {
+                    add_entry(MARKER_FILE, false, 0)?;
                 }
-                // lock is dropped here, releasing the buffer
             }
 
             let bytes_read = self.dir_buffer.read(marker, buffer);
