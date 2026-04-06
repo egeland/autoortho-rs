@@ -7,11 +7,7 @@ use thiserror::Error;
 
 pub mod filesystem;
 
-#[cfg(not(windows))]
 pub mod mount;
-
-#[cfg(windows)]
-pub mod mount_win;
 
 pub mod platform;
 
@@ -160,5 +156,21 @@ mod tests {
         assert!(is_poison_path("/.poison"));
         assert!(is_poison_path("/some/path/.poison"));
         assert!(!is_poison_path("/textures/tile.dds"));
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn test_cross_platform_fuse_available() {
+        use crate::fuse::mount as fuse_mount;
+        let _fuse_mount = fuse_mount::mount;
+        assert!(true, "FUSE mount module available on non-Windows");
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn test_cross_platform_fuse_available() {
+        use crate::fuse::mount as fuse_mount;
+        let _fuse_mount = fuse_mount::mount;
+        assert!(true, "FUSE mount module available on Windows");
     }
 }
