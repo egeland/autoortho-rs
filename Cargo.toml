@@ -63,12 +63,9 @@ unifuse = "0.1"
 
 # Platform-specific FUSE dependencies
 # Unix: libc needed for FUSE operations
-# Windows: winfsp (unifuse depends on it, but we list it for clarity)
+# Note: winfsp is pulled in transitively by unifuse on Windows
 [target.'cfg(not(windows))'.dependencies]
 libc = "0.2"
-
-[target.'cfg(windows)'.dependencies]
-winfsp = "0.12"
 
 [dev-dependencies]
 tempfile = "3"
