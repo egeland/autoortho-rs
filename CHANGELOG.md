@@ -1,5 +1,185 @@
 # Changelog
 
+## [0.6.1](https://github.com/egeland/autoortho-rs/releases/tag/v0.6.1) - 2026-04-06
+
+### Added
+
+- enable Windows FUSE support using winfsp ([#81](https://github.com/egeland/autoortho-rs/pull/81))
+- add WiX MSI installer support ([#71](https://github.com/egeland/autoortho-rs/pull/71))
+- add Inno Setup Windows installer workflow ([#57](https://github.com/egeland/autoortho-rs/pull/57))
+- add Windows MSI installer support ([#54](https://github.com/egeland/autoortho-rs/pull/54))
+- add LRU disk cache eviction to DdsCache ([#53](https://github.com/egeland/autoortho-rs/pull/53))
+- add release-plz for fully automated releases ([#51](https://github.com/egeland/autoortho-rs/pull/51))
+- auto-merge release-please PRs ([#20](https://github.com/egeland/autoortho-rs/pull/20))
+- add SimHeaven X-World compatibility support ([#11](https://github.com/egeland/autoortho-rs/pull/11))
+- Implement WebSocket for live position updates
+- Implement fallback system and fix security/memory issues
+- Add Windows FUSE support using winfsp
+- Add cross-platform FUSE support using unifuse
+- implement dynamic zoom with altitude-based rules and upserving
+- add cache viewer web UI to visualize cached DDS tiles
+- add custom map tile provider support with per-cell overrides
+- add 7z extraction and seasonal adjustment UI
+- add criterion benchmarks for performance testing
+- implement SimBrief route prefetch settings and UI
+- wire night exclusion into FUSE filesystem
+- add SimBrief route settings and Prefetch Route button placeholder
+- two-column flight plan with TOC/TOD highlighting
+- add expandable flight plan details on Dashboard
+- add SimBrief integration — config, Settings UI, Dashboard fetch
+- replace hand-rolled BCn compression with texpresso
+- simplify path config — derive mount and install from X-Plane folder
+- disable Start button when scenery_packs.ini not found
+- update Scenery Install tooltip and warn if scenery_packs.ini missing
+- improve path labels and add hover tooltips
+- wire persistent DDS disk cache with Settings UI
+- upgrade fuser 0.14 → 0.17
+- switch reqwest to pure Rust TLS (rustls)
+- add automated versioning and release binaries
+
+### Fixed
+
+- fix mut and duplicated code ([#100](https://github.com/egeland/autoortho-rs/pull/100))
+- fix fuse on win ([#97](https://github.com/egeland/autoortho-rs/pull/97))
+- make release-plz depend on cross-platform tests passing ([#94](https://github.com/egeland/autoortho-rs/pull/94))
+- fix release workflow ([#93](https://github.com/egeland/autoortho-rs/pull/93))
+- fix windows fuse issues ([#92](https://github.com/egeland/autoortho-rs/pull/92))
+- use winfsp directly on Windows instead of unifuse ([#91](https://github.com/egeland/autoortho-rs/pull/91))
+- unify FUSE mounting across all platforms using unifuse ([#90](https://github.com/egeland/autoortho-rs/pull/90))
+- always checkout main, get version from Cargo.toml ([#73](https://github.com/egeland/autoortho-rs/pull/73))
+- update installer workflow with Inno Setup ([#69](https://github.com/egeland/autoortho-rs/pull/69))
+- use PowerShell filtering ([#66](https://github.com/egeland/autoortho-rs/pull/66))
+- add GH_TOKEN to download step ([#65](https://github.com/egeland/autoortho-rs/pull/65))
+- simplify using gh release view ([#63](https://github.com/egeland/autoortho-rs/pull/63))
+- fix installer workflow ([#61](https://github.com/egeland/autoortho-rs/pull/61))
+- fix download and NSIS script paths ([#59](https://github.com/egeland/autoortho-rs/pull/59))
+- use NSIS instead of Inno Setup (more reliable) ([#58](https://github.com/egeland/autoortho-rs/pull/58))
+- configure release-plz to skip crates.io publish ([#52](https://github.com/egeland/autoortho-rs/pull/52))
+- regenerate release.yml to match cargo-dist dispatch-releases ([#50](https://github.com/egeland/autoortho-rs/pull/50))
+- delete existing release before cargo-dist creates new one ([#47](https://github.com/egeland/autoortho-rs/pull/47))
+- skip GitHub Release creation in release-please ([#45](https://github.com/egeland/autoortho-rs/pull/45))
+- fix Windows compilation errors in main.rs ([#43](https://github.com/egeland/autoortho-rs/pull/43))
+- use cargo-dist expanded workflow with dispatch-releases ([#41](https://github.com/egeland/autoortho-rs/pull/41))
+- use cargo-dist dispatch-releases mode for automated builds ([#39](https://github.com/egeland/autoortho-rs/pull/39))
+- recreate tag via GitHub API to trigger release build ([#37](https://github.com/egeland/autoortho-rs/pull/37))
+- use repository_dispatch to trigger release build ([#35](https://github.com/egeland/autoortho-rs/pull/35))
+- add gate job so workflow_dispatch works with reusable workflow ([#33](https://github.com/egeland/autoortho-rs/pull/33))
+- use workflow_dispatch to trigger release build ([#30](https://github.com/egeland/autoortho-rs/pull/30))
+- re-push tag to trigger release.yml instead of workflow_dispatch ([#28](https://github.com/egeland/autoortho-rs/pull/28))
+- remove commit message filter from version.yml ([#26](https://github.com/egeland/autoortho-rs/pull/26))
+- remove required input from release.yml workflow_dispatch ([#24](https://github.com/egeland/autoortho-rs/pull/24))
+- trigger cargo-dist release build after release-please creates tag ([#22](https://github.com/egeland/autoortho-rs/pull/22))
+- use RELEASE_TOKEN for release-please permissions ([#18](https://github.com/egeland/autoortho-rs/pull/18))
+- correct version.yml workflow_run condition paths ([#17](https://github.com/egeland/autoortho-rs/pull/17))
+- resolve Windows build errors (texpresso, winfsp types) ([#16](https://github.com/egeland/autoortho-rs/pull/16))
+- correct winfsp 0.12 API for Windows build ([#15](https://github.com/egeland/autoortho-rs/pull/15))
+- rewrite mount_win.rs for winfsp 0.12 API compatibility ([#14](https://github.com/egeland/autoortho-rs/pull/14))
+- use stable Rust toolchain in cross-platform CI ([#13](https://github.com/egeland/autoortho-rs/pull/13))
+- wire DDS in-memory cache size from config ([#12](https://github.com/egeland/autoortho-rs/pull/12))
+- Address silent errors, WinFSP runtime, and duplicate providers
+- Disable FUSE on Windows due to unifuse/winFSP incompatibility
+- make FUSE dependency optional for Windows builds
+- install macfuse on macOS builds
+- add actions permission to release-please workflow
+- add FUSE_NO_PKG_CONFIG for macOS builds
+- make build job depend on check and test
+- remove obsolete fuse feature flag from CI workflows
+- update Leaflet to 1.9.4 and add XSS protection
+- skip coverage check for cells with custom map override
+- increase flight plan waypoint text size from 12 to 13
+- show field elevation for airports in flight plan display
+- use ICAO airport codes for SimBrief route preview, rename to User ID Number
+- move scenery_packs.ini warning under X-Plane Folder input
+- rename "Temp Downloads" to "Scenery Downloads"
+- match Scenery path label sizes to Settings screen
+- reduce config save log from info to debug
+- combine release-please and binary builds into single workflow
+
+### Other
+
+- release v0.6.1 ([#98](https://github.com/egeland/autoortho-rs/pull/98))
+- release v0.6.0 ([#96](https://github.com/egeland/autoortho-rs/pull/96))
+- release v0.6.0 ([#95](https://github.com/egeland/autoortho-rs/pull/95))
+- bump hyper from 1.8.1 to 1.9.0 ([#88](https://github.com/egeland/autoortho-rs/pull/88))
+- extract hardcoded port 5847 to WEB_UI_PORT constant ([#79](https://github.com/egeland/autoortho-rs/pull/79))
+- release v0.5.8 ([#77](https://github.com/egeland/autoortho-rs/pull/77))
+- extract SimBrief prefetch logic to dedicated function ([#78](https://github.com/egeland/autoortho-rs/pull/78))
+- replace manual CLI parsing with clap ([#76](https://github.com/egeland/autoortho-rs/pull/76))
+- extract common initialization to AppContext ([#74](https://github.com/egeland/autoortho-rs/pull/74))
+- add file listing to diagnose wix path issue ([#72](https://github.com/egeland/autoortho-rs/pull/72))
+- add verbose debug output ([#67](https://github.com/egeland/autoortho-rs/pull/67))
+- remove release-please, use cargo-dist alone for releases ([#48](https://github.com/egeland/autoortho-rs/pull/48))
+- *(main)* release 0.5.8 ([#49](https://github.com/egeland/autoortho-rs/pull/49))
+- *(main)* release 0.5.7 ([#46](https://github.com/egeland/autoortho-rs/pull/46))
+- *(main)* release 0.5.6 ([#44](https://github.com/egeland/autoortho-rs/pull/44))
+- *(main)* release 0.5.5 ([#42](https://github.com/egeland/autoortho-rs/pull/42))
+- *(main)* release 0.5.4 ([#40](https://github.com/egeland/autoortho-rs/pull/40))
+- *(main)* release 0.5.3 ([#38](https://github.com/egeland/autoortho-rs/pull/38))
+- *(main)* release 0.5.2 ([#36](https://github.com/egeland/autoortho-rs/pull/36))
+- *(main)* release 0.5.1 ([#34](https://github.com/egeland/autoortho-rs/pull/34))
+- *(main)* release 0.5.0 ([#32](https://github.com/egeland/autoortho-rs/pull/32))
+- *(main)* release 0.4.5 ([#31](https://github.com/egeland/autoortho-rs/pull/31))
+- *(main)* release 0.4.4 ([#29](https://github.com/egeland/autoortho-rs/pull/29))
+- *(main)* release 0.4.3 ([#27](https://github.com/egeland/autoortho-rs/pull/27))
+- *(main)* release 0.4.2 ([#25](https://github.com/egeland/autoortho-rs/pull/25))
+- *(main)* release 0.4.1 ([#23](https://github.com/egeland/autoortho-rs/pull/23))
+- *(main)* release 0.4.0 ([#21](https://github.com/egeland/autoortho-rs/pull/21))
+- *(main)* release 0.3.0 ([#19](https://github.com/egeland/autoortho-rs/pull/19))
+- bump cargo-dist from 0.30.4 to 0.31.0 ([#7](https://github.com/egeland/autoortho-rs/pull/7))
+- bump actions/checkout from 4 to 6 ([#4](https://github.com/egeland/autoortho-rs/pull/4))
+- bump dtolnay/rust-toolchain from 1.85.0 to 1.100.0 ([#3](https://github.com/egeland/autoortho-rs/pull/3))
+- bump libloading from 0.8.9 to 0.9.0 ([#8](https://github.com/egeland/autoortho-rs/pull/8))
+- bump criterion from 0.5.1 to 0.8.2 ([#9](https://github.com/egeland/autoortho-rs/pull/9))
+- bump tokio-tungstenite from 0.26.2 to 0.28.0 ([#10](https://github.com/egeland/autoortho-rs/pull/10))
+- Simbrief dynamic zoom ([#5](https://github.com/egeland/autoortho-rs/pull/5))
+- Add AGENTS.md with development workflow documentation
+- Fix version.yml: wait for tests to pass before bumping
+- Fix cross-platform workflow: remove unnecessary release build
+- Optimize workflow: ci.yml now runs only on PRs
+- Add enhanced CI/CD workflows
+- Apply workflow best practices fixes
+- Optimize GitHub workflows
+- Add release-please workflow for auto version bumps
+- Improve GitHub workflows with best practices
+- Clean up GitHub workflows for consistency
+- Set up cargo-dist for native installers
+- Add Release workflow for GitHub releases
+- Add cargo-dist plan step to CI workflow
+- Add cargo-dist configuration for native installers
+- Add Yandex and Apple Maps tile providers
+- Add plans for missing tile providers and native installers
+- Extract UI message handlers to separate module
+- Config validation and UI handler extraction
+- Standardize on parking_lot mutexes
+- Fetch User-Agent at build time from Chrome releases
+- Add input validation for parsed numeric values
+- Force HTTPS for Bing and NAIP providers
+- Update PLAN.md and apply cargo fmt
+- Add builder pattern for DdsFileSystem
+- R1 code quality fixes: cache eviction, clones, deduplication, dead code
+- Add user guide
+- Add configuration reference guide
+- Fix duplicate entry in plan file
+- Update README and add installation guide
+- Consolidate multiple Tokio runtimes into one
+- Share HTTP clients across tile providers
+- Replace Mutex with RwLock in DdsFileSystem
+- Combine CI and release into single workflow
+- comment out winfsp until fully implemented
+- fix formatting to pass CI
+- simplify and update PLAN.md to reflect actual state
+- update PLAN.md to reflect completed custom map integration
+- cleanups
+- remove optional fuse feature flag
+- add plan to hide roads
+- update PLAN.md and SimBrief plan with current progress
+- update PLAN.md — mark SimBrief config+UI complete
+- update PLAN.md with current session progress
+- move scenery paths from Scenery screen to Settings
+- *(main)* release 0.1.0
+- opt into Node.js 24 for GitHub Actions
+- Initial commit
+
 ## [0.6.0](https://github.com/egeland/autoortho-rs/releases/tag/v0.6.0) - 2026-04-06
 
 ### Added
