@@ -252,7 +252,7 @@ mod winfsp_impl {
             if marker.is_none() {
                 let lock = self.dir_buffer.acquire(true, None)?;
 
-                let mut add_entry = |name: &str, is_dir: bool, size: u64| -> winfsp::Result<()> {
+                let add_entry = |name: &str, is_dir: bool, size: u64| -> winfsp::Result<()> {
                     let mut dir_info = DirInfo::<255>::new();
                     dir_info.set_name(name)?;
                     let fi = dir_info.file_info_mut();
