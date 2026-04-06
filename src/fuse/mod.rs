@@ -161,19 +161,19 @@ mod tests {
     }
 
     #[test]
+    #[cfg(windows)]
+    fn test_cross_platform_fuse_available() {
+        use crate::fuse::mount_win as fuse_mount;
+        let _fuse_mount = fuse_mount::mount;
+        assert!(true, "FUSE mount module available on Windows");
+    }
+
+    #[test]
     #[cfg(not(windows))]
     fn test_cross_platform_fuse_available() {
         use crate::fuse::mount as fuse_mount;
         let _fuse_mount = fuse_mount::mount;
         assert!(true, "FUSE mount module available on non-Windows");
-    }
-
-    #[test]
-    #[cfg(windows)]
-    fn test_cross_platform_fuse_available() {
-        use crate::fuse::mount as fuse_mount;
-        let _fuse_mount = fuse_mount::mount;
-        assert!(true, "FUSE mount module available on Windows");
     }
 
     #[test]
