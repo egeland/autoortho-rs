@@ -69,22 +69,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             return rt.block_on(test_tile_generation(provider_name));
         }
         Commands::Mount { mountpoint } => {
-            #[cfg(not(windows))]
-            {
-                let config = AutoOrthoConfig::load();
-                let config_mount_dir = config.mount_dir().to_string_lossy().into_owned();
-                let mount = mountpoint.unwrap_or(config_mount_dir);
-                let rt = tokio::runtime::Runtime::new()?;
-                return rt.block_on(run_with_mount(&mount));
-            }
-            #[cfg(windows)]
-            {
-                let config = AutoOrthoConfig::load();
-                let config_mount_dir = config.mount_dir().to_string_lossy().into_owned();
-                let mount = mountpoint.unwrap_or(config_mount_dir);
-                let rt = tokio::runtime::Runtime::new()?;
-                return rt.block_on(run_with_mount(&mount));
-            }
+            let config = AutoOrthoConfig::load();
+            let config_mount_dir = config.mount_dir().to_string_lossy().into_owned();
+            let mount = mountpoint.unwrap_or(config_mount_dir);
+            let rt = tokio::runtime::Runtime::new()?;
+            return rt.block_on(run_with_mount(&mount));
         }
         Commands::Run => {
             let rt = tokio::runtime::Runtime::new()?;
