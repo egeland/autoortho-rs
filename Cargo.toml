@@ -58,14 +58,15 @@ zip = "8.4"
 sevenz-rust = "0.6"
 futures-lite = "2.6"
 
-# FUSE support - unifuse provides cross-platform async FUSE (rfuse3 on Unix, winfsp on Windows)
-unifuse = "0.1"
-
-# Platform-specific FUSE dependencies
-# Unix: libc needed for FUSE operations
-# Note: winfsp is pulled in transitively by unifuse on Windows
+# FUSE support - unifuse provides cross-platform async FUSE (rfuse3 on Unix)
+# Note: on Windows, unifuse has compatibility issues, so we use winfsp directly instead
 [target.'cfg(not(windows))'.dependencies]
+unifuse = "0.1"
 libc = "0.2"
+
+# Windows: use winfsp directly (not via unifuse, due to crate version conflicts)
+[target.'cfg(windows)'.dependencies]
+winfsp = { version = "0.12", features = ["full"] }
 
 [dev-dependencies]
 tempfile = "3"
