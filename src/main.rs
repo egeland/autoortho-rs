@@ -143,7 +143,7 @@ async fn test_tile_generation(provider_name: &str) -> Result<(), Box<dyn Error>>
                 Ok(Some(data)) => {
                     println!(" {} bytes", data.len());
                     fetched += 1;
-                    jpeg_chunks.push(Some(data));
+                    jpeg_chunks.push(Some(data.to_vec()));
                 }
                 Ok(None) => {
                     println!(" no data");

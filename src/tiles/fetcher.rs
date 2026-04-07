@@ -69,7 +69,7 @@ impl TileFetcher {
         col: u32,
         maptype: &str,
         zoom: u32,
-    ) -> Result<Option<Vec<u8>>, ChunkError> {
+    ) -> Result<Option<Arc<Vec<u8>>>, ChunkError> {
         self.get_chunk_data_with_provider(row, col, maptype, zoom, &self.default_provider_id)
             .await
     }
@@ -94,7 +94,7 @@ impl TileFetcher {
         maptype: &str,
         zoom: u32,
         provider_id: &str,
-    ) -> Result<Option<Vec<u8>>, ChunkError> {
+    ) -> Result<Option<Arc<Vec<u8>>>, ChunkError> {
         let key = format!("{}_{}_{}_{}_{}", row, col, maptype, zoom, provider_id);
 
         // Fast path: check if already cached (write lock needed for LRU ordering)
@@ -104,7 +104,7 @@ impl TileFetcher {
                 && let Some(data) = chunk.data_arc()
             {
                 self.cache_hits.fetch_add(1, Ordering::Relaxed);
-                return Ok(Some(data.as_ref().clone()));
+                return Ok(Some(Arc::clone(&data)));
             }
         }
         // Write lock released here
@@ -181,9 +181,7 @@ impl TileFetcher {
 
         // Return the cached data
         let mut chunks = self.chunks.write().await;
-        Ok(chunks
-            .get_mut(&key)
-            .and_then(|c| c.data_arc().map(|d| d.as_ref().clone())))
+        Ok(chunks.get_mut(&key).and_then(|c| c.data_arc()))
     }
 
     /// Try to get chunk data at optimal zoom level (upserving).
@@ -197,7 +195,7 @@ impl TileFetcher {
         min_zoom: u32,
         max_zoom: u32,
         provider_id: &str,
-    ) -> Option<(Vec<u8>, u32)> {
+    ) -> Option<(Arc<Vec<u8>>, u32)> {
         let mut chunks = self.chunks.write().await;
 
         for zoom in (min_zoom..=max_zoom).rev() {
@@ -205,7 +203,7 @@ impl TileFetcher {
             if let Some(chunk) = chunks.get_mut(&key)
                 && let Some(data) = chunk.data_arc()
             {
-                return Some((data.as_ref().clone(), zoom));
+                return Some((Arc::clone(&data), zoom));
             }
         }
 

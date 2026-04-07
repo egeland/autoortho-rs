@@ -46,12 +46,15 @@
 ### Proposed Refactoring Plan
 
 #### Phase R1 — Code Quality Fixes (High Priority)
-- [ ] Fix cache eviction tracking bug
-- [ ] Eliminate redundant clones in fetcher
-- [ ] Deduplicate TileFetcher methods
-- [ ] Add builder pattern for DdsFileSystem
-- [ ] Replace `.ok()` with proper error handling
-- [ ] Remove unused code (BufferPool, _key field)
+- [x] Fix cache eviction tracking bug
+- [x] Eliminate redundant clones in fetcher
+- [x] Deduplicate TileFetcher methods
+- [x] Add builder pattern for DdsFileSystem
+- [x] Replace `.ok()` with proper error handling
+- [x] Remove unused code (BufferPool, _t_key field)
+- [x] Optimize `fetcher.rs` to return `Arc<Vec<u8>>` instead of cloning `Vec<u8>`
+- [ ] Optimize `filesystem.rs:687` to avoid `Vec` allocation in `slice_range`
+- [ ] Remove unused `mockall` dev-dependency
 
 #### Phase R2 — Security Hardening
 - [ ] Replace hardcoded User-Agent with configurable/rotating UA

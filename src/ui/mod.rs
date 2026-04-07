@@ -1269,7 +1269,7 @@ async fn fetch_test_tile(
             match fetcher.get_chunk_data(r, c, provider_name, zoom).await {
                 Ok(Some(data)) => {
                     fetched += 1;
-                    jpeg_chunks.push(Some(data));
+                    jpeg_chunks.push(Some(data.to_vec()));
                 }
                 _ => jpeg_chunks.push(None),
             }

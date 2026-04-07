@@ -557,7 +557,7 @@ impl DdsFileSystem {
                 .get_chunk_data_with_provider(chunk_row, chunk_col, maptype, zoom, &provider_id)
                 .await;
             match result {
-                Ok(Some(data)) => jpeg_chunks.push(Some(data)),
+                Ok(Some(data)) => jpeg_chunks.push(Some(data.to_vec())),
                 _ => jpeg_chunks.push(None),
             }
         }
