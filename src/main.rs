@@ -254,8 +254,6 @@ async fn test_tile_generation(provider_name: &str) -> Result<(), Box<dyn Error>>
 }
 
 /// Run with FUSE mount — serves DDS tiles at the mount point.
-/// Only available on Linux and macOS.
-#[cfg(not(windows))]
 async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     use std::path::Path;
 
