@@ -121,6 +121,10 @@ pub fn set_fallback_cache_enabled(state: &mut AppState, enabled: bool) {
     state.config.fallback.cache_fallback = enabled;
 }
 
+pub fn set_rate_limit(state: &mut AppState, rate: f64) {
+    state.config.rate_limit.requests_per_second = rate;
+}
+
 pub fn set_simbrief_user_id(state: &mut AppState, id: String) {
     state.config.simbrief_user_id = id;
 }

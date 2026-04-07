@@ -1,5 +1,6 @@
 use crate::tiles::chunk::{Chunk, ChunkError, ChunkState};
 use crate::tiles::provider::{ProviderFactory, TileProvider};
+use crate::tiles::rate_limiter::RateLimiter;
 use log::debug;
 use lru::LruCache;
 use std::num::NonZero;
@@ -14,6 +15,7 @@ pub struct TileFetcher {
     default_provider_id: String,
     cache_hits: AtomicU64,
     cache_misses: AtomicU64,
+    rate_limiter: RateLimiter,
 }
 
 impl TileFetcher {
@@ -25,6 +27,7 @@ impl TileFetcher {
             default_provider_id: default_provider_id.to_string(),
             cache_hits: AtomicU64::new(0),
             cache_misses: AtomicU64::new(0),
+            rate_limiter: RateLimiter::default_rate(),
         }
     }
 
@@ -41,6 +44,7 @@ impl TileFetcher {
             default_provider_id: default_provider_id.to_string(),
             cache_hits: AtomicU64::new(0),
             cache_misses: AtomicU64::new(0),
+            rate_limiter: RateLimiter::default_rate(),
         }
     }
 
@@ -58,6 +62,22 @@ impl TileFetcher {
             default_provider_id: default_provider_id.to_string(),
             cache_hits: AtomicU64::new(0),
             cache_misses: AtomicU64::new(0),
+            rate_limiter: RateLimiter::default_rate(),
+        }
+    }
+
+    pub fn with_rate_limit(
+        provider: Arc<dyn TileProvider>,
+        default_provider_id: &str,
+        rate_per_second: f64,
+    ) -> Self {
+        Self {
+            chunks: Arc::new(RwLock::new(LruCache::new(NonZero::new(1024).unwrap()))),
+            default_provider: provider,
+            default_provider_id: default_provider_id.to_string(),
+            cache_hits: AtomicU64::new(0),
+            cache_misses: AtomicU64::new(0),
+            rate_limiter: RateLimiter::new(rate_per_second),
         }
     }
 
@@ -160,6 +180,9 @@ impl TileFetcher {
                     }
                 }
             };
+
+            // Acquire rate limiter token before fetching
+            self.rate_limiter.acquire().await;
 
             // Perform the actual fetch without holding any lock
             let result = provider.fetch(row, col, zoom).await;

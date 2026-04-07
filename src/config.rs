@@ -54,6 +54,34 @@ impl FallbackConfig {
     }
 }
 
+/// Rate limiting configuration for tile requests
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RateLimitConfig {
+    pub requests_per_second: f64,
+}
+
+impl Default for RateLimitConfig {
+    fn default() -> Self {
+        Self {
+            requests_per_second: 5.0,
+        }
+    }
+}
+
+impl RateLimitConfig {
+    pub fn validate(&self) -> Result<(), ConfigError> {
+        if self.requests_per_second < 1.0 || self.requests_per_second > 20.0 {
+            return Err(ConfigError::FieldOutOfRange {
+                field: "rate_limit.requests_per_second".to_string(),
+                min: 1,
+                max: 20,
+                value: (self.requests_per_second * 100.0) as u64,
+            });
+        }
+        Ok(())
+    }
+}
+
 /// Configuration validation error
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConfigError {
@@ -199,6 +227,8 @@ pub struct AutoOrthoConfig {
     pub winter_saturation: f32,
     #[serde(default)]
     pub fallback: FallbackConfig,
+    #[serde(default)]
+    pub rate_limit: RateLimitConfig,
 }
 
 fn default_ui_scale() -> f64 {
@@ -364,6 +394,9 @@ impl AutoOrthoConfig {
         // Fallback config
         self.fallback.validate()?;
 
+        // Rate limit config
+        self.rate_limit.validate()?;
+
         // Zoom rules
         for (i, rule) in self.zoom_rules.iter().enumerate() {
             if rule.zoom_level > 21 {
@@ -461,6 +494,7 @@ impl Default for AutoOrthoConfig {
             autumn_saturation: 0.80,
             winter_saturation: 0.55,
             fallback: FallbackConfig::default(),
+            rate_limit: RateLimitConfig::default(),
         }
     }
 }
