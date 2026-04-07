@@ -9,5 +9,6 @@ pub mod fallback;
 pub mod fetcher;
 pub mod prefetch;
 pub mod provider;
+pub mod rate_limiter;
 pub mod tile;
 pub mod zoom;

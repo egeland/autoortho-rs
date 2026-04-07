@@ -141,6 +141,7 @@ pub enum Message {
     SetFallbackLevel(crate::config::FallbackLevel),
     SetFallbackMaxZoomGap(u32),
     SetFallbackCacheEnabled(bool),
+    SetRateLimit(f64),
 
     // SimBrief
     SetSimbriefUserId(String),
@@ -356,6 +357,9 @@ impl AutoOrthoApp {
             }
             Message::SetFallbackCacheEnabled(enabled) => {
                 handlers::set_fallback_cache_enabled(&mut self.state, enabled);
+            }
+            Message::SetRateLimit(rate) => {
+                handlers::set_rate_limit(&mut self.state, rate);
             }
             Message::ClearDdsCache => {
                 let cache_dir = std::path::PathBuf::from(&self.state.config.cache_dir).join("dds");
@@ -862,12 +866,31 @@ impl AutoOrthoApp {
                 let lon = self.state.test_tile_lon.parse::<f64>().unwrap_or(151.21);
                 let zoom = self.state.test_tile_zoom;
                 let provider_name = self.state.config.tile_provider.clone();
+                let rate_limit = self.state.config.rate_limit.requests_per_second;
 
                 let (tx, rx) = oneshot::channel();
                 let rt = self.runtime.clone();
 
                 rt.spawn(async move {
-                    let result = fetch_test_tile(lat, lon, zoom, &provider_name).await;
+                    use crate::tiles::fetcher::TileFetcher;
+                    use crate::tiles::provider::ProviderFactory;
+
+                    let provider = match ProviderFactory::create(&provider_name) {
+                        Some(p) => p,
+                        None => {
+                            let _ = tx.send(Err(format!("Unknown provider: {}", provider_name)));
+                            return;
+                        }
+                    };
+
+                    let fetcher = Arc::new(TileFetcher::with_rate_limit(
+                        provider,
+                        &provider_name,
+                        rate_limit,
+                    ));
+
+                    let result =
+                        fetch_test_tile_impl(lat, lon, zoom, &provider_name, fetcher).await;
                     let _ = tx.send(result);
                 });
 
@@ -1215,19 +1238,18 @@ async fn start_all_services(
     Ok(format!("http://{}", addr))
 }
 
-/// Fetch a test tile, save DDS, return status message + RGBA image data for preview.
-async fn fetch_test_tile(
+/// Core implementation of test tile fetch - takes a pre-configured fetcher.
+async fn fetch_test_tile_impl(
     lat: f64,
     lon: f64,
     zoom: u32,
     provider_name: &str,
+    fetcher: Arc<crate::tiles::fetcher::TileFetcher>,
 ) -> Result<(String, Option<(u32, u32, Vec<u8>)>), String> {
     use crate::pipeline::dds::DdsFormat;
     use crate::pipeline::decode::ImageBuffer;
     use crate::pipeline::image::Image;
     use crate::tiles::assembler::{AssemblyConfig, assemble_tile};
-    use crate::tiles::fetcher::TileFetcher;
-    use crate::tiles::provider::ProviderFactory;
 
     // Validate zoom against provider limits
     if let Some(info) = crate::tiles::provider::provider_info(provider_name)
@@ -1238,11 +1260,6 @@ async fn fetch_test_tile(
             zoom, info.display_name, info.min_zoom, info.max_zoom
         ));
     }
-
-    let provider = ProviderFactory::create(provider_name)
-        .ok_or_else(|| format!("Unknown provider: {}", provider_name))?;
-
-    let fetcher = Arc::new(TileFetcher::new(provider, provider_name));
 
     // Convert lat/lon to fractional tile coordinates, then center the 2x2 grid
     let n = 2_f64.powi(zoom as i32);

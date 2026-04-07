@@ -86,6 +86,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 /// Fetch a real satellite tile and write it as a DDS file for inspection.
 async fn test_tile_generation(provider_name: &str) -> Result<(), Box<dyn Error>> {
+    use autoortho_lib::config::RateLimitConfig;
     use autoortho_lib::pipeline::dds::DdsFormat;
     use autoortho_lib::pipeline::decode::ImageBuffer;
     use autoortho_lib::pipeline::image::Image;
@@ -97,7 +98,12 @@ async fn test_tile_generation(provider_name: &str) -> Result<(), Box<dyn Error>>
     let provider = ProviderFactory::create(provider_name).expect("Unknown tile provider");
     println!("Provider: {} ({})", provider.name(), provider_name);
 
-    let fetcher = Arc::new(TileFetcher::new(provider, provider_name));
+    let rate_limit = RateLimitConfig::default();
+    let fetcher = Arc::new(TileFetcher::with_rate_limit(
+        provider,
+        provider_name,
+        rate_limit.requests_per_second,
+    ));
 
     // Sydney Opera House area
     let zoom = 14u32;

@@ -718,6 +718,30 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .spacing(8);
 
+    // -- Rate Limiting section --
+    let rate_value = state.config.rate_limit.requests_per_second.round() as u32;
+    let rate_limit = column![
+        text("Rate Limiting").size(18),
+        rule::horizontal(1),
+        tooltip(
+            row![
+                text(format!("Requests/sec: {}", rate_value)).width(Length::Fixed(160.0)),
+                slider(1u32..=20, rate_value, |v| Message::SetRateLimit(v as f64))
+                .width(Length::Fixed(200.0)),
+            ]
+            .spacing(12)
+            .align_y(iced::Alignment::Center),
+            container(
+                text("Limit HTTP requests to tile providers. Lower values are safer but slower. Default: 5 req/sec.")
+                    .size(12),
+            )
+            .padding(8)
+            .style(container::rounded_box),
+            tooltip::Position::Bottom,
+        ),
+    ]
+    .spacing(8);
+
     // -- UI section --
     // Scale slider: 50% to 150%, stored as f64 (0.5 to 1.5)
     // Slider works with integers, so we use 50..150 and divide by 100
@@ -783,6 +807,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         seasonal,
         space::vertical().height(16),
         fallback,
+        space::vertical().height(16),
+        rate_limit,
         space::vertical().height(16),
         ui_section,
         space::vertical().height(16),
