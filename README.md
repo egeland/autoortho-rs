@@ -19,6 +19,7 @@ A pure Rust reimplementation of AutoOrtho for X-Plane satellite scenery, providi
 ### Core Components
 
 **Image Pipeline** (`src/pipeline/`)
+
 - `decode.rs`: JPEG decoding with buffer pool management
 - `dds.rs`: DDS header generation and mipmap chain sizing
 - `cache.rs`: Zstd-compressed DDS disk caching
@@ -26,6 +27,7 @@ A pure Rust reimplementation of AutoOrtho for X-Plane satellite scenery, providi
 - `image.rs`: RGBA image manipulation (paste, fill operations)
 
 **Tile Engine** (`src/tiles/`)
+
 - `coords.rs`: Web Mercator slippy tile conversions, lat/lon math
 - `chunk.rs`: 256×256 tile chunk state machine (Missing→Fetching→Cached→Error)
 - `tile.rs`: 4096×4096 tile assembly from 16×16 chunk grids
@@ -35,22 +37,26 @@ A pure Rust reimplementation of AutoOrtho for X-Plane satellite scenery, providi
 - `fallback.rs`: Fallback system for missing tiles
 
 **FUSE Filesystem** (`src/fuse/`)
+
 - `filesystem.rs`: Virtual filesystem operations (getattr, read, listdir)
 - `mount.rs`: Linux/macOS FUSE mounting via unifuse
 - `mount_win.rs`: Windows WinFsp mounting
 
 **X-Plane Integration** (`src/xplane/`)
+
 - `dataref.rs`: RREF protocol codec, flight data tracker
 - `simbrief.rs`: SimBrief flight plan parsing and import
 - `udp.rs`: Async UDP client for X-Plane communication
 
 **Web UI** (`src/webui/`)
+
 - REST API endpoints for configuration and stats
 - WebSocket for live position updates
 - Custom map tile provider editor
 - Cache viewer
 
 **Desktop UI** (`src/ui/`)
+
 - Setup wizard for first-time configuration
 - Settings screen for all options
 - Dashboard with flight tracking and stats
@@ -59,6 +65,7 @@ A pure Rust reimplementation of AutoOrtho for X-Plane satellite scenery, providi
 ## Configuration
 
 AutoOrtho uses a `config.toml` file stored in the platform config directory:
+
 - **Linux**: `~/.config/autoortho/config.toml`
 - **macOS**: `~/Library/Application Support/autoortho/config.toml`
 - **Windows**: `%APPDATA%\autoortho\config.toml`
@@ -142,7 +149,8 @@ Runs without GUI, using configuration from config file.
 
 ## Test Coverage
 
-**333+ tests** across all modules:
+**363+ tests** across all modules:
+
 - Unit tests for tile coordinate math, DDS generation, chunk state machine
 - Integration tests for full tile pipeline
 - Protocol tests for X-Plane RREF codec
@@ -187,6 +195,7 @@ Runs without GUI, using configuration from config file.
 ## Performance
 
 Key optimizations:
+
 - Parallel JPEG decoding with rayon
 - Concurrent HTTP fetching with bounded LRU caches
 - Zstd compression for disk cache (3-5x ratio)
@@ -194,6 +203,7 @@ Key optimizations:
 - TCP keepalive for connection pooling
 
 Benchmark results (2026-03-29):
+
 | Operation | Time |
 |-----------|------|
 | BC1 compression (256×256) | ~540 µs |
@@ -204,6 +214,7 @@ Benchmark results (2026-03-29):
 ## License
 
 Licensed under either:
+
 - Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
 - GPL-3.0 license ([LICENSE-GPL](LICENSE-GPL))
 
