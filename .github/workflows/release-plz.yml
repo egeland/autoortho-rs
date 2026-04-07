@@ -7,10 +7,6 @@ on:
     paths-ignore:
       - 'docs/**'
       - '*.md'
-  workflow_run:
-    workflows: [Cross-Platform Test]
-    types: [completed]
-    branches: [main]
 
 jobs:
   release-plz-pr:
@@ -45,54 +41,3 @@ jobs:
           gh pr merge ${{ steps.release-plz-pr.outputs.pr_number }} \
             --repo "$GITHUB_REPOSITORY" \
             --squash --auto
-
-  release-plz-release:
-    name: Release
-    runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'workflow_run' &&
-      github.event.workflow_run.conclusion == 'success'
-    permissions:
-      contents: write
-      actions: write
-    outputs:
-      tag: ${{ steps.extract-tag.outputs.tag }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-      - name: Run release-plz release
-        id: release-plz
-        uses: release-plz/action@v0.5
-        with:
-          command: release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Extract tag
-        id: extract-tag
-        if: steps.release-plz.outputs.releases_created == 'true'
-        env:
-          RELEASES: ${{ steps.release-plz.outputs.releases }}
-        run: |
-          TAG=$(echo "$RELEASES" | jq -r '.[0].tag')
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "Released $TAG"
-
-  trigger-cargo-dist:
-    name: Trigger cargo-dist
-    needs: release-plz-release
-    if: needs.release-plz-release.outputs.tag != ''
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-    steps:
-      - name: Dispatch release workflow
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ needs.release-plz-release.outputs.tag }}
-        run: |
-          echo "Dispatching cargo-dist for $TAG"
-          gh workflow run release.yml -R "$GITHUB_REPOSITORY" --ref main -f tag="$TAG"

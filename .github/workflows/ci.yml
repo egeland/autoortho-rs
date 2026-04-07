@@ -76,3 +76,38 @@ jobs:
 
       - name: Run library tests (all features)
         run: cargo test --lib --all-features
+
+  cross-platform:
+    name: Test (${{ matrix.os }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            deps: |
+              sudo apt-get update
+              sudo apt-get install -y \
+                libxkbcommon-dev libwayland-dev libvulkan-dev \
+                libfuse-dev pkg-config
+          - os: macos-latest
+            deps: |
+              brew update
+              brew install macfuse
+          - os: windows-latest
+            deps: ""
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install dependencies
+        if: matrix.deps != ''
+        run: ${{ matrix.deps }}
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Run tests
+        run: cargo test --lib
