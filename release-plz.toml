@@ -5,6 +5,10 @@ git_tag_enable = true
 git_release_enable = false
 # Use git tags to determine versions instead of crates.io
 git_only = true
+# Release on every push (works with squash merge)
+release_always = true
+# Disable semver checks that block release PRs
+semver_check = false
 
 [[package]]
 name = "autoortho"
