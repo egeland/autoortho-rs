@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.6.5](https://github.com/egeland/autoortho-rs/compare/v0.6.4...v0.6.5) - 2026-04-08
+
+### Added
+
+- dynamically set WiX version from release workflow
+
+### Fixed
+
+- update WiX version and add Compressed=no to bypass candle error
+
 ## [0.6.4](https://github.com/egeland/autoortho-rs/compare/v0.6.3...v0.6.4) - 2026-04-08
 
 ### Fixed
