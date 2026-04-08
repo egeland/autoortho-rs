@@ -2,7 +2,7 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
     <Package 
         Name="autoortho"
-        Version="0.5.8"
+        Version="0.6.3"
         UpgradeCode="B36177BE-EA4D-44FB-B05C-EDDABDAA95CA"
         Manufacturer="autoortho">
         
@@ -11,7 +11,7 @@
         <StandardDirectory Id="ProgramFilesFolder">
             <Directory Id="INSTALLFOLDER" Name="autoortho">
                 <Component Id="MainExecutable" Guid="BFD25009-65A4-4D1E-97F1-0030465D90D6">
-                    <File Id="AutoorthoExe" Source="artifacts\autoortho.exe" />
+                    <File Id="AutoorthoExe" Source="artifacts\autoortho.exe" Compressed="no" />
                 </Component>
             </Directory>
         </StandardDirectory>
