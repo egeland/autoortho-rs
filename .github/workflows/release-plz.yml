@@ -59,16 +59,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
       - name: Approve release PR
-        if: steps.release-plz-pr.outputs.pr_number
+        if: steps.release-plz-pr.outputs.prs_created == 'true'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        run: gh pr review ${{ steps.release-plz-pr.outputs.pr_number }} --approve
+        run: gh pr review ${{ fromJSON(steps.release-plz-pr.outputs.pr).number }} --approve
 
       - name: Auto-merge release PR
-        if: steps.release-plz-pr.outputs.pr_number
+        if: steps.release-plz-pr.outputs.prs_created == 'true'
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
-          gh pr merge ${{ steps.release-plz-pr.outputs.pr_number }} \
+          gh pr merge ${{ fromJSON(steps.release-plz-pr.outputs.pr).number }} \
             --repo "$GITHUB_REPOSITORY" \
             --squash --auto
