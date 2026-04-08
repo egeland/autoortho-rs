@@ -325,7 +325,7 @@ jobs:
 
       - name: Build MSI
         run: |
-          wix build wix/main.wxs -o autoortho-x86_64-pc-windows-msvc.msi -d Version=${{ steps.version.outputs.version }}
+          wix build wix/main.wxs -o autoortho-x86_64-pc-windows-msvc.msi -d Version=${{ steps.version.outputs.version }} --nocapture
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
