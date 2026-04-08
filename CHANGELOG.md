@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.4](https://github.com/egeland/autoortho-rs/compare/v0.6.3...v0.6.4) - 2026-04-08
+
+### Fixed
+
+- use RELEASE_TOKEN to trigger release.yml on tag push
+
 ## [0.6.3](https://github.com/egeland/autoortho-rs/compare/v0.6.2...v0.6.3) - 2026-04-08
 
 ### Added
