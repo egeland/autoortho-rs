@@ -2,7 +2,7 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
     <Package 
         Name="autoortho"
-        Version="0.6.3"
+        Version="$(var.Version)"
         UpgradeCode="B36177BE-EA4D-44FB-B05C-EDDABDAA95CA"
         Manufacturer="autoortho">
         
