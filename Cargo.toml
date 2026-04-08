@@ -1,6 +1,6 @@
 [package]
 name = "autoortho"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2024"
 license = "Apache-2.0 OR GPL-3.0-or-later"
 description = "A pure Rust reimplementation of AutoOrtho for X-Plane satellite scenery"
