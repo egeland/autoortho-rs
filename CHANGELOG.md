@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.3](https://github.com/egeland/autoortho-rs/compare/v0.6.2...v0.6.3) - 2026-04-08
+
+### Added
+
+- add auto release to CI, part 4 ([#113](https://github.com/egeland/autoortho-rs/pull/113))
+
 ## [0.6.2](https://github.com/egeland/autoortho-rs/compare/v0.6.1...v0.6.2) - 2026-04-08
 
 ### Added
