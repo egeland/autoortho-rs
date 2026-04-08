@@ -9,10 +9,31 @@ on:
       - '*.md'
 
 jobs:
-  release-plz-pr:
-    name: Release PR
+  release-plz-release:
+    name: Release-plz release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
     if: github.event_name == 'push'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run release-plz release
+        uses: release-plz/action@v0.5
+        with:
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release-plz-pr:
+    name: Release-plz PR
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
