@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.6](https://github.com/egeland/autoortho-rs/compare/v0.6.5...v0.6.6) - 2026-04-08
+
+### Added
+
+- auto-approve release PR before merging
+
+### Fixed
+
+- use prs_created and fromJSON to correctly access PR number
+
+### Other
+
+- add --nocapture to WiX build for debug output
+
 ## [0.6.5](https://github.com/egeland/autoortho-rs/compare/v0.6.4...v0.6.5) - 2026-04-08
 
 ### Added
