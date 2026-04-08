@@ -81,7 +81,8 @@ installer:
 
     - name: Build MSI
       run: |
-        wix build wix/main.wxs -o autoortho-x86_64-pc-windows-msvc.msi -bv Version=${{ steps.version.outputs.version }}
+        wix compile wix/main.wxs -o main.wixobj -d Version=${{ steps.version.outputs.version }}
+        wix build main.wixobj -o autoortho-x86_64-pc-windows-msvc.msi
 
     - name: Upload to release
       uses: softprops/action-gh-release@v2
