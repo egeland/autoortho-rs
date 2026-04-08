@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.7.0](https://github.com/egeland/autoortho-rs/compare/v0.6.1...v0.7.0) - 2026-04-08
+
+### Added
+
+- add auto release to CI, part 2 ([#109](https://github.com/egeland/autoortho-rs/pull/109))
+- add auto release to CI ([#108](https://github.com/egeland/autoortho-rs/pull/108))
+- bump version attempt 3 ([#107](https://github.com/egeland/autoortho-rs/pull/107))
+- bump version attempt 2 ([#106](https://github.com/egeland/autoortho-rs/pull/106))
+- minor update ([#105](https://github.com/egeland/autoortho-rs/pull/105))
+- add request rate limiting for tile providers ([#102](https://github.com/egeland/autoortho-rs/pull/102))
+
+### Fixed
+
+- fix mut and duplicated code ([#100](https://github.com/egeland/autoortho-rs/pull/100))
+
+### Other
+
+- bump tokio-tungstenite from 0.28.0 to 0.29.0 ([#85](https://github.com/egeland/autoortho-rs/pull/85))
+- bump actions/upload-artifact from 6 to 7 ([#83](https://github.com/egeland/autoortho-rs/pull/83))
+- bump libc from 0.2.183 to 0.2.184 ([#84](https://github.com/egeland/autoortho-rs/pull/84))
+- bump actions/download-artifact from 7 to 8 ([#82](https://github.com/egeland/autoortho-rs/pull/82))
+- bump tokio from 1.50.0 to 1.51.0 ([#86](https://github.com/egeland/autoortho-rs/pull/86))
+- more workflow cleanup ([#104](https://github.com/egeland/autoortho-rs/pull/104))
+- fix workflows ([#103](https://github.com/egeland/autoortho-rs/pull/103))
+- optimize fetcher to return Arc<Vec<u8>> instead of cloning ([#101](https://github.com/egeland/autoortho-rs/pull/101))
+- bump zip from 8.4.0 to 8.5.0 ([#87](https://github.com/egeland/autoortho-rs/pull/87))
+- release v0.6.1 ([#99](https://github.com/egeland/autoortho-rs/pull/99))
+
 ## [0.6.1](https://github.com/egeland/autoortho-rs/releases/tag/v0.6.1) - 2026-04-06
 
 ### Added
