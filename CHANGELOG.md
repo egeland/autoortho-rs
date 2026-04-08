@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.7](https://github.com/egeland/autoortho-rs/compare/v0.6.6...v0.6.7) - 2026-04-08
+
+### Fixed
+
+- windows build ([#118](https://github.com/egeland/autoortho-rs/pull/118))
+
 ## [0.6.6](https://github.com/egeland/autoortho-rs/compare/v0.6.5...v0.6.6) - 2026-04-08
 
 ### Added
