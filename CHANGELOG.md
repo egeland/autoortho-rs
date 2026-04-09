@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.14](https://github.com/egeland/autoortho-rs/compare/v0.6.13...v0.6.14) - 2026-04-09
+
+### Fixed
+
+- find exe dynamically and copy to target/distrib for MSI ([#132](https://github.com/egeland/autoortho-rs/pull/132))
+
 ## [0.6.13](https://github.com/egeland/autoortho-rs/compare/v0.6.12...v0.6.13) - 2026-04-09
 
 ### Fixed
