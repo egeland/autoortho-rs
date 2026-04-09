@@ -159,9 +159,12 @@ jobs:
         shell: powershell
         run: |
           $version = "${{ needs.plan.outputs.tag }}" -replace '^v', ''
-          # Find the exe and copy to expected location
+          # Debug: list all exe files found
+          Get-ChildItem -Path target -Recurse -Filter "*.exe" | Format-Table FullName -AutoSize
+          # Find the exe and create artifacts directory
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
           $exe = Get-ChildItem -Path target -Recurse -Filter "autoortho*.exe" | Select-Object -First 1
-          Copy-Item -Path $exe.FullName -Destination "target/distrib/autoortho.exe" -Force
+          Copy-Item -Path $exe.FullName -Destination "artifacts/autoortho.exe" -Force
           # Build MSI
           dotnet tool install --global wix
           wix eula accept wix7
