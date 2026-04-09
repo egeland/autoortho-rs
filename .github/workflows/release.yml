@@ -318,7 +318,7 @@ jobs:
       - name: Setup binary for WiX
         run: |
           New-Item -ItemType Directory -Force -Path artifacts | Out-Null
-          Get-ChildItem -Path target -Recurse -Filter "*autoortho*.exe" | Copy-Item -Destination "artifacts/autoortho.exe" -Force
+          Get-ChildItem -Path target/distrib -Recurse -Filter "*autoortho*.exe" | Copy-Item -Destination "artifacts/autoortho.exe" -Force
 
       - name: Install WiX
         run: |
