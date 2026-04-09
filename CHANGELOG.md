@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.16](https://github.com/egeland/autoortho-rs/compare/v0.6.15...v0.6.16) - 2026-04-09
+
+### Fixed
+
+- use correct exe path target/distrib/autoortho-x86_64-pc-windows-msvc/ ([#136](https://github.com/egeland/autoortho-rs/pull/136))
+
 ## [0.6.15](https://github.com/egeland/autoortho-rs/compare/v0.6.14...v0.6.15) - 2026-04-09
 
 ### Fixed
