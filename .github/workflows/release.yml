@@ -154,6 +154,13 @@ jobs:
           # Actually do builds and make zips and whatnot
           dist build ${{ needs.plan.outputs.tag-flag }} --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json
           echo "dist ran successfully"
+      - name: Build MSI
+        if: contains(matrix.targets, 'windows')
+        shell: powershell
+        run: |
+          dotnet tool install --global wix
+          wix eula accept wix7
+          wix build wix/main.wxs -o target/distrib/autoortho-x86_64-pc-windows-msvc.msi -d Version=${{ needs.plan.outputs.version }}
       - id: cargo-dist
         name: Post-build
         # We force bash here just because github makes it really hard to get values up
@@ -164,6 +171,10 @@ jobs:
           # Parse out what we just built and upload it to scratch storage
           echo "paths<<EOF" >> "$GITHUB_OUTPUT"
           dist print-upload-files-from-manifest --manifest dist-manifest.json >> "$GITHUB_OUTPUT"
+          # Add MSI path if built (for Windows target)
+          if [ -f target/distrib/autoortho-x86_64-pc-windows-msvc.msi ]; then
+            echo "target/distrib/autoortho-x86_64-pc-windows-msvc.msi" >> "$GITHUB_OUTPUT"
+          fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
           cp dist-manifest.json "$BUILD_MANIFEST_NAME"
@@ -314,20 +325,6 @@ jobs:
           pattern: artifacts-build-local-*
           path: target/
           merge-multiple: true
-
-      - name: Setup binary for WiX
-        run: |
-          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
-          Get-ChildItem -Path target/distrib -Recurse -Filter "*autoortho*.exe" | Copy-Item -Destination "artifacts/autoortho.exe" -Force
-
-      - name: Install WiX
-        run: |
-          dotnet tool install --global wix
-          wix eula accept wix7
-
-      - name: Build MSI
-        run: |
-          wix build wix/main.wxs -o autoortho-x86_64-pc-windows-msvc.msi -d Version=${{ steps.version.outputs.version }}
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
