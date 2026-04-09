@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.10](https://github.com/egeland/autoortho-rs/compare/v0.6.9...v0.6.10) - 2026-04-09
+
+### Fixed
+
+- correct EULA accept command for WiX v7 ([#124](https://github.com/egeland/autoortho-rs/pull/124))
+
 ## [0.6.9](https://github.com/egeland/autoortho-rs/compare/v0.6.8...v0.6.9) - 2026-04-09
 
 ### Fixed
