@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.12](https://github.com/egeland/autoortho-rs/compare/v0.6.11...v0.6.12) - 2026-04-09
+
+### Fixed
+
+- use full target name 'x86_64-pc-windows-msvc' in MSI build condition ([#128](https://github.com/egeland/autoortho-rs/pull/128))
+
 ## [0.6.11](https://github.com/egeland/autoortho-rs/compare/v0.6.10...v0.6.11) - 2026-04-09
 
 ### Other
