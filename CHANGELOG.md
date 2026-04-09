@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.15](https://github.com/egeland/autoortho-rs/compare/v0.6.14...v0.6.15) - 2026-04-09
+
+### Fixed
+
+- add debug listing to see where exe files are ([#134](https://github.com/egeland/autoortho-rs/pull/134))
+
 ## [0.6.14](https://github.com/egeland/autoortho-rs/compare/v0.6.13...v0.6.14) - 2026-04-09
 
 ### Fixed
