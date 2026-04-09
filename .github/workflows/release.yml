@@ -155,7 +155,7 @@ jobs:
           dist build ${{ needs.plan.outputs.tag-flag }} --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json
           echo "dist ran successfully"
       - name: Build MSI
-        if: contains(matrix.targets, 'windows')
+        if: contains(matrix.targets, 'x86_64-pc-windows-msvc')
         shell: powershell
         run: |
           dotnet tool install --global wix
