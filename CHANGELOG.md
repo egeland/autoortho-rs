@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.13](https://github.com/egeland/autoortho-rs/compare/v0.6.12...v0.6.13) - 2026-04-09
+
+### Fixed
+
+- extract version from tag in MSI build step ([#130](https://github.com/egeland/autoortho-rs/pull/130))
+
 ## [0.6.12](https://github.com/egeland/autoortho-rs/compare/v0.6.11...v0.6.12) - 2026-04-09
 
 ### Fixed
