@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.9](https://github.com/egeland/autoortho-rs/compare/v0.6.8...v0.6.9) - 2026-04-09
+
+### Fixed
+
+- use wix build (not compile), accept OSMF license for WiX v7 ([#122](https://github.com/egeland/autoortho-rs/pull/122))
+
 ## [0.6.8](https://github.com/egeland/autoortho-rs/compare/v0.6.7...v0.6.8) - 2026-04-09
 
 ### Other
