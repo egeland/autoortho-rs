@@ -158,9 +158,10 @@ jobs:
         if: contains(matrix.targets, 'x86_64-pc-windows-msvc')
         shell: powershell
         run: |
+          $version = "${{ needs.plan.outputs.tag }}" -replace '^v', ''
           dotnet tool install --global wix
           wix eula accept wix7
-          wix build wix/main.wxs -o target/distrib/autoortho-x86_64-pc-windows-msvc.msi -d Version=${{ needs.plan.outputs.version }}
+          wix build wix/main.wxs -o target/distrib/autoortho-x86_64-pc-windows-msvc.msi -d Version=$version
       - id: cargo-dist
         name: Post-build
         # We force bash here just because github makes it really hard to get values up
