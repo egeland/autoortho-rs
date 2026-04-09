@@ -77,12 +77,13 @@ installer:
         Get-ChildItem -Path target -Recurse -Filter "*autoortho*.exe" | Copy-Item -Destination "artifacts/autoortho.exe" -Force
 
     - name: Install WiX
-      run: dotnet tool install --global wix
+      run: |
+        dotnet tool install --global wix
+        wix accept-source-maintenance-fee --license yes
 
     - name: Build MSI
       run: |
-        wix compile wix/main.wxs -o main.wixobj -d Version=${{ steps.version.outputs.version }}
-        wix build main.wixobj -o autoortho-x86_64-pc-windows-msvc.msi
+        wix build wix/main.wxs -o autoortho-x86_64-pc-windows-msvc.msi -d Version=${{ steps.version.outputs.version }}
 
     - name: Upload to release
       uses: softprops/action-gh-release@v2
