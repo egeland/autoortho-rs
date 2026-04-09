@@ -323,7 +323,7 @@ jobs:
       - name: Install WiX
         run: |
           dotnet tool install --global wix
-          wix accept-source-maintenance-fee --license yes
+          wix eula accept wix7
 
       - name: Build MSI
         run: |
