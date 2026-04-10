@@ -154,20 +154,6 @@ jobs:
           # Actually do builds and make zips and whatnot
           dist build ${{ needs.plan.outputs.tag-flag }} --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json
           echo "dist ran successfully"
-      - name: Build MSI
-        if: contains(matrix.targets, 'x86_64-pc-windows-msvc')
-        shell: powershell
-        run: |
-          $version = "${{ needs.plan.outputs.tag }}" -replace '^v', ''
-          # Create artifacts dir and copy the correct exe
-          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
-          Copy-Item -Path "target/distrib/autoortho-x86_64-pc-windows-msvc/autoortho.exe" -Destination "artifacts/autoortho.exe" -Force
-          # Verify copy worked
-          Get-ChildItem -Path artifacts
-          # Build MSI
-          dotnet tool install --global wix
-          wix eula accept wix7
-          wix build wix/main.wxs -o target/distrib/autoortho-x86_64-pc-windows-msvc.msi -d Version=$version
       - id: cargo-dist
         name: Post-build
         # We force bash here just because github makes it really hard to get values up
@@ -178,10 +164,6 @@ jobs:
           # Parse out what we just built and upload it to scratch storage
           echo "paths<<EOF" >> "$GITHUB_OUTPUT"
           dist print-upload-files-from-manifest --manifest dist-manifest.json >> "$GITHUB_OUTPUT"
-          # Add MSI path if built (for Windows target)
-          if [ -f target/distrib/autoortho-x86_64-pc-windows-msvc.msi ]; then
-            echo "target/distrib/autoortho-x86_64-pc-windows-msvc.msi" >> "$GITHUB_OUTPUT"
-          fi
           echo "EOF" >> "$GITHUB_OUTPUT"
 
           cp dist-manifest.json "$BUILD_MANIFEST_NAME"
@@ -305,39 +287,6 @@ jobs:
           echo "$ANNOUNCEMENT_BODY" > $RUNNER_TEMP/notes.txt
 
           gh release create "${{ needs.plan.outputs.tag }}" --target "$RELEASE_COMMIT" $PRERELEASE_FLAG --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt" artifacts/*
-
-  installer:
-    needs:
-      - plan
-      - host
-    if: needs.host.result == 'success'
-    runs-on: windows-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-
-      - name: Extract version
-        id: version
-        run: |
-          $tag = "${{ needs.plan.outputs.tag }}"
-          $version = $tag -replace '^v', ''
-          echo "version=$version" >> $env:GITHUB_OUTPUT
-
-      - name: Download Windows binary
-        uses: actions/download-artifact@v8
-        with:
-          pattern: artifacts-build-local-*
-          path: target/
-          merge-multiple: true
-
-      - name: Upload to release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ needs.plan.outputs.tag }}
-          files: autoortho-x86_64-pc-windows-msvc.msi
 
   announce:
     needs:
