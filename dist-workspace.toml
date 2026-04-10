@@ -8,8 +8,7 @@ cargo-dist-version = "0.31.0"
 # CI backends to support
 ci = "github"
 # The installers to generate for each app
-# Note: MSI is built in the host job instead (cargo-dist internal build fails)
-# installers = ["msi"]
+installers = ["msi"]
 # Allow dirty for CI to skip checks
 allow-dirty = ["ci"]
 # Target platforms to build apps for (Rust target-triple syntax)
