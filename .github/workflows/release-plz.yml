@@ -77,12 +77,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
 
-      - name: Approve release PR
-        if: steps.release-plz-pr.outputs.prs_created == 'true'
-        env:
-          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
-        run: gh pr review ${{ fromJSON(steps.release-plz-pr.outputs.pr).number }} --approve
-
       - name: Auto-merge release PR
         if: steps.release-plz-pr.outputs.prs_created == 'true'
         env:
