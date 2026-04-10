@@ -162,6 +162,8 @@ jobs:
           # Create artifacts dir and copy the correct exe
           New-Item -ItemType Directory -Force -Path artifacts | Out-Null
           Copy-Item -Path "target/distrib/autoortho-x86_64-pc-windows-msvc/autoortho.exe" -Destination "artifacts/autoortho.exe" -Force
+          # Verify copy worked
+          Get-ChildItem -Path artifacts
           # Build MSI
           dotnet tool install --global wix
           wix eula accept wix7
