@@ -17,6 +17,7 @@ use crate::webui::custommap::CustomMapStore;
 use log::{debug, warn};
 use lru::LruCache;
 use parking_lot::RwLock;
+use std::borrow::Cow;
 use std::num::NonZero;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64};
@@ -362,7 +363,7 @@ impl DdsFileSystem {
                     [20, 25, 15], // dark green for night
                 )
             };
-            return Ok(slice_range(&dds, offset, size));
+            return Ok(slice_range(&dds, offset, size).into_owned());
         }
 
         let (row, col, maptype, zoom) = self.parser.parse(path)?;
@@ -374,7 +375,7 @@ impl DdsFileSystem {
             if let Some(dds) = cache.get(&tile_key) {
                 self.cache_hits
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                return Ok(slice_range(dds, offset, size));
+                return Ok(slice_range(dds, offset, size).into_owned());
             }
             self.cache_misses
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -393,7 +394,7 @@ impl DdsFileSystem {
                 self.cache_evictions
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
-            return Ok(slice_range(&arc, offset, size));
+            return Ok(slice_range(&arc, offset, size).into_owned());
         }
 
         // Try upserving: check if higher-zoom DDS is cached
@@ -415,7 +416,7 @@ impl DdsFileSystem {
                         self.cache_evictions
                             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
                     }
-                    return Ok(slice_range(&arc, offset, size));
+                    return Ok(slice_range(&arc, offset, size).into_owned());
                 }
             }
         }
@@ -437,7 +438,7 @@ impl DdsFileSystem {
                 self.cache_evictions
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
-            return Ok(slice_range(&arc, offset, size));
+            return Ok(slice_range(&arc, offset, size).into_owned());
         }
 
         // Not cached — generate the DDS tile
@@ -461,7 +462,7 @@ impl DdsFileSystem {
                 self.cache_evictions
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
-            return Ok(slice_range(&arc, offset, size));
+            return Ok(slice_range(&arc, offset, size).into_owned());
         }
 
         // Write to disk cache
@@ -515,7 +516,7 @@ impl DdsFileSystem {
             arc
         };
 
-        Ok(slice_range(&dds_arc, offset, size))
+        Ok(slice_range(&dds_arc, offset, size).into_owned())
     }
 
     /// Generate a complete DDS tile by fetching and assembling chunks.
@@ -687,14 +688,19 @@ pub struct DdsCacheStats {
 }
 
 /// Extract a byte range from a buffer, handling bounds correctly.
-fn slice_range(data: &[u8], offset: u64, size: u32) -> Vec<u8> {
+/// Returns a borrowed slice when possible (zero-copy), otherwise allocates.
+fn slice_range(data: &[u8], offset: u64, size: u32) -> Cow<'_, [u8]> {
     let offset = offset as usize;
     let size = size as usize;
     if offset >= data.len() {
-        return Vec::new();
+        return Cow::Owned(Vec::new());
     }
     let end = (offset + size).min(data.len());
-    data[offset..end].to_vec()
+    if end - offset == size {
+        Cow::Borrowed(&data[offset..end])
+    } else {
+        Cow::Owned(data[offset..end].to_vec())
+    }
 }
 
 /// File attributes returned by the virtual filesystem.
@@ -828,12 +834,35 @@ mod tests {
     }
 
     #[test]
-    fn test_slice_range() {
+    fn test_slice_range_exact() {
         let data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-        assert_eq!(slice_range(&data, 0, 5), vec![0, 1, 2, 3, 4]);
-        assert_eq!(slice_range(&data, 5, 5), vec![5, 6, 7, 8, 9]);
-        assert_eq!(slice_range(&data, 8, 10), vec![8, 9]); // Clamped
-        assert_eq!(slice_range(&data, 20, 5), Vec::<u8>::new()); // Past end
+        let result = slice_range(&data, 0, 10);
+        assert!(matches!(result, Cow::Borrowed(_)));
+        assert_eq!(&*result, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    }
+
+    #[test]
+    fn test_slice_range_clamped() {
+        let data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let result = slice_range(&data, 8, 10);
+        assert!(matches!(result, Cow::Owned(_)));
+        assert_eq!(&*result, &[8, 9]);
+    }
+
+    #[test]
+    fn test_slice_range_past_end() {
+        let data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let result = slice_range(&data, 20, 5);
+        assert!(matches!(result, Cow::Owned(_)));
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_slice_range_empty() {
+        let data: Vec<u8> = vec![];
+        let result = slice_range(&data, 0, 5);
+        assert!(matches!(result, Cow::Owned(_)));
+        assert!(result.is_empty());
     }
 
     #[test]
