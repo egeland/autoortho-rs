@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.21](https://github.com/egeland/autoortho-rs/compare/v0.6.20...v0.6.21) - 2026-04-10
+
+### Added
+
+- optimise some filesystem calls ([#147](https://github.com/egeland/autoortho-rs/pull/147))
+
 ## [0.6.20](https://github.com/egeland/autoortho-rs/compare/v0.6.19...v0.6.20) - 2026-04-10
 
 ### Added
