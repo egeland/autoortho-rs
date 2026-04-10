@@ -11,7 +11,7 @@
         <StandardDirectory Id="ProgramFilesFolder">
             <Directory Id="INSTALLFOLDER" Name="autoortho">
                 <Component Id="MainExecutable" Guid="BFD25009-65A4-4D1E-97F1-0030465D90D6">
-                    <File Id="AutoorthoExe" Source="../artifacts/autoortho.exe" Compressed="no" />
+                    <File Id="AutoorthoExe" Source="artifacts/autoortho.exe" Compressed="no" />
                 </Component>
             </Directory>
         </StandardDirectory>
