@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.19](https://github.com/egeland/autoortho-rs/compare/v0.6.18...v0.6.19) - 2026-04-10
+
+### Fixed
+
+- run dist init to generate wix/main.wxs and fix MSI GUIDs
+- enable MSI in cargo-dist to show in Downloads section ([#141](https://github.com/egeland/autoortho-rs/pull/141))
+
 ## [0.6.18](https://github.com/egeland/autoortho-rs/compare/v0.6.17...v0.6.18) - 2026-04-10
 
 ### Fixed
