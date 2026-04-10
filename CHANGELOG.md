@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.17](https://github.com/egeland/autoortho-rs/compare/v0.6.16...v0.6.17) - 2026-04-10
+
+### Fixed
+
+- verify copy worked with Get-ChildItem ([#138](https://github.com/egeland/autoortho-rs/pull/138))
+
 ## [0.6.16](https://github.com/egeland/autoortho-rs/compare/v0.6.15...v0.6.16) - 2026-04-09
 
 ### Fixed
