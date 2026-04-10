@@ -17,20 +17,29 @@ jobs:
       pull-requests: read
     if: github.event_name == 'push'
     steps:
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
           persist-credentials: false
-          token: ${{ secrets.RELEASE_TOKEN }}
+          token: ${{ steps.generate-token.outputs.token }}
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
       - name: Run release-plz release
         uses: release-plz/action@v0.5
         with:
           command: release
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   release-plz-pr:
@@ -43,31 +52,41 @@ jobs:
       group: release-plz-${{ github.ref }}
       cancel-in-progress: false
     steps:
+      - name: Generate GitHub App token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
           persist-credentials: false
-          token: ${{ secrets.RELEASE_TOKEN }}
+          token: ${{ steps.generate-token.outputs.token }}
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
       - name: Run release-plz release-pr
         id: release-plz-pr
         uses: release-plz/action@v0.5
         with:
           command: release-pr
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate-token.outputs.token }}
+
       - name: Approve release PR
         if: steps.release-plz-pr.outputs.prs_created == 'true'
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: gh pr review ${{ fromJSON(steps.release-plz-pr.outputs.pr).number }} --approve
 
       - name: Auto-merge release PR
         if: steps.release-plz-pr.outputs.prs_created == 'true'
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         run: |
           gh pr merge ${{ fromJSON(steps.release-plz-pr.outputs.pr).number }} \
             --repo "$GITHUB_REPOSITORY" \
