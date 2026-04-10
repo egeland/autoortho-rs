@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.20](https://github.com/egeland/autoortho-rs/compare/v0.6.19...v0.6.20) - 2026-04-10
+
+### Added
+
+- auto-release when builds work ([#143](https://github.com/egeland/autoortho-rs/pull/143))
+
 ## [0.6.19](https://github.com/egeland/autoortho-rs/compare/v0.6.18...v0.6.19) - 2026-04-10
 
 ### Fixed
