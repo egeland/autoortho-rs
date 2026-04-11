@@ -71,11 +71,9 @@ impl Default for RateLimitConfig {
 impl RateLimitConfig {
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.requests_per_second < 1.0 || self.requests_per_second > 20.0 {
-            return Err(ConfigError::FieldOutOfRange {
+            return Err(ConfigError::FieldInvalid {
                 field: "rate_limit.requests_per_second".to_string(),
-                min: 1,
-                max: 20,
-                value: (self.requests_per_second * 100.0) as u64,
+                message: format!("out of range (1.0-20.0), got {}", self.requests_per_second),
             });
         }
         Ok(())
