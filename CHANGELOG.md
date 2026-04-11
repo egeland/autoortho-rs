@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.22](https://github.com/egeland/autoortho-rs/compare/v0.6.21...v0.6.22) - 2026-04-11
+
+### Added
+
+- *(altitude-predictor)* optimize methods by removing unused parameters and adding early returns ([#149](https://github.com/egeland/autoortho-rs/pull/149))
+
 ## [0.6.21](https://github.com/egeland/autoortho-rs/compare/v0.6.20...v0.6.21) - 2026-04-10
 
 ### Added
