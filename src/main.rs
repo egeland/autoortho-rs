@@ -60,7 +60,11 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         Commands::Gui => {
             info!("Launching desktop UI");
-            let runtime = autoortho_lib::create_runtime();
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .thread_name("autoortho-worker")
+                .build()
+                .expect("Failed to create Tokio runtime");
             autoortho_lib::ui::run(runtime).map_err(|e| format!("GUI error: {}", e))?;
         }
         Commands::TestTile { provider } => {

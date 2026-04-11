@@ -10,7 +10,7 @@ These issues impact code quality, maintainability, and long-term sustainability.
 **Status: IMPLEMENTED** ✅
 
 ### Changes Made
-- `src/lib.rs`: Added `create_runtime()` function that creates a multi-threaded runtime
+- `src/lib.rs`: Removed unused `create_runtime()` function to simplify code and reduce dependencies
 - `src/main.rs`: Creates runtime once before calling `ui::run()`
 - `src/ui/mod.rs`: 
   - Added `RUNTIME` global `OnceLock` to store the shared runtime
