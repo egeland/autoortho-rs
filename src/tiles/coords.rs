@@ -11,6 +11,50 @@ pub enum CoordError {
     InvalidZoom(u32),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TileCoord {
+    pub row: u32,
+    pub col: u32,
+    pub zoom: u32,
+}
+
+impl TileCoord {
+    pub fn new(row: u32, col: u32, zoom: u32) -> Result<Self, CoordError> {
+        if zoom > 28 {
+            return Err(CoordError::InvalidZoom(zoom));
+        }
+        Ok(Self { row, col, zoom })
+    }
+
+    pub fn from_latlng(lat: f64, lon: f64, zoom: u32) -> Result<Self, CoordError> {
+        let (col, row) = TileCoords::latlng_to_tile(lat, lon, zoom)?;
+        Ok(Self { row, col, zoom })
+    }
+
+    pub fn to_latlng(&self) -> Result<(f64, f64), CoordError> {
+        TileCoords::tile_to_latlng(self.col, self.row, self.zoom)
+    }
+
+    pub fn to_quadkey(&self) -> String {
+        TileCoords::tile_to_quadkey(self.col, self.row, self.zoom)
+    }
+
+    pub fn from_quadkey(quadkey: &str) -> Result<Self, CoordError> {
+        let (col, row, zoom) = TileCoords::quadkey_to_tile(quadkey)?;
+        Ok(Self { row, col, zoom })
+    }
+
+    pub fn bounds(&self) -> Result<(f64, f64, f64, f64), CoordError> {
+        TileCoords::tile_bounds(self.col, self.row, self.zoom)
+    }
+}
+
+impl std::fmt::Display for TileCoord {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}_{}_{}", self.row, self.col, self.zoom)
+    }
+}
+
 /// Convert lat/lon to Web Mercator (slippy) tile coordinates
 pub struct TileCoords;
 
@@ -201,5 +245,38 @@ mod tests {
         let (lat_n, lon_w, lat_s, lon_e) = TileCoords::tile_bounds(0, 0, 1).unwrap();
         assert!(lat_n > lat_s); // North > South
         assert!(lon_w < lon_e); // West < East
+    }
+
+    #[test]
+    fn test_tile_coord_new() {
+        let coord = TileCoord::new(10, 20, 12).unwrap();
+        assert_eq!(coord.row, 10);
+        assert_eq!(coord.col, 20);
+        assert_eq!(coord.zoom, 12);
+    }
+
+    #[test]
+    fn test_tile_coord_invalid_zoom() {
+        assert!(TileCoord::new(10, 20, 30).is_err());
+    }
+
+    #[test]
+    fn test_tile_coord_from_latlng() {
+        let coord = TileCoord::from_latlng(37.7749, -122.4194, 10).unwrap();
+        assert!(coord.col > 0);
+        assert!(coord.row > 0);
+    }
+
+    #[test]
+    fn test_tile_coord_display() {
+        let coord = TileCoord::new(10, 20, 12).unwrap();
+        assert_eq!(format!("{}", coord), "10_20_12");
+    }
+
+    #[test]
+    fn test_tile_coord_copy_trait() {
+        let coord1 = TileCoord::new(10, 20, 12).unwrap();
+        let coord2 = coord1; // Copy, not clone
+        assert_eq!(coord1, coord2);
     }
 }
