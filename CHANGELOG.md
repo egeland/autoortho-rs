@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.23](https://github.com/egeland/autoortho-rs/compare/v0.6.22...v0.6.23) - 2026-04-12
+
+### Added
+
+- feat/tune up ([#151](https://github.com/egeland/autoortho-rs/pull/151))
+
 ## [0.6.22](https://github.com/egeland/autoortho-rs/compare/v0.6.21...v0.6.22) - 2026-04-11
 
 ### Added
