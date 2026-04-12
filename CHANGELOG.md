@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.24](https://github.com/egeland/autoortho-rs/compare/v0.6.23...v0.6.24) - 2026-04-12
+
+### Added
+
+- add TileCoord newtype struct and update PLAN.md ([#153](https://github.com/egeland/autoortho-rs/pull/153))
+
 ## [0.6.23](https://github.com/egeland/autoortho-rs/compare/v0.6.22...v0.6.23) - 2026-04-12
 
 ### Added
