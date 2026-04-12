@@ -8,10 +8,7 @@ use chrono::{Datelike, Local};
 pub struct SeasonalAdjustment {
     enabled: bool,
     season: Season,
-    spring_sat: f32,
-    summer_sat: f32,
-    autumn_sat: f32,
-    winter_sat: f32,
+    saturations: [f32; 4],
 }
 
 impl Default for SeasonalAdjustment {
@@ -19,10 +16,7 @@ impl Default for SeasonalAdjustment {
         Self {
             enabled: false,
             season: Season::Disabled,
-            spring_sat: 0.70,
-            summer_sat: 1.0,
-            autumn_sat: 0.80,
-            winter_sat: 0.55,
+            saturations: [0.70, 1.0, 0.80, 0.55],
         }
     }
 }
@@ -33,10 +27,12 @@ impl SeasonalAdjustment {
         Self {
             enabled,
             season,
-            spring_sat: spring.clamp(0.0, 2.0),
-            summer_sat: summer.clamp(0.0, 2.0),
-            autumn_sat: autumn.clamp(0.0, 2.0),
-            winter_sat: winter.clamp(0.0, 2.0),
+            saturations: [
+                spring.clamp(0.0, 2.0),
+                summer.clamp(0.0, 2.0),
+                autumn.clamp(0.0, 2.0),
+                winter.clamp(0.0, 2.0),
+            ],
         }
     }
 
@@ -46,13 +42,13 @@ impl SeasonalAdjustment {
     }
 
     /// Get current season (0=spring, 1=summer, 2=autumn, 3=winter)
-    fn auto_season() -> u32 {
+    fn auto_season() -> Season {
         let month = Local::now().month();
         match month {
-            3..=5 => 0,  // Spring (Mar-May)
-            6..=8 => 1,  // Summer (Jun-Aug)
-            9..=11 => 2, // Autumn (Sep-Nov)
-            _ => 3,      // Winter (Dec-Feb)
+            3..=5 => Season::Spring,
+            6..=8 => Season::Summer,
+            9..=11 => Season::Autumn,
+            _ => Season::Winter,
         }
     }
 
@@ -61,13 +57,7 @@ impl SeasonalAdjustment {
         if self.season != Season::Disabled {
             self.season
         } else {
-            match Self::auto_season() {
-                0 => Season::Spring,
-                1 => Season::Summer,
-                2 => Season::Autumn,
-                3 => Season::Winter,
-                _ => Season::Summer,
-            }
+            Self::auto_season()
         }
     }
 
@@ -78,10 +68,10 @@ impl SeasonalAdjustment {
         }
 
         match self.effective_season() {
-            Season::Spring => self.spring_sat,
-            Season::Summer => self.summer_sat,
-            Season::Autumn => self.autumn_sat,
-            Season::Winter => self.winter_sat,
+            Season::Spring => self.saturations[0],
+            Season::Summer => self.saturations[1],
+            Season::Autumn => self.saturations[2],
+            Season::Winter => self.saturations[3],
             Season::Disabled => 1.0,
         }
     }
@@ -93,10 +83,10 @@ impl SeasonalAdjustment {
         }
 
         match month {
-            3..=5 => self.spring_sat,
-            6..=8 => self.summer_sat,
-            9..=11 => self.autumn_sat,
-            _ => self.winter_sat,
+            3..=5 => self.saturations[0],
+            6..=8 => self.saturations[1],
+            9..=11 => self.saturations[2],
+            _ => self.saturations[3],
         }
     }
 
@@ -130,7 +120,6 @@ impl SeasonalAdjustment {
 
         let new_s = (s * saturation).min(1.0);
 
-        // Convert back to RGB
         let c = (1.0 - (2.0 * l - 1.0).abs()) * new_s;
         let x = c * (1.0 - ((h * 6.0) % 2.0 - 1.0).abs());
         let m = l - c / 2.0;
@@ -160,15 +149,15 @@ mod tests {
     fn test_seasonal_adjustment_default() {
         let adj = SeasonalAdjustment::default();
         assert!(!adj.is_enabled());
-        assert_eq!(adj.spring_sat, 0.70);
-        assert_eq!(adj.summer_sat, 1.0);
+        assert_eq!(adj.saturations[0], 0.70);
+        assert_eq!(adj.saturations[1], 1.0);
     }
 
     #[test]
     fn test_seasonal_adjustment_clamp() {
         let adj = SeasonalAdjustment::new(Season::Spring, 2.5, 0.0, 1.0, 1.0);
-        assert_eq!(adj.spring_sat, 2.0); // Clamped to max
-        assert_eq!(adj.summer_sat, 0.0); // Clamped to min
+        assert_eq!(adj.saturations[0], 2.0); // Clamped to max
+        assert_eq!(adj.saturations[1], 0.0); // Clamped to min
     }
 
     #[test]
