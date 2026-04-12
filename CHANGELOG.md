@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.25](https://github.com/egeland/autoortho-rs/compare/v0.6.24...v0.6.25) - 2026-04-12
+
+### Fixed
+
+- bundle winfsp-x64.dll in WiX MSI installer ([#158](https://github.com/egeland/autoortho-rs/pull/158))
+
 ## [0.6.24](https://github.com/egeland/autoortho-rs/compare/v0.6.23...v0.6.24) - 2026-04-12
 
 ### Added
