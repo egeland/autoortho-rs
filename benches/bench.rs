@@ -1,4 +1,5 @@
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
+use std::hint::black_box;
 
 fn create_test_rgba_data(width: u32, height: u32) -> Vec<u8> {
     (0..width * height * 4).map(|i| (i % 256) as u8).collect()
@@ -161,6 +162,58 @@ fn bench_route_distance(c: &mut Criterion) {
     });
 }
 
+fn bench_seasonal_adjustment(c: &mut Criterion) {
+    use autoortho_lib::config::Season;
+    use autoortho_lib::seasons::SeasonalAdjustment;
+
+    let adj = SeasonalAdjustment::new(Season::Summer, 1.0, 1.2, 1.1, 0.9);
+    let rgb = (127u8, 127u8, 127u8);
+
+    c.bench_function("seasonal_adjustment apply_to_rgb", |b| {
+        b.iter(|| SeasonalAdjustment::apply_to_rgb(black_box(rgb), black_box(1.0)));
+    });
+
+    c.bench_function("seasonal_adjustment current_saturation", |b| {
+        b.iter(|| adj.current_saturation());
+    });
+}
+
+fn bench_altitude_predictor(c: &mut Criterion) {
+    use autoortho_lib::altitude_predictor::AltitudePredictor;
+
+    c.bench_function("altitude_predictor interpolate", |b| {
+        b.iter(|| {
+            AltitudePredictor::interpolate_altitude(
+                black_box(10000.0),
+                black_box(5000.0),
+                black_box(0.5),
+            )
+        });
+    });
+
+    c.bench_function("altitude_predictor altitude_at_time", |b| {
+        b.iter(|| {
+            AltitudePredictor::altitude_at_time(
+                black_box(10000.0),
+                black_box(5000.0),
+                black_box(500.0),
+                black_box(10.0),
+            )
+        });
+    });
+
+    c.bench_function("altitude_predictor vertical_speed", |b| {
+        b.iter(|| {
+            AltitudePredictor::vertical_speed_for_descent(
+                black_box(10000.0),
+                black_box(5000.0),
+                black_box(10.0),
+                black_box(100.0),
+            )
+        });
+    });
+}
+
 criterion_group!(
     benches,
     bench_dds_compression_bc1,
@@ -168,6 +221,8 @@ criterion_group!(
     bench_jpeg_decode,
     bench_coord_conversion,
     bench_haversine,
-    bench_route_distance
+    bench_route_distance,
+    bench_seasonal_adjustment,
+    bench_altitude_predictor
 );
 criterion_main!(benches);
