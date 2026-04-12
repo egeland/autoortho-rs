@@ -1,17 +1,52 @@
-# AutoOrtho Rust - Remaining Tasks
+# AutoOrtho Rust - Deep Code Review and Refactoring Plan
 
-## Deferred / Low Priority
+This document outlines systemic improvements across the codebase, focusing on idiomatic Rust patterns, performance optimization, and comprehensive testing coverage. No changes have been implemented; this is a high-level plan for action.
 
-- `filesystem.rs:690` — `slice_range()` returns `Vec<u8>`, could use `Cow<[u8]>` for zero-copy → DONE
-  - **Research**: 7 call sites inside `read_dds()` - 5 can use zero-copy (disk cache+memory), 2 always allocate (night fallback, solid fallback).
-  - **Implementation**: Returns `Cow<[u8]>`, converts to `.into_owned()` at each call site. All 350 tests pass, clippy clean.
+## 🎯 High Priority (Architectural & Idiom)
 
-## Minor Improvements
+1.  **Error Handling Consistency:**
+    *   The current codebase exhibits varied error handling mechanisms (`Box<dyn Error>`, custom enums, etc.). **Action:** Standardize all public and internal API boundaries to use a single, robust crate like `thiserror` or `anyhow`. This eliminates boilerplate and ensures consistent, predictable error propagation across the application.
+    *   **Goal:** Eliminate instances of `unwrap()`/`expect()` at high logic levels (e.g., in `src/main.rs`, core service executors) by ensuring proper error return type (`Result<T>`) usage throughout the call stack via the `?` operator.
 
-- `assembler.rs:107-133` — Image decode failures silently fall back via `.ok()`; logging would help debugging
-- `fetcher.rs` — 4 constructor variants exist (new, with_cache_size, with_provider_and_cache_size, with_rate_limit); minor API bloat
-- `dataref.rs:156` — `vertical_speed_fpm: 0.0` has TODO to compute from altitude delta
+2.  **Resource Management & RAII Adherence:**
+    *   In modules dealing with external system resources (e.g., file descriptors, network connections in `src/tiles/*`, or FUSE mounts in `src/fuse/*`), enforce rigorous use of Rust's resource guard types and destructors.
+    *   **Goal:** Guarantee deterministic cleanup of all allocated resources, even during panics, by verifying that the scope exit logic is fully covered by RAII principles across the entire application lifecycle.
 
-## Completed
+3.  **Type System Utilization (Newtype Pattern):**
+    *   Many logically distinct concepts are currently represented by primitive types or simple type aliases (e.g., different coordinate systems, unique IDs). **Action:** Refactor these into dedicated Newtype structs.
+    *   **Goal:** Significantly increase compile-time safety and readability. Example: `struct WorldCoordinates(i32, f64)` instead of just passing tuples around.
+    *   **Progress:** Added `struct TileCoord { row, col, zoom }` in `coords.rs` for type-safe tile coordinates. **→ DONE**
 
-- Rate limiting — implemented in `rate_limiter.rs`, used in `TileFetcher::get_chunk_data_with_provider()`
+## ⚡ Medium Priority (Performance & Efficiency)
+
+1.  **String/Buffer Management:**
+    *   **Optimization:** Systematically audit all function signatures and data processing loops to minimize unnecessary heap allocations associated with String cloning (`.clone()`). Prioritize using immutable string slices (`&str` or `&[u8]`) as input parameters whenever possible.
+    *   **Advanced Optimization:** In high-volume pipelines (especially image decoding in `src/pipeline/*`, or tile merging), utilize `Cow<T>` (Copy-on-Write) to avoid redundant memory allocations when the data is only being inspected or passed through, not mutated.
+
+2.  **Asynchronous Concurrency Model:**
+    *   Where multiple independent I/O operations occur concurrently (e.g., fetching tiles from disparate sources), **Action:** Migrate away from blocking threads towards a modern async runtime like `tokio`.
+    *   **Goal:** Utilize structured concurrency primitives (`FuturesUnordered`, etc.) to manage simultaneous tasks efficiently, improving overall application throughput without overly complicating the core logic.
+
+3.  **Data Structure Selection:**
+    *   In caching and lookup layers (e.g., `src/pipeline/cache.rs`), verify that data structures are optimally chosen for expected access patterns. **Action:** Where frequent key-based lookups or membership checks are required, ensure `HashMap` or `HashSet` are used to guarantee $O(1)$ average time complexity over less efficient alternatives (like linear searches in vectors).
+
+## 🧪 Low Priority (Testing & Documentation)
+
+1.  **Test Coverage Gaps:**
+    *   **Property-Based Testing:** Implement property tests using crates like `proptest` for modules containing complex mathematical or state transitions (e.g., rate limiters, altitude calculations, coordinate transformations). This ensures robustness across an entire input domain, not just specific examples.
+    *   **Integration Tests:** Build robust integration test suites (`tests/integration_test.rs`) simulating full system workflows: *FUSE Mount $\rightarrow$ Tile Fetch $\rightarrow$ Decode Image $\rightarrow$ Render*. This validates the interaction contracts between major modules.
+
+2.  **Benchmarking Implementation:**
+    *   Add dedicated benchmarks using `cargo bench` for functions identified as performance hotspots:
+        *   Tile assembly logic (`src/tiles/assembler.rs`).
+        *   Image decoding and pixel manipulation pipelines (`src/pipeline/image.rs`).
+        *   Cache retrieval/write cycles under load (in `src/pipeline/cache.rs`).
+
+3.  **Documentation:**
+    *   For every public struct, trait, or function, ensure comprehensive documentation comments explaining its *role*, its *preconditions*, and any associated performance trade-offs.
+
+## 🏁 Summary Action Plan (Phased Approach)
+
+1.  **Phase 1: Stability & Safety (High Priority):** Standardize error handling and refactor core data types using Newtype wrappers.
+2.  **Phase 2: Performance Uplift (Medium Priority):** Implement async I/O patterns and optimize high-cost operations via benchmarking and memory efficient techniques (`Cow`, `&str`).
+3.  **Phase 3: Resilience & Completeness (Low Priority):** Build out property-based and end-to-end integration tests to ensure the system's robustness under varied and extreme conditions.
