@@ -89,6 +89,24 @@ mod tests {
     }
 
     #[test]
+    fn test_interpolate_altitude_negative() {
+        let alt = AltitudePredictor::interpolate_altitude(10000.0, 5000.0, -0.5);
+        assert_eq!(alt, 10000.0);
+    }
+
+    #[test]
+    fn test_interpolate_altitude_overshoot() {
+        let alt = AltitudePredictor::interpolate_altitude(10000.0, 5000.0, 1.5);
+        assert_eq!(alt, 5000.0);
+    }
+
+    #[test]
+    fn test_interpolate_altitude_nan() {
+        let alt = AltitudePredictor::interpolate_altitude(10000.0, 5000.0, f32::NAN);
+        assert!(alt.is_nan());
+    }
+
+    #[test]
     fn test_altitude_at_time_steady() {
         let alt = AltitudePredictor::altitude_at_time(10000.0, 5000.0, 0.0, 60.0);
         assert_eq!(alt, 10000.0); // No descent

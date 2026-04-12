@@ -18,15 +18,3 @@ pub mod time_exclusion;
 pub mod ui;
 pub mod webui;
 pub mod xplane;
-
-use tokio::runtime::Builder;
-
-/// Create a multi-threaded Tokio runtime for async operations.
-/// This should be called once at application startup and shared across components.
-pub fn create_runtime() -> tokio::runtime::Runtime {
-    Builder::new_multi_thread()
-        .enable_all()
-        .thread_name("autoortho-worker")
-        .build()
-        .expect("Failed to create Tokio runtime")
-}
