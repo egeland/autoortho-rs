@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.31](https://github.com/egeland/autoortho-rs/compare/v0.6.30...v0.6.31) - 2026-04-13
+
+### Fixed
+
+- use runner.os to check Windows ([#171](https://github.com/egeland/autoortho-rs/pull/171))
+
 ## [0.6.30](https://github.com/egeland/autoortho-rs/compare/v0.6.29...v0.6.30) - 2026-04-13
 
 ### Fixed
