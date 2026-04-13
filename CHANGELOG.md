@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.26](https://github.com/egeland/autoortho-rs/compare/v0.6.25...v0.6.26) - 2026-04-13
+
+### Fixed
+
+- enable winfsp system feature and fix CI ([#161](https://github.com/egeland/autoortho-rs/pull/161))
+
 ## [0.6.25](https://github.com/egeland/autoortho-rs/compare/v0.6.24...v0.6.25) - 2026-04-12
 
 ### Fixed
