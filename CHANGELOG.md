@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.27](https://github.com/egeland/autoortho-rs/compare/v0.6.26...v0.6.27) - 2026-04-13
+
+### Fixed
+
+- install WinFSP in release workflow for Windows build ([#163](https://github.com/egeland/autoortho-rs/pull/163))
+
 ## [0.6.26](https://github.com/egeland/autoortho-rs/compare/v0.6.25...v0.6.26) - 2026-04-13
 
 ### Fixed
