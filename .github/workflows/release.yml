@@ -126,6 +126,9 @@ jobs:
       - name: enable windows longpaths
         run: |
           git config --global core.longpaths true
+      - name: Install WinFSP (Windows)
+        if: matrix.runner == 'windows-latest'
+        run: choco install winfsp -y
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
