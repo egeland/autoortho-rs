@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.32](https://github.com/egeland/autoortho-rs/compare/v0.6.31...v0.6.32) - 2026-04-13
+
+### Fixed
+
+- use matrix.targets check for WinFSP install in release workflow ([#173](https://github.com/egeland/autoortho-rs/pull/173))
+
 ## [0.6.31](https://github.com/egeland/autoortho-rs/compare/v0.6.30...v0.6.31) - 2026-04-13
 
 ### Fixed
