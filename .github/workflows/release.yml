@@ -127,7 +127,7 @@ jobs:
         run: |
           git config --global core.longpaths true
       - name: Install WinFSP (Windows)
-        if: matrix.runner == 'windows-latest'
+        if: contains(matrix.targets, 'windows')
         run: choco install winfsp -y
       - uses: actions/checkout@v6
         with:
