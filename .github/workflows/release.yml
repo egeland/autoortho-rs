@@ -127,6 +127,7 @@ jobs:
         run: |
           git config --global core.longpaths true
       - name: Install WinFSP (Windows)
+        if: runner.os == 'Windows_NT'
         run: choco install winfsp -y
       - uses: actions/checkout@v6
         with:
