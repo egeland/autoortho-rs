@@ -59,6 +59,11 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Install WinFSP (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          choco install winfsp -y
+
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
