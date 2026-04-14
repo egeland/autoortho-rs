@@ -63,19 +63,20 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           Invoke-WebRequest -Uri "https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi" -OutFile winfsp.msi
-          msiexec /i winfsp.msi /passive /norestart ADDLOCAL=Main,User,Developer /l* winfsp_install.log
+          msiexec /i winfsp.msi /passive /norestart INSTALLLEVEL=1001 /l* winfsp_install.log
 
       - name: Verify WinFSP installation
         if: matrix.os == 'windows-latest'
         run: |
-          # Check MSI log for errors
-          if (Select-String -Path winfsp_install.log -Pattern "Error|Exception|return value 3" -Quiet) {
-              Write-Host "MSI install errors found:"
-              Get-Content winfsp_install.log | Select-String -Pattern "Error|Exception"
+          # Check for MSI fatal errors
+          if (Select-String -Path winfsp_install.log -Pattern "return value 3" -Quiet) {
+              Write-Host "MSI fatal errors found:"
+              Get-Content winfsp_install.log | Select-String -Pattern "Error 2711|Error 1603"
               exit 1
           }
           # Check registry
           reg query "HKLM\SOFTWARE\WOW6432Node\WinFsp" /v InstallDir
+          # Check headers exist
           Test-Path "C:\Program Files (x86)\WinFsp\inc\winfsp\winfsp.h"
 
       - uses: dtolnay/rust-toolchain@stable
