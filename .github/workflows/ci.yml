@@ -63,12 +63,13 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           Invoke-WebRequest -Uri "https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi" -OutFile winfsp.msi
-          msiexec /i winfsp.msi /qn /norestart
+          msiexec /i winfsp.msi /qn /norestart ADDLOCAL=Developer
 
       - name: Verify WinFSP installation
         if: matrix.os == 'windows-latest'
         run: |
           reg query "HKLM\SOFTWARE\WOW6432Node\WinFsp" /v InstallDir
+          Test-Path "C:\Program Files (x86)\WinFsp\inc\winfsp\winfsp.h"
 
       - uses: dtolnay/rust-toolchain@stable
 
