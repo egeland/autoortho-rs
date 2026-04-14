@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.35](https://github.com/egeland/autoortho-rs/compare/v0.6.34...v0.6.35) - 2026-04-14
+
+### Other
+
+- update Cargo.lock dependencies
+
 ## [0.6.34](https://github.com/egeland/autoortho-rs/compare/v0.6.33...v0.6.34) - 2026-04-14
 
 ### Other
