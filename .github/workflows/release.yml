@@ -128,7 +128,15 @@ jobs:
           git config --global core.longpaths true
       - name: Install WinFSP (Windows)
         if: contains(matrix.targets, 'windows')
-        run: choco install winfsp -y
+        run: |
+          # Download WinFSP MSI directly
+          Invoke-WebRequest -Uri "https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi" -OutFile winfsp.msi
+          # Install MSI silently
+          msiexec /i winfsp.msi /qn /norestart
+      - name: Verify WinFSP installation
+        if: contains(matrix.targets, 'windows')
+        run: |
+          reg query "HKLM\SOFTWARE\WOW6432Node\WinFsp" /v InstallDir
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
