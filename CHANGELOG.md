@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.34](https://github.com/egeland/autoortho-rs/compare/v0.6.33...v0.6.34) - 2026-04-14
+
+### Other
+
+- bump zip, tokio, actions/create-github-app-token ([#177](https://github.com/egeland/autoortho-rs/pull/177))
+
 ## [0.6.33](https://github.com/egeland/autoortho-rs/compare/v0.6.32...v0.6.33) - 2026-04-14
 
 ### Fixed
