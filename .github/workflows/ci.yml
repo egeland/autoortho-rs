@@ -63,7 +63,7 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           Invoke-WebRequest -Uri "https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi" -OutFile winfsp.msi
-          msiexec /i winfsp.msi /qn /norestart ADDLOCAL=Developer
+          msiexec /i winfsp.msi /qn /norestart ADDLOCAL=Main,User,Developer
 
       - name: Verify WinFSP installation
         if: matrix.os == 'windows-latest'

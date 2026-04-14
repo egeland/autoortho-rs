@@ -131,8 +131,8 @@ jobs:
         run: |
           # Download WinFSP MSI directly
           Invoke-WebRequest -Uri "https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi" -OutFile winfsp.msi
-          # Install MSI silently with Developer feature (includes headers and libs)
-          msiexec /i winfsp.msi /qn /norestart ADDLOCAL=Developer
+          # Install MSI silently with Main+User+Developer features (includes all files and creates registry)
+          msiexec /i winfsp.msi /qn /norestart ADDLOCAL=Main,User,Developer
       - name: Verify WinFSP installation
         if: contains(matrix.targets, 'windows')
         run: |
