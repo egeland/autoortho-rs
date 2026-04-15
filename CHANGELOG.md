@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.39](https://github.com/egeland/autoortho-rs/compare/v0.6.38...v0.6.39) - 2026-04-15
+
+### Fixed
+
+- correct matrix.targets condition for WinFSP in release.yml ([#187](https://github.com/egeland/autoortho-rs/pull/187))
+
 ## [0.6.38](https://github.com/egeland/autoortho-rs/compare/v0.6.37...v0.6.38) - 2026-04-15
 
 ### Fixed
