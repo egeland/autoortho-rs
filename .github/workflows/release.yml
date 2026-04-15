@@ -127,19 +127,19 @@ jobs:
         run: |
           git config --global core.longpaths true
       - name: Install WinFSP (Windows)
-        if: contains(matrix.targets, 'windows')
+        if: contains(matrix.targets, 'x86_64-pc-windows-msvc')
         run: |
           # Download WinFSP MSI directly
           Invoke-WebRequest -Uri "https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi" -OutFile winfsp.msi
           # Install MSI with all features (INSTALLLEVEL=1001 includes Core + Developer)
           msiexec /i winfsp.msi /passive /norestart INSTALLLEVEL=1001 /l* winfsp_install.log
       - name: Set WINFSP_DIR (Windows)
-        if: contains(matrix.targets, 'windows')
+        if: contains(matrix.targets, 'x86_64-pc-windows-msvc')
         run: |
           $installDir = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\WinFsp' -Name InstallDir).InstallDir
           "WINFSP_DIR=$installDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Verify WinFSP installation
-        if: contains(matrix.targets, 'windows')
+        if: contains(matrix.targets, 'x86_64-pc-windows-msvc')
         run: |
           # Check for MSI fatal errors
           if (Select-String -Path winfsp_install.log -Pattern "return value 3" -Quiet) {
