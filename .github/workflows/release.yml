@@ -122,7 +122,6 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BUILD_MANIFEST_NAME: target/distrib/${{ join(matrix.targets, '-') }}-dist-manifest.json
-      WINFSP_DIR: "C:\\Program Files (x86)\\WinFsp"
     steps:
       - name: enable windows longpaths
         run: |
@@ -134,6 +133,11 @@ jobs:
           Invoke-WebRequest -Uri "https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi" -OutFile winfsp.msi
           # Install MSI with all features (INSTALLLEVEL=1001 includes Core + Developer)
           msiexec /i winfsp.msi /passive /norestart INSTALLLEVEL=1001 /l* winfsp_install.log
+      - name: Set WINFSP_DIR (Windows)
+        if: contains(matrix.targets, 'windows')
+        run: |
+          $installDir = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\WinFsp' -Name InstallDir).InstallDir
+          "WINFSP_DIR=$installDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
       - name: Verify WinFSP installation
         if: contains(matrix.targets, 'windows')
         run: |
@@ -146,7 +150,7 @@ jobs:
           # Check registry
           reg query "HKLM\SOFTWARE\WOW6432Node\WinFsp" /v InstallDir
           # Check headers exist
-          Test-Path "C:\Program Files (x86)\WinFsp\inc\winfsp\winfsp.h"
+          Test-Path "$env:WINFSP_DIR\inc\winfsp\winfsp.h"
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
