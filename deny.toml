@@ -10,10 +10,7 @@ all-features = true
 
 [advisories]
 unmaintained = "workspace"
-
-[advisories.skip]
-id = "RUSTSEC-2026-0098"
-reason = "False positive: rustls-webpki vulnerability affects server-side URI validation, not client-side certificate verification used by this crate"
+ignore = ["RUSTSEC-2026-0098"]
 
 [bans]
 multiple-versions = "warn"
@@ -64,11 +61,7 @@ license-files = [{ path = "LICENSE", hash = 0x677f2d98 }]
 [[licenses.clarify]]
 name = "winfsp"
 expression = "GPL-3.0"
-license-files = [{ path = "LICENSE", hash = 0x00000000 }]
-expect = "unversioned"
 
 [[licenses.clarify]]
 name = "winfsp-sys"
 expression = "GPL-3.0"
-license-files = [{ path = "LICENSE", hash = 0x00000000 }]
-expect = "unversioned"
