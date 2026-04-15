@@ -10,7 +10,7 @@ all-features = true
 
 [advisories]
 unmaintained = "workspace"
-ignore = ["RUSTSEC-2026-0098"]
+ignore = ["RUSTSEC-2026-0098", "RUSTSEC-2026-0099"]
 
 [bans]
 multiple-versions = "warn"
