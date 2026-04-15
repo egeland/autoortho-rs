@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.37](https://github.com/egeland/autoortho-rs/compare/v0.6.36...v0.6.37) - 2026-04-15
+
+### Fixed
+
+- correct deny.toml syntax ([#183](https://github.com/egeland/autoortho-rs/pull/183))
+
 ## [0.6.36](https://github.com/egeland/autoortho-rs/compare/v0.6.35...v0.6.36) - 2026-04-15
 
 ### Fixed
