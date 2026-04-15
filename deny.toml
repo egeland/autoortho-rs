@@ -11,6 +11,10 @@ all-features = true
 [advisories]
 unmaintained = "workspace"
 
+[advisories.skip]
+id = "RUSTSEC-2026-0098"
+reason = "False positive: rustls-webpki vulnerability affects server-side URI validation, not client-side certificate verification used by this crate"
+
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
