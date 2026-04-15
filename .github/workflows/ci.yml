@@ -65,6 +65,12 @@ jobs:
           Invoke-WebRequest -Uri "https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi" -OutFile winfsp.msi
           msiexec /i winfsp.msi /passive /norestart INSTALLLEVEL=1001 /l* winfsp_install.log
 
+      - name: Set WINFSP_DIR (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          $installDir = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\WinFsp' -Name InstallDir).InstallDir
+          "WINFSP_DIR=$installDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
       - name: Verify WinFSP installation
         if: matrix.os == 'windows-latest'
         run: |
