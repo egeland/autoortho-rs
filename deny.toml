@@ -38,14 +38,12 @@ allow = [
     "BSL-1.0",
     "bzip2-1.0.6",
     "CC0-1.0",
-    "CDLA-Permissive-2.0",
     "GPL-3.0",
     "GPL-3.0-or-later",
     "ISC",
     "MIT",
     "MPL-2.0",
     "Unicode-3.0",
-    "Unicode-DFS-2016",
     "Zlib",
 ]
 
@@ -58,3 +56,15 @@ license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
 name = "s2n-tls"
 expression = "Apache-2.0"
 license-files = [{ path = "LICENSE", hash = 0x677f2d98 }]
+
+[[licenses.clarify]]
+name = "winfsp"
+expression = "GPL-3.0"
+license-files = [{ path = "LICENSE", hash = 0x00000000 }]
+expect = "unversioned"
+
+[[licenses.clarify]]
+name = "winfsp-sys"
+expression = "GPL-3.0"
+license-files = [{ path = "LICENSE", hash = 0x00000000 }]
+expect = "unversioned"
