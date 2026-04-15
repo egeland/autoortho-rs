@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.38](https://github.com/egeland/autoortho-rs/compare/v0.6.37...v0.6.38) - 2026-04-15
+
+### Fixed
+
+- set WINFSP_DIR env var for winfsp-sys build in ci ([#185](https://github.com/egeland/autoortho-rs/pull/185))
+
 ## [0.6.37](https://github.com/egeland/autoortho-rs/compare/v0.6.36...v0.6.37) - 2026-04-15
 
 ### Fixed
