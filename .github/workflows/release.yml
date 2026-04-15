@@ -122,6 +122,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BUILD_MANIFEST_NAME: target/distrib/${{ join(matrix.targets, '-') }}-dist-manifest.json
+      WINFSP_DIR: "C:\\Program Files (x86)\\WinFsp"
     steps:
       - name: enable windows longpaths
         run: |
