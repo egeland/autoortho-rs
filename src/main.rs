@@ -80,8 +80,14 @@ fn main() -> Result<(), Box<dyn Error>> {
             return rt.block_on(run_with_mount(&mount));
         }
         Commands::Run => {
-            let rt = tokio::runtime::Runtime::new()?;
-            rt.block_on(run_server())?;
+            info!("No subcommand provided, launching GUI mode by default.");
+            // Default to GUI when no command specified
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .thread_name("autoortho-worker")
+                .build()
+                .expect("Failed to create Tokio runtime");
+            autoortho_lib::ui::run(runtime).map_err(|e| format!("GUI error: {}", e))?;
         }
     }
 
@@ -406,6 +412,7 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[allow(dead_code)]
 async fn run_server() -> Result<(), Box<dyn Error>> {
     info!("AutoOrtho Rust v{} starting", env!("CARGO_PKG_VERSION"));
 
