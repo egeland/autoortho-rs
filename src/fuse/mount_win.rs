@@ -309,7 +309,12 @@ mod winfsp_impl {
         runtime: tokio::runtime::Handle,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Initialize WinFSP library (must be called before creating FileSystemHost)
-        let _init = winfsp::winfsp_init_or_die();
+        let _init = winfsp::winfsp_init().map_err(|e| -> Box<dyn std::error::Error> {
+            format!(
+                "WinFSP not found ({e}). Install WinFSP from: https://github.com/winfsp/winfsp/releases"
+            )
+            .into()
+        })?;
 
         let winfsp_fs = AutoOrthoWinFsp::new(fs, runtime);
 

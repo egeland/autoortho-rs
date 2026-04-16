@@ -155,6 +155,23 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
+      - name: Stage WinFSP DLL for packaging (Windows)
+        if: contains(matrix.targets, 'x86_64-pc-windows-msvc')
+        run: |
+          # Copy winfsp-x64.dll and its license into the cargo output dir so WiX picks them up
+          $releaseDir = "target\x86_64-pc-windows-msvc\release"
+          New-Item -Force -ItemType Directory -Path $releaseDir | Out-Null
+          Copy-Item "$env:WINFSP_DIR\bin\winfsp-x64.dll" "$releaseDir\winfsp-x64.dll"
+          # WinFSP is GPL-3.0; must distribute license alongside the DLL
+          $licenseSrc = "$env:WINFSP_DIR\LICENSE.txt"
+          if (Test-Path $licenseSrc) {
+            Copy-Item $licenseSrc "$releaseDir\LICENSE-winfsp.txt"
+          } else {
+            # License may be at the install root
+            $licenseSrc = (Get-ChildItem "$env:WINFSP_DIR" -Filter "LICENSE*" -Recurse | Select-Object -First 1).FullName
+            if ($licenseSrc) { Copy-Item $licenseSrc "$releaseDir\LICENSE-winfsp.txt" }
+          }
+          Write-Host "Staged winfsp-x64.dll to $releaseDir"
       - name: Install Rust non-interactively if not already installed
         if: ${{ matrix.container }}
         run: |
@@ -179,6 +196,38 @@ jobs:
           # Actually do builds and make zips and whatnot
           dist build ${{ needs.plan.outputs.tag-flag }} --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json
           echo "dist ran successfully"
+      - name: Add WinFSP DLL to Windows zip (Windows)
+        if: contains(matrix.targets, 'x86_64-pc-windows-msvc')
+        run: |
+          $zipFile = Get-ChildItem -Path "target/distrib" -Filter "*windows*.zip" -Recurse |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (-not $zipFile) {
+            Write-Error "No Windows zip found in target/distrib"
+            exit 1
+          }
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::Open($zipFile, 'Update')
+          # Find where autoortho.exe lives in the zip to use the same path prefix
+          $exeEntry = $zip.Entries | Where-Object { $_.Name -eq 'autoortho.exe' } | Select-Object -First 1
+          if ($exeEntry) {
+            $prefix = $exeEntry.FullName -replace 'autoortho\.exe$', ''
+          } else {
+            $prefix = ''
+          }
+          $dllSource = "$env:WINFSP_DIR\bin\winfsp-x64.dll"
+          [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+            $zip, $dllSource, "${prefix}winfsp-x64.dll",
+            [System.IO.Compression.CompressionLevel]::Optimal
+          )
+          $licenseSource = "target\x86_64-pc-windows-msvc\release\LICENSE-winfsp.txt"
+          if (Test-Path $licenseSource) {
+            [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+              $zip, $licenseSource, "${prefix}LICENSE-winfsp.txt",
+              [System.IO.Compression.CompressionLevel]::Optimal
+            )
+          }
+          $zip.Dispose()
+          Write-Host "Added winfsp-x64.dll to $zipFile (prefix: '$prefix')"
       - id: cargo-dist
         name: Post-build
         # We force bash here just because github makes it really hard to get values up
