@@ -87,9 +87,11 @@ tempfile = "3"
 criterion = "0.8"
 cargo-dist = "0.31"
 
+[workspace.metadata.dist]
+allow-dirty = ["msi"]
+
 [package.metadata.dist]
 dist-version = "0.2.0"
-allow-dirty = ["msi"]
 targets = [
   "x86_64-pc-windows-msvc",
   "x86_64-unknown-linux-gnu",
