@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.40](https://github.com/egeland/autoortho-rs/compare/v0.6.39...v0.6.40) - 2026-04-16
+
+### Added
+
+- Make GUI the default launch mode ([#189](https://github.com/egeland/autoortho-rs/pull/189))
+
 ## [0.6.39](https://github.com/egeland/autoortho-rs/compare/v0.6.38...v0.6.39) - 2026-04-15
 
 ### Fixed
