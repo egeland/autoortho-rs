@@ -412,6 +412,7 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[allow(dead_code)]
 async fn run_server() -> Result<(), Box<dyn Error>> {
     info!("AutoOrtho Rust v{} starting", env!("CARGO_PKG_VERSION"));
 
