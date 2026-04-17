@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.42](https://github.com/egeland/autoortho-rs/compare/v0.6.41...v0.6.42) - 2026-04-17
+
+### Fixed
+
+- *(ci)* stage winfsp DLL to dist profile dir, not release ([#194](https://github.com/egeland/autoortho-rs/pull/194))
+
 ## [0.6.41](https://github.com/egeland/autoortho-rs/compare/v0.6.40...v0.6.41) - 2026-04-17
 
 ### Fixed
