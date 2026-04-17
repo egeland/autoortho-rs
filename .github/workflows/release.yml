@@ -159,7 +159,7 @@ jobs:
         if: contains(matrix.targets, 'x86_64-pc-windows-msvc')
         run: |
           # Copy winfsp-x64.dll and its license into the cargo output dir so WiX picks them up
-          $releaseDir = "target\x86_64-pc-windows-msvc\release"
+          $releaseDir = "target\x86_64-pc-windows-msvc\dist"
           New-Item -Force -ItemType Directory -Path $releaseDir | Out-Null
           Copy-Item "$env:WINFSP_DIR\bin\winfsp-x64.dll" "$releaseDir\winfsp-x64.dll"
           # WinFSP is GPL-3.0; must distribute license alongside the DLL
@@ -219,7 +219,7 @@ jobs:
             $zip, $dllSource, "${prefix}winfsp-x64.dll",
             [System.IO.Compression.CompressionLevel]::Optimal
           )
-          $licenseSource = "target\x86_64-pc-windows-msvc\release\LICENSE-winfsp.txt"
+          $licenseSource = "target\x86_64-pc-windows-msvc\dist\LICENSE-winfsp.txt"
           if (Test-Path $licenseSource) {
             [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
               $zip, $licenseSource, "${prefix}LICENSE-winfsp.txt",
