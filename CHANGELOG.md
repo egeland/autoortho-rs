@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.41](https://github.com/egeland/autoortho-rs/compare/v0.6.40...v0.6.41) - 2026-04-17
+
+### Fixed
+
+- *(windows)* bundle winfsp-x64.dll in zip and MSI, graceful init error ([#192](https://github.com/egeland/autoortho-rs/pull/192))
+
 ## [0.6.40](https://github.com/egeland/autoortho-rs/compare/v0.6.39...v0.6.40) - 2026-04-16
 
 ### Added
