@@ -109,26 +109,40 @@
                     </Component>
                     -->
 
-                    <Directory Id='Bin' Name='bin'>
-                        <Component Id='Path' Guid='BFD25009-65A4-4D1E-97F1-0030465D90D6' KeyPath='yes'>
-                            <Environment
-                                Id='PATH'
-                                Name='PATH'
-                                Value='[Bin]'
-                                Permanent='no'
-                                Part='last'
-                                Action='set'
-                                System='yes'/>
-                        </Component>
-                        <Component Id='binary0' Guid='*'>
-                            <File
-                                Id='exe0'
-                                Name='autoortho.exe'
-                                DiskId='1'
-                                Source='$(var.CargoTargetBinDir)\autoortho.exe'
-                                KeyPath='yes'/>
-                        </Component>
-                    </Directory>
+                    <Component Id='Path' Guid='BFD25009-65A4-4D1E-97F1-0030465D90D6' KeyPath='yes'>
+                        <Environment
+                            Id='PATH'
+                            Name='PATH'
+                            Value='[APPLICATIONFOLDER]'
+                            Permanent='no'
+                            Part='last'
+                            Action='set'
+                            System='yes'/>
+                    </Component>
+                    <Component Id='binary0' Guid='*'>
+                        <File
+                            Id='exe0'
+                            Name='autoortho.exe'
+                            DiskId='1'
+                            Source='$(var.CargoTargetBinDir)\autoortho.exe'
+                            KeyPath='yes'/>
+                    </Component>
+                    <Component Id='winfsp_dll' Guid='*'>
+                        <File
+                            Id='winfsp_x64_dll'
+                            Name='winfsp-x64.dll'
+                            DiskId='1'
+                            Source='$(var.CargoTargetBinDir)\winfsp-x64.dll'
+                            KeyPath='yes'/>
+                    </Component>
+                    <Component Id='winfsp_license' Guid='*'>
+                        <File
+                            Id='winfsp_license_txt'
+                            Name='LICENSE-winfsp.txt'
+                            DiskId='1'
+                            Source='$(var.CargoTargetBinDir)\LICENSE-winfsp.txt'
+                            KeyPath='yes'/>
+                    </Component>
                 </Directory>
             </Directory>
         </Directory>
@@ -150,6 +164,8 @@
             <!--<ComponentRef Id='License'/>-->
 
             <ComponentRef Id='binary0'/>
+            <ComponentRef Id='winfsp_dll'/>
+            <ComponentRef Id='winfsp_license'/>
 
             <Feature
                 Id='Environment'

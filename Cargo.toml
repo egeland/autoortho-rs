@@ -87,17 +87,6 @@ tempfile = "3"
 criterion = "0.8"
 cargo-dist = "0.31"
 
-[package.metadata.dist]
-dist-version = "0.2.0"
-allow-dirty = ["msi"]
-targets = [
-  "x86_64-pc-windows-msvc",
-  "x86_64-unknown-linux-gnu",
-  "aarch64-apple-darwin",
-]
-upload-github-release = true
-generate-checksums = true
-installer-suffix = "-unsigned"
 
 [package.metadata.wix]
 upgrade-guid = "B36177BE-EA4D-44FB-B05C-EDDABDAA95CA"
