@@ -293,6 +293,37 @@ fn default_chunk_memory_cache_mb() -> u64 {
     512
 }
 
+fn default_xplane_path() -> String {
+    dirs::home_dir()
+        .map(|p| p.join("X-Plane 12").to_string_lossy().into_owned())
+        .unwrap_or_else(|| "X-Plane 12".to_string())
+}
+
+fn default_enable_dynamic_zoom() -> bool {
+    true
+}
+
+fn default_use_simbrief_altitude() -> bool {
+    true
+}
+
+fn default_simheaven_compat() -> bool {
+    false
+}
+
+fn default_zoom_rules() -> Vec<ZoomRule> {
+    vec![
+        ZoomRule {
+            min_altitude_ft: 0.0,
+            zoom_level: 19,
+        },
+        ZoomRule {
+            min_altitude_ft: 10000.0,
+            zoom_level: 16,
+        },
+    ]
+}
+
 impl AutoOrthoConfig {
     /// Estimated memory per DDS tile in MB (4096x4096 BC3 compressed).
     const DDS_TILE_SIZE_MB: u64 = 22;
@@ -409,37 +440,6 @@ impl AutoOrthoConfig {
 
         Ok(())
     }
-}
-
-fn default_enable_dynamic_zoom() -> bool {
-    true
-}
-
-fn default_use_simbrief_altitude() -> bool {
-    true
-}
-
-fn default_simheaven_compat() -> bool {
-    false
-}
-
-fn default_zoom_rules() -> Vec<ZoomRule> {
-    vec![
-        ZoomRule {
-            min_altitude_ft: 0.0,
-            zoom_level: 19,
-        },
-        ZoomRule {
-            min_altitude_ft: 10000.0,
-            zoom_level: 16,
-        },
-    ]
-}
-
-fn default_xplane_path() -> String {
-    dirs::home_dir()
-        .map(|p| p.join("X-Plane 12").to_string_lossy().into_owned())
-        .unwrap_or_else(|| "X-Plane 12".to_string())
 }
 
 impl Default for AutoOrthoConfig {
