@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.43](https://github.com/egeland/autoortho-rs/compare/v0.6.42...v0.6.43) - 2026-04-19
+
+### Other
+
+- *(config)* group default helper functions before Default impl ([#196](https://github.com/egeland/autoortho-rs/pull/196))
+
 ## [0.6.42](https://github.com/egeland/autoortho-rs/compare/v0.6.41...v0.6.42) - 2026-04-17
 
 ### Fixed
