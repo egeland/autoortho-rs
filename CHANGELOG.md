@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.45](https://github.com/egeland/autoortho-rs/compare/v0.6.44...v0.6.45) - 2026-04-20
+
+### Other
+
+- Replace broken MSI installer with Inno Setup installer for Windows ([#200](https://github.com/egeland/autoortho-rs/pull/200))
+
 ## [0.6.44](https://github.com/egeland/autoortho-rs/compare/v0.6.43...v0.6.44) - 2026-04-20
 
 ### Fixed
