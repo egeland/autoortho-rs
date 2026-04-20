@@ -228,6 +228,39 @@ jobs:
           }
           $zip.Dispose()
           Write-Host "Added winfsp-x64.dll to $zipFile (prefix: '$prefix')"
+      - name: Create Windows Installer with Inno Setup
+        if: contains(matrix.targets, 'x86_64-pc-windows-msvc')
+        run: |
+          # First, create the Inno Setup script with version from Cargo.toml
+          $version = (Select-String -Path "Cargo.toml" -Pattern "version = ""(.+)""").Matches.Groups[1].Value
+          $innoScript = @"
+            [Setup]
+            AppName=autoortho
+            AppVersion=$version
+            AppPublisher=Frode Egeland
+            DefaultDirName={pf}\autoortho
+            OutputDir=target/distrib
+            OutputBaseFilename=autoortho-installer-$version
+            Compression=lzma
+            SolidCompression=yes
+            
+            [Files]
+            Source: "target\x86_64-pc-windows-msvc\dist\autoortho.exe"; DestDir: "{app}"; Flags: ignoreversion
+            Source: "target\x86_64-pc-windows-msvc\dist\winfsp-x64.dll"; DestDir: "{app}"; Flags: ignoreversion
+            Source: "target\x86_64-pc-windows-msvc\dist\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
+            Source: "target\x86_64-pc-windows-msvc\dist\LICENSE-winfsp.txt"; DestDir: "{app}"; Flags: ignoreversion
+            
+            [Icons]
+            Name: "{autoprogramsmenu}\autoortho"; Filename: "{app}\autoortho.exe"
+            Name: "{commondesktop}\autoortho"; Filename: "{app}\autoortho.exe"
+            
+            [Run]
+            Filename: "{app}\autoortho.exe"; Description: "Launch autoortho"; Flags: nowait postinstall skipifsilent
+          "@
+          $innoScript | Out-File -FilePath "autoortho-installer.iss" -Encoding UTF8
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.0
+        with:
+          source: autoortho-installer.iss
       - id: cargo-dist
         name: Post-build
         # We force bash here just because github makes it really hard to get values up
