@@ -124,7 +124,7 @@
                             Id='exe0'
                             Name='autoortho.exe'
                             DiskId='1'
-                            Source='$(var.CargoTargetBinDir)\autoortho.exe'
+                            Source='autoortho.exe'
                             KeyPath='yes'/>
                     </Component>
                     <Component Id='winfsp_dll' Guid='*'>
@@ -132,7 +132,7 @@
                             Id='winfsp_x64_dll'
                             Name='winfsp-x64.dll'
                             DiskId='1'
-                            Source='$(var.CargoTargetBinDir)\winfsp-x64.dll'
+                            Source='winfsp-x64.dll'
                             KeyPath='yes'/>
                     </Component>
                     <Component Id='winfsp_license' Guid='*'>
@@ -140,7 +140,7 @@
                             Id='winfsp_license_txt'
                             Name='LICENSE-winfsp.txt'
                             DiskId='1'
-                            Source='$(var.CargoTargetBinDir)\LICENSE-winfsp.txt'
+                            Source='LICENSE-winfsp.txt'
                             KeyPath='yes'/>
                     </Component>
                 </Directory>
