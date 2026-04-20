@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.44](https://github.com/egeland/autoortho-rs/compare/v0.6.43...v0.6.44) - 2026-04-20
+
+### Fixed
+
+- resolve WiX path issue for Windows installer build ([#198](https://github.com/egeland/autoortho-rs/pull/198))
+
 ## [0.6.43](https://github.com/egeland/autoortho-rs/compare/v0.6.42...v0.6.43) - 2026-04-19
 
 ### Other
