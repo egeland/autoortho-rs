@@ -19,7 +19,9 @@ SolidCompression=yes
 WizardStyle=modern
 
 [Files]
-Source: "artifacts\autoortho.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "autoortho.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "winfsp-x64.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "LICENSE-winfsp.txt"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\#MyAppName"; Filename: "{app}\#MyAppExeName"
