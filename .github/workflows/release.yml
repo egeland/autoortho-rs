@@ -41,11 +41,11 @@ permissions:
 on:
   pull_request:
     paths:
-      - 'Cargo.toml'
-      - '.github/workflows/release.yml'
+      - "Cargo.toml"
+      - ".github/workflows/release.yml"
   push:
     tags:
-      - '**[0-9]+.[0-9]+.[0-9]+*'
+      - "**[0-9]+.[0-9]+.[0-9]+*"
   workflow_dispatch:
     inputs:
       tag:
@@ -291,6 +291,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       BUILD_MANIFEST_NAME: target/distrib/global-dist-manifest.json
+      WINFSP_DLL_OUTPUT_PATH: target/distrib
     steps:
       - uses: actions/checkout@v6
         with:
@@ -394,6 +395,57 @@ jobs:
           echo "$ANNOUNCEMENT_BODY" > $RUNNER_TEMP/notes.txt
 
           gh release create "${{ needs.plan.outputs.tag }}" --target "$RELEASE_COMMIT" $PRERELEASE_FLAG --title "$ANNOUNCEMENT_TITLE" --notes-file "$RUNNER_TEMP/notes.txt" artifacts/*
+
+  # Build Windows Inno Setup installer after binaries are built
+  build-inno-setup:
+    needs: [plan, build-local-artifacts]
+    runs-on: windows-latest
+    if: needs.plan.outputs.publishing == 'true'
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - name: Install Inno Setup
+        run: |
+          # Download Inno Setup 6.x
+          $url = "https://files.jrsoftware.org/is/6/innosetup-6.3.1.exe"
+          $output = "innosetup.exe"
+          Invoke-WebRequest -Uri $url -OutFile $output
+          Start-Process -FilePath $output -ArgumentList "/SP /VERYSILENT /NORESTART" -Wait
+          # Add Inno Setup to PATH
+          $env:PATH += ";$env:ProgramFiles\Inno Setup 6"
+          echo "PATH=$env:PATH" >> $env:GITHUB_ENV
+      - name: Download binaries and WinFSP DLL
+        uses: actions/download-artifact@v8
+        with:
+          pattern: artifacts-build-local-x86_64-pc-windows-msvc
+          path: artifacts/
+          merge-multiple: true
+      - name: Extract version from tag
+        run: |
+          $tag = "${{ needs.plan.outputs.tag }}"
+          # Extract version without 'v' prefix if present
+          $version = $tag -replace '^v', ''
+          Write-Host "Version: $version"
+          "VERSION=$version" >> $env:GITHUB_ENV
+      - name: Compile Inno Setup installer
+        run: |
+          # Copy autoortho.exe to installer directory
+          Copy-Item "artifacts\autoortho.exe" "autoortho.exe"
+          # Copy winfsp-x64.dll and license to installer directory
+          Copy-Item "artifacts\winfsp-x64.dll" "winfsp-x64.dll"
+          Copy-Item "artifacts\LICENSE-winfsp.txt" "LICENSE-winfsp.txt"
+          # Compile using inno setup
+          $outputName = "autoortho-setup-${{ env.VERSION }}.exe"
+          iscc /DMyAppVersion=${{ env.VERSION }} installer.iss
+          # Move the installer to artifacts folder
+          Move-Item "Output\autoortho-setup-${{ env.VERSION }}.exe" "autoortho-setup-${{ env.VERSION }}.exe"
+      - name: Upload Inno Setup installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: artifacts-inno-setup-${{ env.VERSION }}
+          path: autoortho-setup-${{ env.VERSION }}.exe
 
   announce:
     needs:

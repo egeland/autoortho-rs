@@ -80,7 +80,7 @@ libc = "0.2"
 
 # Windows: use winfsp directly (not via unifuse, due to crate version conflicts)
 [target.'cfg(windows)'.dependencies]
-winfsp = { version = "0.12", features = ["full", "system"] }
+winfsp = { version = "0.12", features = ["full"] }
 
 [dev-dependencies]
 tempfile = "3"
@@ -88,11 +88,7 @@ criterion = "0.8"
 cargo-dist = "0.31"
 
 
-[package.metadata.wix]
-upgrade-guid = "B36177BE-EA4D-44FB-B05C-EDDABDAA95CA"
-path-guid = "BFD25009-65A4-4D1E-97F1-0030465D90D6"
-license = false
-eula = false
+
 
 [lib]
 name = "autoortho_lib"
