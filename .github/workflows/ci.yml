@@ -68,8 +68,32 @@ jobs:
       - name: Set WINFSP_DIR (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          $installDir = (Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\WinFsp' -Name InstallDir).InstallDir
-          "WINFSP_DIR=$installDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          # Prefer WOW6432Node registry key (32-bit installer path)
+          try {
+            $prop = Get-ItemProperty -Path 'HKLM:\SOFTWARE\WOW6432Node\WinFsp' -Name InstallDir -ErrorAction Stop
+            $winFspDir = $prop.InstallDir
+          } catch {
+            # Fallback: try x64 registry key
+            try {
+              $prop = Get-ItemProperty -Path 'HKLM:\SOFTWARE\WinFsp' -Name InstallDir -ErrorAction Stop
+              $winFspDir = $prop.InstallDir
+            } catch {
+              # Final fallback to default install location
+              $winFspDir = "C:\Program Files (x86)\WinFsp"
+            }
+          }
+          # Verify the DLL exists; if not, check alternate locations
+          if (-not (Test-Path "$winFspDir\bin\winfsp-x64.dll")) {
+            # Try WinFSP launcher directory (alternate layout)
+            $altDir = Get-ChildItem "C:\Program Files" -Directory -Filter "winfsp*" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($altDir) { $winFspDir = $altDir.FullName }
+            # Last resort: check if default exists
+            if (-not (Test-Path "$winFspDir\bin\winfsp-x64.dll")) {
+              Write-Error "WinFSP DLL not found in $winFspDir"
+              exit 1
+            }
+          }
+          "WINFSP_DIR=$winFspDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Verify WinFSP installation
         if: matrix.os == 'windows-latest'
@@ -80,10 +104,21 @@ jobs:
               Get-Content winfsp_install.log | Select-String -Pattern "Error 2711|Error 1603"
               exit 1
           }
-          # Check registry
-          reg query "HKLM\SOFTWARE\WOW6432Node\WinFsp" /v InstallDir
-          # Check headers exist
-          Test-Path "C:\Program Files (x86)\WinFsp\inc\winfsp\winfsp.h"
+          # Verify DLL exists
+          Test-Path "$env:WINFSP_DIR\bin\winfsp-x64.dll"
+          # Verify headers exist (one of the common locations)
+          $headerPaths = @(
+            "$env:WINFSP_DIR\inc\winfsp\winfsp.h",
+            "$env:WINFSP_DIR\inc\winfsp.h"
+          )
+          $found = $false
+          foreach ($h in $headerPaths) {
+            if (Test-Path $h) { $found = $true; break }
+          }
+          if (-not $found) {
+            Write-Error "WinFSP header file not found"
+            exit 1
+          }
 
       - uses: dtolnay/rust-toolchain@stable
 
