@@ -258,6 +258,8 @@ jobs:
             Filename: "{app}\autoortho.exe"; Description: "Launch autoortho"; Flags: nowait postinstall skipifsilent
           "@
           $innoScript | Out-File -FilePath "autoortho-installer.iss" -Encoding UTF8
+
+      - name: Compile Inno Setup installer
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.0
         with:
           source: autoortho-installer.iss
