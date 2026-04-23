@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.47](https://github.com/egeland/autoortho-rs/compare/v0.6.46...v0.6.47) - 2026-04-23
+
+### Fixed
+
+- *(workflow)* separate Inno Setup step from run block ([#205](https://github.com/egeland/autoortho-rs/pull/205))
+
 ## [0.6.46](https://github.com/egeland/autoortho-rs/compare/v0.6.45...v0.6.46) - 2026-04-21
 
 ### Fixed
