@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.48](https://github.com/egeland/autoortho-rs/compare/v0.6.47...v0.6.48) - 2026-04-23
+
+### Fixed
+
+- workflow fix attempt ([#207](https://github.com/egeland/autoortho-rs/pull/207))
+
 ## [0.6.47](https://github.com/egeland/autoortho-rs/compare/v0.6.46...v0.6.47) - 2026-04-23
 
 ### Fixed
