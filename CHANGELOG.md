@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.49](https://github.com/egeland/autoortho-rs/compare/v0.6.48...v0.6.49) - 2026-04-23
+
+### Fixed
+
+- update Inno Setup download URL to v6.7.1 ([#209](https://github.com/egeland/autoortho-rs/pull/209))
+
 ## [0.6.48](https://github.com/egeland/autoortho-rs/compare/v0.6.47...v0.6.48) - 2026-04-23
 
 ### Fixed
