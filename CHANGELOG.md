@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.51](https://github.com/egeland/autoortho-rs/compare/v0.6.50...v0.6.51) - 2026-04-24
+
+### Fixed
+
+- force Node.js 24 for Inno Setup Action on Windows ([#213](https://github.com/egeland/autoortho-rs/pull/213))
+
 ## [0.6.50](https://github.com/egeland/autoortho-rs/compare/v0.6.49...v0.6.50) - 2026-04-24
 
 ### Fixed
