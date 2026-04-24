@@ -420,6 +420,8 @@ jobs:
   build-inno-setup:
     needs: [plan, build-local-artifacts]
     runs-on: windows-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     if: needs.plan.outputs.publishing == 'true'
     steps:
       - uses: actions/checkout@v6
