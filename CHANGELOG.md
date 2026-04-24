@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.50](https://github.com/egeland/autoortho-rs/compare/v0.6.49...v0.6.50) - 2026-04-24
+
+### Fixed
+
+- use correct Inno Setup silent install flags to prevent hanging ([#211](https://github.com/egeland/autoortho-rs/pull/211))
+
 ## [0.6.49](https://github.com/egeland/autoortho-rs/compare/v0.6.48...v0.6.49) - 2026-04-23
 
 ### Fixed
