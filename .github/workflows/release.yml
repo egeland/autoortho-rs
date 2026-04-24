@@ -438,7 +438,8 @@ jobs:
           Write-Host "Installing Inno Setup..."
           # Install silently with correct flags for Inno Setup 6.x
           $installArgs = "/SUPPRESSWELCOMESC /VERYSILENT /NORESTART /SP- /SILENT /ALLUSERS"
-          & $output $installArgs
+          $exePath = Join-Path $PWD $output
+          & $exePath $installArgs
           if ($LASTEXITCODE -ne 0) {
             Write-Error "Inno Setup installation failed with exit code $LASTEXITCODE"
             exit $LASTEXITCODE
