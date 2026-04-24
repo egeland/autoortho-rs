@@ -432,10 +432,10 @@ jobs:
           $url = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_1/innosetup-6.7.1.exe"
           $output = "innosetup.exe"
           Invoke-WebRequest -Uri $url -OutFile $output
-          Start-Process -FilePath $output -ArgumentList "/SP /VERYSILENT /NORESTART" -Wait
-          # Add Inno Setup to PATH
-          $env:PATH += ";$env:ProgramFiles\Inno Setup 6"
-          echo "PATH=$env:PATH" >> $env:GITHUB_ENV
+          # Install silently (/SP- skips welcome prompt, /SUPPRESSMSGBOXES avoids hangs)
+          Start-Process -FilePath $output -ArgumentList "/SP- /VERYSILENT /NORESTART /SUPPRESSMSGBOXES" -Wait -PassThru
+          # Add Inno Setup to PATH for subsequent steps
+          "C:\Program Files\Inno Setup 6" >> $env:GITHUB_PATH
       - name: Download binaries and WinFSP DLL
         uses: actions/download-artifact@v8
         with:
