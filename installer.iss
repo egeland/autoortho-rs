@@ -2,7 +2,9 @@
 ; This script creates a Windows installer for autoortho
 
 #define MyAppName "autoortho"
-#define MyAppVersion "0.5.8"
+#ifndef MyAppVersion
+  #define MyAppVersion "0.5.8"
+#endif
 #define MyAppPublisher "autoortho"
 #define MyAppExeName "autoortho.exe"
 
