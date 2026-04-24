@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.52](https://github.com/egeland/autoortho-rs/compare/v0.6.51...v0.6.52) - 2026-04-24
+
+### Fixed
+
+- correct Inno Setup installation command and PATH handling ([#215](https://github.com/egeland/autoortho-rs/pull/215))
+
 ## [0.6.51](https://github.com/egeland/autoortho-rs/compare/v0.6.50...v0.6.51) - 2026-04-24
 
 ### Fixed
