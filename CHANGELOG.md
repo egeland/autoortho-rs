@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.53](https://github.com/egeland/autoortho-rs/compare/v0.6.52...v0.6.53) - 2026-04-24
+
+### Fixed
+
+- resolve Inno Setup installation failure ([#217](https://github.com/egeland/autoortho-rs/pull/217))
+
 ## [0.6.52](https://github.com/egeland/autoortho-rs/compare/v0.6.51...v0.6.52) - 2026-04-24
 
 ### Fixed
