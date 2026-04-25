@@ -429,40 +429,9 @@ jobs:
           persist-credentials: false
           submodules: recursive
       - name: Install Inno Setup
-        run: |
-          # Download Inno Setup 6.x
-          $url = "https://github.com/jrsoftware/issrc/releases/download/is-6_7_1/innosetup-6.7.1.exe"
-          $output = "innosetup.exe"
-          Write-Host "Downloading Inno Setup from: $url"
-          Invoke-WebRequest -Uri $url -OutFile $output -TimeoutSec 600 -ErrorAction Stop
-          
-          # Verify download succeeded
-          if (-not (Test-Path $output)) {
-            Write-Error "Download failed - file not found"
-            exit 1
-          }
-          $fileSize = (Get-Item $output).Length
-          Write-Host "Downloaded file size: $fileSize bytes"
-          if ($fileSize -lt 1MB) {
-            Write-Error "Downloaded file is too small, may be corrupted"
-            exit 1
-          }
-          
-          Write-Host "Installing Inno Setup..."
-          # Install silently with correct flags for Inno Setup 6.x
-          $installArgs = "/SUPPRESSWELCOMESC /VERYSILENT /NORESTART /SP- /SILENT /ALLUSERS"
-          $exePath = Join-Path $PWD $output
-          $p = Start-Process -FilePath $exePath -ArgumentList $installArgs -Wait -PassThru
-          if ($p.ExitCode -ne 0) {
-            Write-Error "Inno Setup installation failed with exit code $($p.ExitCode)"
-            exit $p.ExitCode
-          }
-          Write-Host "Inno Setup installed successfully"
-          # Add Inno Setup to PATH for subsequent steps
-          # Inno Setup 6.x typically installs to: C:\Program Files (x86)\Inno Setup 6
-          $innoDir = "C:\Program Files (x86)\Inno Setup 6"
-          Write-Host "Adding $innoDir to PATH"
-          $innoDir >> $env:GITHUB_PATH
+        uses: pwall2222/inno-setup-download@v0.0.8
+        with:
+          version: '6.7.1'
       - name: Download binaries and WinFSP DLL
         uses: actions/download-artifact@v8
         with:
