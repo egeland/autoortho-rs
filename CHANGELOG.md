@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.54](https://github.com/egeland/autoortho-rs/compare/v0.6.53...v0.6.54) - 2026-04-25
+
+### Other
+
+- use pwall2222/inno-setup-download action ([#219](https://github.com/egeland/autoortho-rs/pull/219))
+
 ## [0.6.53](https://github.com/egeland/autoortho-rs/compare/v0.6.52...v0.6.53) - 2026-04-24
 
 ### Fixed
