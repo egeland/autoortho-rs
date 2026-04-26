@@ -1,17 +1,11 @@
-# This workflow automates the release process using cargo-dist.
-# It builds binaries for Windows, macOS, and Linux, and includes
-# the required WinFSP DLL in the Windows distribution.
-
 name: Release
 permissions:
   contents: write
 
 on:
-  pull_request:
-    paths:
-      - "Cargo.toml"
-      - ".github/workflows/release.yml"
   push:
+    branches:
+      - main
     tags:
       - "**[0-9]+.[0-9]+.[0-9]+*"
   workflow_dispatch:
@@ -23,14 +17,20 @@ on:
         type: string
 
 jobs:
-  # Plan the release and determine which tasks to run
   plan:
     runs-on: ubuntu-latest
+    # Logic: 
+    # 1. Run if it's a tag or manual dispatch.
+    # 2. If it's a push to main, ONLY run if it's NOT a release-plz commit.
+    if: |
+      github.ref_type == 'tag' || 
+      github.event_name == 'workflow_dispatch' ||
+      (github.ref_name == 'main' && !contains(github.event.head_commit.message, 'chore: release'))
     outputs:
       val: ${{ steps.plan.outputs.manifest }}
-      tag: ${{ (inputs.tag != 'dry-run' && inputs.tag) || (github.event_name == 'push' && github.ref_name) || '' }}
-      tag-flag: ${{ (inputs.tag && inputs.tag != 'dry-run' && format('--tag={0}', inputs.tag)) || (github.event_name == 'push' && format('--tag={0}', github.ref_name)) || '' }}
-      publishing: ${{ (inputs.tag && inputs.tag != 'dry-run') || github.event_name == 'push' }}
+      tag: ${{ (inputs.tag != 'dry-run' && inputs.tag) || (github.ref_type == 'tag' && github.ref_name) || '' }}
+      tag-flag: ${{ (inputs.tag && inputs.tag != 'dry-run' && format('--tag={0}', inputs.tag)) || (github.ref_type == 'tag' && format('--tag={0}', github.ref_name)) || '' }}
+      publishing: ${{ (inputs.tag && inputs.tag != 'dry-run') || github.ref_type == 'tag' }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
@@ -50,7 +50,7 @@ jobs:
 
       - id: plan
         run: |
-          dist ${{ ((inputs.tag && inputs.tag != 'dry-run') && format('host --steps=create --tag={0}', inputs.tag)) || (github.event_name == 'push' && format('host --steps=create --tag={0}', github.ref_name)) || 'plan' }} --output-format=json > plan-dist-manifest.json
+          dist ${{ (github.ref_type == 'tag' && format('host --steps=create --tag={0}', github.ref_name)) || 'plan' }} --output-format=json > plan-dist-manifest.json
           echo "manifest=$(jq -c "." plan-dist-manifest.json)" >> "$GITHUB_OUTPUT"
 
       - name: Upload manifest
@@ -59,7 +59,6 @@ jobs:
           name: artifacts-plan-dist-manifest
           path: plan-dist-manifest.json
 
-  # Build platform-specific binaries and zips
   build-local-artifacts:
     name: build-local-artifacts (${{ join(matrix.targets, ', ') }})
     needs: plan
@@ -84,25 +83,20 @@ jobs:
         if: contains(matrix.targets, 'x86_64-pc-windows-msvc')
         run: |
           Invoke-WebRequest -Uri "https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi" -OutFile winfsp.msi
-          
-          # Use Start-Process -Wait to ensure the installer finishes before the script continues
           Start-Process -FilePath "msiexec.exe" -ArgumentList "/i winfsp.msi /qn /norestart INSTALLLEVEL=1001" -Wait -NoNewWindow
           
-          # Check both WOW6432Node and standard registry paths
           $regPath32 = 'HKLM:\SOFTWARE\WOW6432Node\WinFsp'
           $regPath64 = 'HKLM:\SOFTWARE\WinFsp'
           
           if (Test-Path $regPath32) {
-              $installDir = (Get-ItemProperty -Path $regPath32 -Name InstallDir).InstallDir
+              $winFspDir = (Get-ItemProperty -Path $regPath32 -Name InstallDir).InstallDir
           } elseif (Test-Path $regPath64) {
-              $installDir = (Get-ItemProperty -Path $regPath64 -Name InstallDir).InstallDir
+              $winFspDir = (Get-ItemProperty -Path $regPath64 -Name InstallDir).InstallDir
           } else {
-              # Fallback to the standard default installation directory if registry fails
-              $installDir = "C:\Program Files (x86)\WinFsp\"
+              $winFspDir = "C:\Program Files (x86)\WinFsp\"
           }
           
-          Write-Host "WinFSP found at: $installDir"
-          "WINFSP_DIR=$installDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "WINFSP_DIR=$winFspDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
@@ -117,10 +111,7 @@ jobs:
           $zipFile = Get-ChildItem -Path "target/distrib" -Filter "*.zip" -Recurse | Select-Object -First 1 -ExpandProperty FullName
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $zip = [System.IO.Compression.ZipFile]::Open($zipFile, 'Update')
-          
-          # Find target folder inside zip (usually 'autoortho-vX.X.X/')
           $prefix = ($zip.Entries | Where-Object { $_.Name -eq 'autoortho.exe' }).FullName -replace 'autoortho\.exe$', ''
-          
           [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, "$env:WINFSP_DIR\bin\winfsp-x64.dll", "${prefix}winfsp-x64.dll")
           $zip.Dispose()
 
@@ -140,7 +131,6 @@ jobs:
             ${{ steps.cargo-dist.outputs.paths }}
             ${{ env.BUILD_MANIFEST_NAME }}
 
-  # Build global artifacts (checksums, etc.)
   build-global-artifacts:
     needs: [plan, build-local-artifacts]
     runs-on: ubuntu-latest
@@ -154,28 +144,24 @@ jobs:
           name: cargo-dist-cache
           path: ~/.cargo/bin/
       - run: chmod +x ~/.cargo/bin/dist
-      
       - name: Fetch local artifacts
         uses: actions/download-artifact@v8
         with:
           pattern: artifacts-*
           path: target/distrib/
           merge-multiple: true
-
       - id: cargo-dist
         run: |
           dist build ${{ needs.plan.outputs.tag-flag }} --output-format=json "--artifacts=global" > dist-manifest.json
           echo "paths<<EOF" >> "$GITHUB_OUTPUT"
           jq --raw-output ".upload_files[]" dist-manifest.json >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
-
       - name: Upload global artifacts
         uses: actions/upload-artifact@v7
         with:
           name: artifacts-build-global
           path: ${{ steps.cargo-dist.outputs.paths }}
 
-  # Create the GitHub Release and upload all files
   host:
     needs: [plan, build-local-artifacts, build-global-artifacts]
     if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.publishing == 'true' }}
@@ -190,19 +176,16 @@ jobs:
           name: cargo-dist-cache
           path: ~/.cargo/bin/
       - run: chmod +x ~/.cargo/bin/dist
-
       - name: Fetch all artifacts
         uses: actions/download-artifact@v8
         with:
           pattern: artifacts-*
           path: artifacts
           merge-multiple: true
-
       - id: host
         run: |
           dist host ${{ needs.plan.outputs.tag-flag }} --steps=upload --steps=release --output-format=json > dist-manifest.json
           echo "manifest=$(jq -c "." dist-manifest.json)" >> "$GITHUB_OUTPUT"
-
       - name: Create GitHub Release
         env:
           ANNOUNCEMENT_TITLE: "${{ fromJson(steps.host.outputs.manifest).announcement_title }}"
