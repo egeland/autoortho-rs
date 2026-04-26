@@ -68,7 +68,7 @@ uuid = { version = "1.16", features = ["v4", "serde"] }
 # JPEG/image
 image = "0.25"
 texpresso = { version = "2.0.2", features = ["rayon"] }
-zip = "8.5"
+zip = "8.6"
 sevenz-rust = "0.6"
 futures-lite = "2.6"
 
