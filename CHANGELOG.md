@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.6.57](https://github.com/egeland/autoortho-rs/compare/v0.6.56...v0.6.57) - 2026-04-26
+
+### Fixed
+
+- try geminis workflow files, from web gemini, optimise release ([#231](https://github.com/egeland/autoortho-rs/pull/231))
+
+### Other
+
+- update dependencies per cargo update ([#232](https://github.com/egeland/autoortho-rs/pull/232))
+
 ## [0.6.56](https://github.com/egeland/autoortho-rs/compare/v0.6.55...v0.6.56) - 2026-04-26
 
 ### Fixed
