@@ -221,5 +221,4 @@ Licensed under either:
 ## References
 
 - [Original AutoOrtho](https://github.com/ProgrammingDinosaur/autoortho)
-- [Plan](PLAN.md)
 - [Changelog](CHANGELOG.md)
