@@ -270,7 +270,7 @@ jobs:
 
       - name: Compile Inno Setup installer
         if: contains(matrix.targets, 'x86_64-pc-windows-msvc')
-        uses: Minionguyjpro/Inno-Setup-Action@v1.2.0
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.7
         with:
           source: autoortho-installer.iss
       - id: cargo-dist
