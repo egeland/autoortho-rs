@@ -15,6 +15,7 @@ jobs:
   audit:
     name: Audit
     runs-on: ubuntu-latest
+    if: startsWith(github.head_ref, 'release-plz-') == false # no need to redo on releases
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -22,5 +23,3 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           ignore: "RUSTSEC-2026-0098,RUSTSEC-2026-0099"
-
-
