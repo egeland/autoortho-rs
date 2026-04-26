@@ -4,8 +4,7 @@ permissions:
 
 on:
   push:
-    branches:
-      - main
+    # Trigger only on version tags, which release-plz will push once a version is ready.
     tags:
       - "**[0-9]+.[0-9]+.[0-9]+*"
   workflow_dispatch:
@@ -19,13 +18,10 @@ on:
 jobs:
   plan:
     runs-on: ubuntu-latest
-    # Logic: 
-    # 1. Run if it's a tag or manual dispatch.
-    # 2. If it's a push to main, ONLY run if it's NOT a release-plz commit.
+    # This job now only runs for tags or manual dispatches, avoiding unnecessary builds on main.
     if: |
       github.ref_type == 'tag' || 
-      github.event_name == 'workflow_dispatch' ||
-      (github.ref_name == 'main' && !contains(github.event.head_commit.message, 'chore: release'))
+      github.event_name == 'workflow_dispatch'
     outputs:
       val: ${{ steps.plan.outputs.manifest }}
       tag: ${{ (inputs.tag != 'dry-run' && inputs.tag) || (github.ref_type == 'tag' && github.ref_name) || '' }}
