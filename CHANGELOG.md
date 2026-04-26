@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.58](https://github.com/egeland/autoortho-rs/compare/v0.6.57...v0.6.58) - 2026-04-26
+
+### Fixed
+
+- workflow skip tests on releases ([#234](https://github.com/egeland/autoortho-rs/pull/234))
+
 ## [0.6.57](https://github.com/egeland/autoortho-rs/compare/v0.6.56...v0.6.57) - 2026-04-26
 
 ### Fixed
