@@ -293,7 +293,10 @@ pub fn clean_downloads(download_dir: &Path, region_id: &str) -> Result<u64, Inst
 }
 
 /// Extract a ZIP file to the target directory.
-/// Validates all paths to prevent ZIP slip attacks.
+///
+/// Uses `extract_unwrapped_root_dir` to automatically strip the root directory
+/// if the archive contains a single top-level folder (common in scenery packs).
+/// Path traversal is blocked by the crate's built-in sanitization.
 pub fn extract_zip(zip_path: &Path, target_dir: &Path) -> Result<(), InstallError> {
     info!(
         "Extracting {} to {}",
@@ -309,87 +312,11 @@ pub fn extract_zip(zip_path: &Path, target_dir: &Path) -> Result<(), InstallErro
 
     std::fs::create_dir_all(target_dir)?;
 
-    let mut extracted_count = 0usize;
-    let canonical_target = target_dir
-        .canonicalize()
-        .map_err(|e| InstallError::Extract(format!("Cannot resolve target: {}", e)))?;
+    archive
+        .extract_unwrapped_root_dir(target_dir, zip::read::root_dir_common_filter)
+        .map_err(|e| InstallError::Extract(e.to_string()))?;
 
-    for i in 0..archive.len() {
-        let mut entry = archive
-            .by_index(i)
-            .map_err(|e| InstallError::Extract(e.to_string()))?;
-
-        let name = entry.name().to_string();
-        let is_dir = name.ends_with('/');
-
-        // Validate the entry name for path traversal
-        let out_path = target_dir.join(&name);
-
-        // Check for parent directory traversal in the entry name
-        for component in std::path::Path::new(&name).components() {
-            if let std::path::Component::ParentDir = component {
-                return Err(InstallError::Extract(format!(
-                    "Path traversal attempt blocked: {}",
-                    name
-                )));
-            }
-        }
-
-        // For existing paths, verify canonicalization
-        if out_path.exists() {
-            let canonical = out_path.canonicalize().map_err(|_| {
-                InstallError::Extract(format!("Path traversal attempt blocked: {}", name))
-            })?;
-
-            if !canonical.starts_with(&canonical_target) {
-                return Err(InstallError::Extract(format!(
-                    "Path traversal attempt blocked: {}",
-                    name
-                )));
-            }
-        } else {
-            // For new paths, verify the resolved path would be inside target
-            // by checking all components
-            let mut check_path = canonical_target.clone();
-            for component in std::path::Path::new(&name).components() {
-                match component {
-                    std::path::Component::Normal(part) => {
-                        check_path = check_path.join(part);
-                    }
-                    std::path::Component::Prefix(_) | std::path::Component::RootDir => {
-                        // These should never appear in zip entries
-                    }
-                    _ => {} // ParentDir already checked above
-                }
-            }
-            // Verify the path is inside target (same prefix check)
-            let check_str = check_path.to_string_lossy().into_owned();
-            let target_str = canonical_target.to_string_lossy().into_owned();
-            if !check_str.starts_with(&target_str) {
-                return Err(InstallError::Extract(format!(
-                    "Path traversal attempt blocked: {}",
-                    name
-                )));
-            }
-        }
-
-        if is_dir {
-            std::fs::create_dir_all(&out_path)?;
-            continue;
-        }
-
-        if let Some(parent) = out_path.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-
-        let mut out_file = std::fs::File::create(&out_path)?;
-        std::io::copy(&mut entry, &mut out_file)?;
-        extracted_count += 1;
-
-        debug!("  Extracted: {}", name);
-    }
-
-    info!("Extraction complete: {} entries", extracted_count);
+    info!("Extraction complete");
     Ok(())
 }
 
@@ -667,5 +594,107 @@ mod tests {
         // Verify files were extracted
         assert!(tmp.path().join("subdir/normal.txt").exists());
         assert!(tmp.path().join("another.txt").exists());
+    }
+
+    #[test]
+    fn test_extract_unwrapped_strips_root_dir() {
+        use std::io::Write;
+        use zip::ZipWriter;
+        use zip::write::SimpleFileOptions;
+
+        let tmp = TempDir::new().unwrap();
+        let zip_path = tmp.path().join("with_root.zip");
+
+        // Create a zip with a root directory
+        let file = std::fs::File::create(&zip_path).unwrap();
+        let mut zip = ZipWriter::new(file);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+        // Files inside a root directory "mypackage"
+        zip.start_file("mypackage/file1.txt", options).unwrap();
+        zip.write_all(b"content1").unwrap();
+        zip.start_file("mypackage/subdir/file2.txt", options)
+            .unwrap();
+        zip.write_all(b"content2").unwrap();
+
+        zip.finish().unwrap();
+
+        // Extract using the new method directly
+        let file = std::fs::File::open(&zip_path).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+        archive
+            .extract_unwrapped_root_dir(tmp.path(), zip::read::root_dir_common_filter)
+            .unwrap();
+
+        // Files should be extracted directly to target (root dir stripped)
+        assert!(tmp.path().join("file1.txt").exists());
+        assert!(tmp.path().join("subdir/file2.txt").exists());
+        // Root dir should NOT exist
+        assert!(!tmp.path().join("mypackage").exists());
+    }
+
+    #[test]
+    fn test_extract_unwrapped_no_root_dir_unchanged() {
+        use std::io::Write;
+        use zip::ZipWriter;
+        use zip::write::SimpleFileOptions;
+
+        let tmp = TempDir::new().unwrap();
+        let zip_path = tmp.path().join("no_root.zip");
+
+        // Create a zip WITHOUT a root directory (multiple top-level items)
+        let file = std::fs::File::create(&zip_path).unwrap();
+        let mut zip = ZipWriter::new(file);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+        // Two top-level items (no single root dir)
+        zip.start_file("file1.txt", options).unwrap();
+        zip.write_all(b"content1").unwrap();
+        zip.start_file("other/file2.txt", options).unwrap();
+        zip.write_all(b"content2").unwrap();
+
+        zip.finish().unwrap();
+
+        // Extract using the new method
+        let file = std::fs::File::open(&zip_path).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+        archive
+            .extract_unwrapped_root_dir(tmp.path(), zip::read::root_dir_common_filter)
+            .unwrap();
+
+        // Files should be extracted as-is (no stripping)
+        assert!(tmp.path().join("file1.txt").exists());
+        assert!(tmp.path().join("other/file2.txt").exists());
+    }
+
+    #[test]
+    fn test_extract_unwrapped_blocks_path_traversal() {
+        use std::io::Write;
+        use zip::ZipWriter;
+        use zip::write::SimpleFileOptions;
+
+        let tmp = TempDir::new().unwrap();
+        let zip_path = tmp.path().join("malicious.zip");
+
+        // Create a zip with path traversal attempt
+        let file = std::fs::File::create(&zip_path).unwrap();
+        let mut zip = ZipWriter::new(file);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+        // Try to escape the target directory
+        zip.start_file("../../../etc/evil.txt", options).unwrap();
+        zip.write_all(b"malicious content").unwrap();
+
+        zip.finish().unwrap();
+
+        // Extraction should fail - built-in sanitization blocks this
+        let file = std::fs::File::open(&zip_path).unwrap();
+        let mut archive = zip::ZipArchive::new(file).unwrap();
+        let result =
+            archive.extract_unwrapped_root_dir(tmp.path(), zip::read::root_dir_common_filter);
+        assert!(result.is_err(), "Path traversal should be blocked");
     }
 }
