@@ -109,6 +109,7 @@ pub struct FlightAverages {
 }
 
 /// Thread-safe dataref tracker that maintains current and averaged flight data.
+#[derive(Debug)]
 pub struct DatarefTracker {
     data: Arc<RwLock<FlightData>>,
     lat_avg: Arc<RwLock<FlightDataAverager>>,

@@ -79,7 +79,7 @@ pub enum Message {
     // Runtime control
     StartServices,
     StopServices,
-    ServicesStarted(String), // web URL
+    ServicesStarted(String, Option<std::sync::Arc<crate::xplane::dataref::DatarefTracker>>), // web URL and tracker
     ServicesFailed(String),
 
     // Scenery management
@@ -609,7 +609,7 @@ impl AutoOrthoApp {
                             .unwrap_or(Err("Runtime channel closed".into()))
                     },
                     |result| match result {
-                        Ok(url) => Message::ServicesStarted(url),
+                        Ok((url, tracker)) => Message::ServicesStarted(url, Some(tracker)),
                         Err(e) => Message::ServicesFailed(e),
                     },
                 );
@@ -623,10 +623,11 @@ impl AutoOrthoApp {
                 self.state.web_server_url = None;
                 self.state.xplane_tracker = ServiceStatus::Stopped;
             }
-            Message::ServicesStarted(url) => {
+            Message::ServicesStarted(url, tracker) => {
                 self.state.web_server = ServiceStatus::Running;
                 self.state.web_server_url = Some(url);
                 self.state.xplane_tracker = ServiceStatus::Running;
+                self.state.tracker = tracker;
             }
             Message::ServicesFailed(err) => {
                 self.state.web_server = ServiceStatus::Error;
@@ -1044,6 +1045,16 @@ impl AutoOrthoApp {
             Message::Tick => {
                 // Save config periodically when downloads are active (debounced window saves too)
                 let _ = self.state.config.save();
+                
+                // Poll X-Plane connection status if we have a tracker
+                if let Some(tracker) = &self.state.tracker {
+                    let flight_data = tracker.get_flight_data();
+                    if flight_data.connected && flight_data.data_valid {
+                        self.state.xplane_tracker = ServiceStatus::Running;
+                    } else {
+                        self.state.xplane_tracker = ServiceStatus::Stopped;
+                    }
+                }
             }
             Message::OpenMapInBrowser => {
                 if let Some(ref url) = self.state.web_server_url {
@@ -1204,24 +1215,25 @@ impl AutoOrthoApp {
     }
 }
 
-/// Start all backend services: web server + X-Plane dataref tracker.
-///
-/// The web server and tracker share the same StatsStore and DatarefTracker
-/// so the web UI shows live data from X-Plane.
 async fn start_all_services(
     web_port: u16,
     xplane_host: &str,
     xplane_port: u16,
     config: crate::config::AutoOrthoConfig,
     shutdown_rx: watch::Receiver<bool>,
-) -> Result<String, String> {
-    use crate::stats::StatsStore;
-    use crate::xplane::dataref::{self, DatarefTracker};
+) -> Result<(String, Arc<crate::xplane::dataref::DatarefTracker>), String> {
+    use crate::app_context::AppContext;
+    use crate::xplane::dataref::{self};
+
+    // Initialize the application context
+    let context = AppContext::init(config.clone())
+        .await
+        .map_err(|e| format!("Failed to initialize app context: {}", e))?;
 
     // Shared state between web server and tracker
-    let stats = Arc::new(StatsStore::new());
-    let tracker = Arc::new(DatarefTracker::new());
-    let web_config = Arc::new(parking_lot::RwLock::new(config));
+    let stats = context.stats.clone();
+    let tracker = context.tracker.clone();
+    let web_config = context.config.clone();
 
     // Start web server
     let addr = crate::webui::start_server(web_port, stats.clone(), tracker.clone(), web_config)
@@ -1233,10 +1245,33 @@ async fn start_all_services(
         .parse()
         .map_err(|e: std::net::AddrParseError| e.to_string())?;
 
-    tokio::spawn(dataref::run_tracker(tracker, xplane_addr, shutdown_rx));
+    tokio::spawn(dataref::run_tracker(tracker.clone(), xplane_addr, shutdown_rx));
 
-    Ok(format!("http://{}", addr))
+    // Mount the FUSE filesystem
+    let mount_dir = config.mount_dir();
+    // Create mount point if it doesn't exist
+    std::fs::create_dir_all(&mount_dir)
+        .map_err(|e| format!("Failed to create mount directory: {}", e))?;
+    
+    // Start FUSE mount in background
+    let fs_clone = context.fs.clone();
+    let mount_path = mount_dir.to_path_buf();
+    let runtime_handle = tokio::runtime::Handle::current();
+    
+    tokio::task::spawn_blocking(move || {
+        #[cfg(not(windows))]
+        use crate::fuse::mount::mount;
+        #[cfg(windows)]
+        use crate::fuse::mount_win::mount;
+        
+        mount(fs_clone, &mount_path, runtime_handle)
+            .map_err(|e| format!("FUSE mount error: {}", e))
+    });
+
+    Ok((format!("http://{}", addr), tracker))
 }
+
+/// Core implementation of test tile fetch - takes a pre-configured fetcher.
 
 /// Core implementation of test tile fetch - takes a pre-configured fetcher.
 async fn fetch_test_tile_impl(
@@ -1700,7 +1735,7 @@ mod tests {
         setup_test_runtime();
         let mut app = AutoOrthoApp::new();
         let url = format!("http://127.0.0.1:{}", crate::webui::WEB_UI_PORT);
-        let _ = app.update(Message::ServicesStarted(url.clone()));
+        let _ = app.update(Message::ServicesStarted(url.clone(), None));
         assert_eq!(app.state.web_server, ServiceStatus::Running);
         assert_eq!(app.state.xplane_tracker, ServiceStatus::Running);
         assert_eq!(app.state.web_server_url, Some(url));
@@ -1720,7 +1755,7 @@ mod tests {
         setup_test_runtime();
         let mut app = AutoOrthoApp::new();
         let url = format!("http://127.0.0.1:{}", crate::webui::WEB_UI_PORT);
-        let _ = app.update(Message::ServicesStarted(url));
+        let _ = app.update(Message::ServicesStarted(url, None));
         assert!(app.state.any_service_running());
 
         let _ = app.update(Message::StopServices);
@@ -1735,7 +1770,7 @@ mod tests {
         assert!(!app.title().contains("[Running]"));
 
         let url = format!("http://127.0.0.1:{}", crate::webui::WEB_UI_PORT);
-        let _ = app.update(Message::ServicesStarted(url));
+        let _ = app.update(Message::ServicesStarted(url, None));
         assert!(app.title().contains("[Running]"));
     }
 

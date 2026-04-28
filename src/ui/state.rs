@@ -116,6 +116,9 @@ pub struct AppState {
     pub web_server: ServiceStatus,
     pub web_server_url: Option<String>,
     pub xplane_tracker: ServiceStatus,
+    
+    // X-Plane dataref tracker for checking connection status
+    pub tracker: Option<std::sync::Arc<crate::xplane::dataref::DatarefTracker>>,
 
     // Scenery management
     pub scenery_download_dir: String,
@@ -197,6 +200,7 @@ impl AppState {
             web_server: ServiceStatus::Stopped,
             web_server_url: None,
             xplane_tracker: ServiceStatus::Stopped,
+            tracker: None,
             dds_cache_size_bytes: 0,
             simbrief_fetching: false,
             simbrief_route_summary: None,
