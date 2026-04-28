@@ -68,6 +68,7 @@ impl RrefCodec {
 }
 
 /// Flight data averager (sliding window)
+#[derive(Debug)]
 pub struct FlightDataAverager {
     window_size: usize,
     data: VecDeque<f32>,
@@ -112,6 +113,7 @@ impl FlightDataAverager {
 }
 
 /// Heading averaging with wrap-around (0-360)
+#[derive(Debug)]
 pub struct HeadingAverager {
     window_size: usize,
     headings: VecDeque<f32>,
