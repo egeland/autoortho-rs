@@ -79,7 +79,10 @@ pub enum Message {
     // Runtime control
     StartServices,
     StopServices,
-    ServicesStarted(String, Option<std::sync::Arc<crate::xplane::dataref::DatarefTracker>>), // web URL and tracker
+    ServicesStarted(
+        String,
+        Option<std::sync::Arc<crate::xplane::dataref::DatarefTracker>>,
+    ), // web URL and tracker
     ServicesFailed(String),
 
     // Scenery management
@@ -1045,7 +1048,7 @@ impl AutoOrthoApp {
             Message::Tick => {
                 // Save config periodically when downloads are active (debounced window saves too)
                 let _ = self.state.config.save();
-                
+
                 // Poll X-Plane connection status if we have a tracker
                 if let Some(tracker) = &self.state.tracker {
                     let flight_data = tracker.get_flight_data();
@@ -1245,33 +1248,34 @@ async fn start_all_services(
         .parse()
         .map_err(|e: std::net::AddrParseError| e.to_string())?;
 
-    tokio::spawn(dataref::run_tracker(tracker.clone(), xplane_addr, shutdown_rx));
+    tokio::spawn(dataref::run_tracker(
+        tracker.clone(),
+        xplane_addr,
+        shutdown_rx,
+    ));
 
     // Mount the FUSE filesystem
     let mount_dir = config.mount_dir();
     // Create mount point if it doesn't exist
     std::fs::create_dir_all(&mount_dir)
         .map_err(|e| format!("Failed to create mount directory: {}", e))?;
-    
+
     // Start FUSE mount in background
     let fs_clone = context.fs.clone();
     let mount_path = mount_dir.to_path_buf();
     let runtime_handle = tokio::runtime::Handle::current();
-    
+
     tokio::task::spawn_blocking(move || {
         #[cfg(not(windows))]
         use crate::fuse::mount::mount;
         #[cfg(windows)]
         use crate::fuse::mount_win::mount;
-        
-        mount(fs_clone, &mount_path, runtime_handle)
-            .map_err(|e| format!("FUSE mount error: {}", e))
+
+        mount(fs_clone, &mount_path, runtime_handle).map_err(|e| format!("FUSE mount error: {}", e))
     });
 
     Ok((format!("http://{}", addr), tracker))
 }
-
-/// Core implementation of test tile fetch - takes a pre-configured fetcher.
 
 /// Core implementation of test tile fetch - takes a pre-configured fetcher.
 async fn fetch_test_tile_impl(

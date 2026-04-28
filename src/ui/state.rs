@@ -116,7 +116,7 @@ pub struct AppState {
     pub web_server: ServiceStatus,
     pub web_server_url: Option<String>,
     pub xplane_tracker: ServiceStatus,
-    
+
     // X-Plane dataref tracker for checking connection status
     pub tracker: Option<std::sync::Arc<crate::xplane::dataref::DatarefTracker>>,
 
