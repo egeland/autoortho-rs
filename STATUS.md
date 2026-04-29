@@ -2,7 +2,7 @@
 
 ## Dashboard screen
 
-- P2: Prefetch Route button is greyed out, mouseover says "coming soon"
+- P2: ~~Prefetch Route button is greyed out, mouseover says "coming soon"~~ ✓ Enabled - clicks trigger route prefetch
 - P2: When running, the "Web UI" link goes to `0.0.0.0:5847`, but should go to `127.0.0.1:5847`
 - P2: When running, the logs indicate that the application is connected to X-Plane, but the "Flight Map" says "X-Plane not connected"
 

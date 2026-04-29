@@ -167,6 +167,12 @@ pub enum Message {
     SimbriefFailed(String),
     ToggleSimbriefDetails,
 
+    // Route prefetch
+    PrefetchRoute,
+    PrefetchProgress(u32, u32), // (completed, total)
+    PrefetchComplete(String),
+    PrefetchFailed(String),
+
     // UI refresh
     Tick,
 
@@ -544,6 +550,46 @@ impl AutoOrthoApp {
             }
             Message::ToggleSimbriefDetails => {
                 self.state.simbrief_show_details = !self.state.simbrief_show_details;
+            }
+            Message::PrefetchRoute => {
+                let Some(flight_plan) = self.state.simbrief_flight_plan.clone() else {
+                    self.state.prefetch_status = Some("No flight plan loaded".to_string());
+                    return Task::none();
+                };
+
+                self.state.prefetch_running = true;
+                self.state.prefetch_status = None;
+                self.state.prefetch_completed = 0;
+                self.state.prefetch_total = 0;
+
+                let config = self.state.config.clone();
+                let (tx, rx) = oneshot::channel();
+                let rt = self.runtime.clone();
+
+                rt.spawn(async move {
+                    let result = prefetch_route_impl(&flight_plan, &config).await;
+                    let _ = tx.send(result);
+                });
+
+                return Task::perform(
+                    async { rx.await.unwrap_or(Err("Channel closed".into())) },
+                    |result| match result {
+                        Ok(msg) => Message::PrefetchComplete(msg),
+                        Err(e) => Message::PrefetchFailed(e),
+                    },
+                );
+            }
+            Message::PrefetchProgress(completed, total) => {
+                self.state.prefetch_completed = completed;
+                self.state.prefetch_total = total;
+            }
+            Message::PrefetchComplete(msg) => {
+                self.state.prefetch_running = false;
+                self.state.prefetch_status = Some(msg);
+            }
+            Message::PrefetchFailed(err) => {
+                self.state.prefetch_running = false;
+                self.state.prefetch_status = Some(format!("Error: {}", err));
             }
             Message::SaveConfiguration => {
                 self.state.save_config();
@@ -1707,6 +1753,179 @@ fn boot() -> (AutoOrthoApp, Task<Message>) {
     let font_task = iced::font::load(FIRA_CODE_NERD).map(|_| Message::Tick);
 
     (app, Task::batch([font_task, scenery_task]))
+}
+
+/// Execute route prefetch: build queue from flight plan, fetch tiles, cache DDS.
+async fn prefetch_route_impl(
+    flight_plan: &crate::xplane::simbrief::FlightPlan,
+    config: &crate::config::AutoOrthoConfig,
+) -> Result<String, String> {
+    use crate::pipeline::cache::DdsCache;
+    use crate::pipeline::dds::DdsFormat;
+    use crate::tiles::assembler::{AssemblyConfig, assemble_tile};
+    use crate::tiles::fetcher::TileFetcher;
+    use crate::tiles::prefetch::{RoutePrefetchConfig, SpatialPrefetcher};
+    use crate::tiles::provider::ProviderFactory;
+    use std::collections::HashMap;
+
+    // 1. Generate prefetch points from flight plan (use origin as current position)
+    let origin_fix = flight_plan
+        .origin_fix()
+        .ok_or_else(|| "No origin fix in flight plan".to_string())?;
+    let spacing_nm = (config.route_prefetch_radius_nm as f64 / 2.0).max(5.0);
+    let max_lookahead_sec = f32::MAX; // Prefetch entire route
+    let points = flight_plan.get_prefetch_points(
+        origin_fix.lat,
+        origin_fix.lon,
+        spacing_nm,
+        max_lookahead_sec,
+    );
+
+    if points.is_empty() {
+        return Ok("No prefetch points generated".to_string());
+    }
+
+    // 2. Build the queue from SpatialPrefetcher
+    let mut prefetcher = SpatialPrefetcher::new();
+    let route_distance_nm = points
+        .last()
+        .map(|p| p.distance_along_route_nm)
+        .unwrap_or(0.0);
+
+    let prefetch_config = RoutePrefetchConfig {
+        percent_ahead: config.prefetch_route_percent,
+        waypoint_radius_nm: config.route_prefetch_radius_nm as f64,
+        airport_radius_nm: config.airport_radius_nm as f64,
+        include_airports: config.prefetch_airports,
+        zoom: config.near_airport_zoom,
+    };
+
+    prefetcher.prefetch_route(&points, route_distance_nm, prefetch_config);
+
+    // 3. Group chunks by parent DDS tile (16x16 chunks per DDS tile)
+    let mut dds_tiles: HashMap<(u32, u32), Vec<(u32, u32)>> = HashMap::new();
+    while let Some((row, col)) = prefetcher.next_tile() {
+        let dds_row = row / 16;
+        let dds_col = col / 16;
+        dds_tiles
+            .entry((dds_row, dds_col))
+            .or_default()
+            .push((row, col));
+    }
+
+    if dds_tiles.is_empty() {
+        return Ok("No tiles to prefetch".to_string());
+    }
+
+    // 4. Create TileFetcher
+    let provider = ProviderFactory::create(&config.tile_provider)
+        .ok_or_else(|| format!("Unknown provider: {}", config.tile_provider))?;
+    let fetcher = TileFetcher::with_rate_limit(
+        provider,
+        &config.tile_provider,
+        config.rate_limit.requests_per_second,
+    );
+
+    // 5. Create DDS cache
+    let cache_dir = std::path::PathBuf::from(&config.cache_dir).join("dds");
+    let mut cache = DdsCache::open(cache_dir.clone(), config.dds_cache_size_mb * 1024 * 1024)
+        .map_err(|e| format!("Failed to open DDS cache: {}", e))?;
+
+    // 6. For each DDS tile, fetch all 256 chunks and assemble
+    let mut tiles_cached = 0;
+    for (dds_row, dds_col) in dds_tiles.keys() {
+        let tile_row = *dds_row;
+        let tile_col = *dds_col;
+
+        // Fetch all 256 chunks for this DDS tile
+        let mut jpeg_chunks: Vec<Option<Vec<u8>>> = Vec::with_capacity(256);
+
+        for dr in 0..16u32 {
+            for dc in 0..16u32 {
+                let chunk_row = tile_row * 16 + dr;
+                let chunk_col = tile_col * 16 + dc;
+
+                match fetcher
+                    .get_chunk_data(
+                        chunk_row,
+                        chunk_col,
+                        &config.tile_provider,
+                        config.near_airport_zoom,
+                    )
+                    .await
+                {
+                    Ok(Some(data)) => {
+                        let chunk_data: Vec<u8> = data.as_ref().clone();
+                        jpeg_chunks.push(Some(chunk_data));
+                    }
+                    _ => {
+                        jpeg_chunks.push(None);
+                    }
+                }
+            }
+        }
+
+        // Assemble the DDS tile
+        let assembly_config = AssemblyConfig {
+            chunks_per_side: 16,
+            chunk_size: 256,
+            format: if config.max_zoom >= 18 {
+                DdsFormat::BC3
+            } else {
+                DdsFormat::BC1
+            },
+            missing_color: [66, 77, 55],
+            seasonal_saturation: 1.0,
+        };
+
+        let result = assemble_tile(&jpeg_chunks, &assembly_config)
+            .map_err(|e| format!("Failed to assemble tile: {}", e))?;
+
+        // Store in DDS cache
+        let key = DdsCache::tile_key(
+            tile_col,
+            tile_row,
+            config.near_airport_zoom,
+            &config.tile_provider,
+        );
+
+        let metadata = crate::pipeline::cache::DdsCacheMetadata {
+            v: 3,
+            w: 4096,
+            h: 4096,
+            mm: result.mipmap_count,
+            zl: config.near_airport_zoom,
+            max_zl: config.near_airport_zoom,
+            fmt: if config.max_zoom >= 18 {
+                "BC3".to_string()
+            } else {
+                "BC1".to_string()
+            },
+            map: config.tile_provider.clone(),
+            built: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs_f64(),
+            tile_row,
+            tile_col,
+            populated_mipmaps: (0..result.mipmap_count).collect(),
+            missing_indices: vec![],
+            fallback_indices: vec![],
+            disk_compression: "zstd".to_string(),
+        };
+
+        cache
+            .put(key, &result.dds_data, &metadata)
+            .map_err(|e| format!("Failed to cache tile: {}", e))?;
+
+        tiles_cached += 1;
+    }
+
+    Ok(format!(
+        "Prefetched {} DDS tiles from {} route points",
+        tiles_cached,
+        points.len()
+    ))
 }
 
 #[cfg(test)]
