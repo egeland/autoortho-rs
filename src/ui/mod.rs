@@ -77,6 +77,7 @@ pub enum Message {
     // Configuration persistence
     SaveConfiguration,
     LoadConfiguration,
+    SetDebugMode(bool),
 
     // Runtime control
     StartServices,
@@ -578,6 +579,9 @@ impl AutoOrthoApp {
             }
             Message::LoadConfiguration => {
                 self.state.load_config();
+            }
+            Message::SetDebugMode(v) => {
+                handlers::set_debug_mode(&mut self.state, v);
             }
             Message::StartServices => {
                 self.state.web_server = ServiceStatus::Starting;

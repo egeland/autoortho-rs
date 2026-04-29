@@ -25,7 +25,7 @@ const FALLBACK_LEVELS: &[FallbackLevel] = &[
 ];
 const FALLBACK_LABELS: &[&str] = &["Cache", "Downserve", "Network", "Solid"];
 
-/// Settings screen — full configuration management
+/// Settings screen - full configuration management
 pub fn view(state: &AppState) -> Element<'_, Message> {
     let title = text("Settings").size(28);
 
@@ -38,7 +38,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .exists()
     {
         text(format!(
-            "{} No scenery_packs.ini found — is this the correct X-Plane installation folder?",
+            "{} No scenery_packs.ini found - is this the correct X-Plane installation folder?",
             crate::ui::helpers::ICON_WARNING
         ))
         .size(13)
@@ -407,10 +407,34 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .spacing(12)
     .align_y(iced::Alignment::Center),
-    text("Enable if using SimHeaven X-World scenery.\nDisables AutoOrtho overlays to use SimHeaven instead.")
+    text("Enable if using SimHeaven X-World scenery.\nDisables AutoOrtho overlays to use SimHeaven instead.") 
         .size(12),
 ]
 .spacing(8);
+
+    // -- Debug section --
+    let debug_section = column![
+        text("Debug Mode").size(18),
+        rule::horizontal(1),
+        row![
+            text("Enable Debug Logging:").width(Length::Fixed(100.0)),
+            button(text(if state.config.debug_mode {
+                "Enabled"
+            } else {
+                "Disabled"
+            }))
+            .style(if state.config.debug_mode {
+                button::success
+            } else {
+                button::secondary
+            })
+            .on_press(Message::SetDebugMode(!state.config.debug_mode)),
+        ]
+        .spacing(12)
+        .align_y(iced::Alignment::Center),
+        text("Enables debug-level logging. Requires restart to take effect.").size(12),
+    ]
+    .spacing(8);
 
     // -- Cache section --
     let cache_size_mb = state.dds_cache_size_bytes / (1024 * 1024);
@@ -801,6 +825,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         cache_section,
         space::vertical().height(16),
         simheaven_section,
+        space::vertical().height(16),
+        debug_section,
         space::vertical().height(16),
         advanced,
         space::vertical().height(16),

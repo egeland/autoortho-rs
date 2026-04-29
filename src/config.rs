@@ -227,6 +227,8 @@ pub struct AutoOrthoConfig {
     pub fallback: FallbackConfig,
     #[serde(default)]
     pub rate_limit: RateLimitConfig,
+    #[serde(default)]
+    pub debug_mode: bool,
 }
 
 fn default_ui_scale() -> f64 {
@@ -259,6 +261,10 @@ fn default_prefetch_route_percent() -> u32 {
 
 fn default_prefetch_airports() -> bool {
     true
+}
+
+fn default_debug_mode() -> bool {
+    false
 }
 
 fn default_airport_radius_nm() -> u32 {
@@ -493,6 +499,7 @@ impl Default for AutoOrthoConfig {
             winter_saturation: 0.55,
             fallback: FallbackConfig::default(),
             rate_limit: RateLimitConfig::default(),
+            debug_mode: default_debug_mode(),
         }
     }
 }
@@ -688,6 +695,36 @@ mod tests {
         let mut config = AutoOrthoConfig::default();
         config.xplane_port = 0;
         assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_debug_mode_default() {
+        let config = AutoOrthoConfig::default();
+        assert!(!config.debug_mode);
+    }
+
+    #[test]
+    fn test_debug_mode_set() {
+        let mut config = AutoOrthoConfig::default();
+        config.debug_mode = true;
+        assert!(config.debug_mode);
+    }
+
+    #[test]
+    fn test_debug_mode_serde() {
+        // Test default (false) serialization
+        let config = AutoOrthoConfig::default();
+        assert!(!config.debug_mode);
+        let toml = toml::to_string(&config).unwrap();
+        let config2: AutoOrthoConfig = toml::from_str(&toml).unwrap();
+        assert!(!config2.debug_mode);
+
+        // Test debug_mode = true roundtrip
+        let mut config = AutoOrthoConfig::default();
+        config.debug_mode = true;
+        let toml = toml::to_string(&config).unwrap();
+        let config2: AutoOrthoConfig = toml::from_str(&toml).unwrap();
+        assert!(config2.debug_mode);
     }
 
     #[test]
