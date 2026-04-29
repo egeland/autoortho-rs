@@ -18,7 +18,7 @@ jobs:
   check:
     name: Format & Lint
     runs-on: ubuntu-latest
-    if: startsWith(github.head_ref, 'release-plz-') == false # no need to retest on releases
+    if: ${{ startsWith(github.head_ref, 'release-plz-') == false }} # no need to retest on releases
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
@@ -52,7 +52,7 @@ jobs:
     name: Test (${{ matrix.os }})
     needs: check
     runs-on: ${{ matrix.os }}
-    if: startsWith(github.head_ref, 'release-plz-') == false # no need to retest on releases
+    if: ${{ startsWith(github.head_ref, 'release-plz-') == false }} # no need to retest on releases
     timeout-minutes: 45
     strategy:
       fail-fast: false
