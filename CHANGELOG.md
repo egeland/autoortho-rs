@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.61](https://github.com/egeland/autoortho-rs/compare/v0.6.60...v0.6.61) - 2026-04-29
+
+### Added
+
+- enable Prefetch Route button in dashboard ([#249](https://github.com/egeland/autoortho-rs/pull/249))
+
 ## [0.6.60](https://github.com/egeland/autoortho-rs/compare/v0.6.59...v0.6.60) - 2026-04-29
 
 ### Added
