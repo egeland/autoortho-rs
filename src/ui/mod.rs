@@ -7,6 +7,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::sync::atomic::Ordering;
+#[cfg(test)]
+use tempfile::TempDir;
 use tokio::sync::{oneshot, watch};
 
 pub mod handlers;
@@ -1815,6 +1817,10 @@ mod tests {
     async fn test_start_services_skips_mount_when_no_xplane_path() {
         let mut config = AutoOrthoConfig::default();
         config.xplane_path = "".to_string(); // Not configured
+        // Use temp directory for cache to avoid polluting user environment
+        config.cache_dir = TempDir::new().unwrap().path().to_string_lossy().to_string();
+        // Disable DDS cache for test to avoid filesystem operations
+        config.enable_dds_cache = false;
 
         let (_shutdown_tx, shutdown_rx) = watch::channel(false);
 
@@ -1835,6 +1841,10 @@ mod tests {
         let mut config = AutoOrthoConfig::default();
         // Use a path that exists but FUSE can't mount (for testing)
         config.xplane_path = "/tmp/nonexistent_xplane".to_string();
+        // Use temp directory for cache to avoid polluting user environment
+        config.cache_dir = TempDir::new().unwrap().path().to_string_lossy().to_string();
+        // Disable DDS cache for test to avoid filesystem operations
+        config.enable_dds_cache = false;
 
         let (_shutdown_tx, shutdown_rx) = watch::channel(false);
 
@@ -1858,13 +1868,14 @@ mod tests {
             c
         };
 
-        // Mount dir should be empty/invalid when xplane_path is empty
         let mount_dir = config_empty.mount_dir();
         let mount_str = mount_dir.to_string_lossy();
-        // When xplane_path is empty, mount_dir should be invalid
+        // When xplane_path is empty, the mount decision must evaluate to false.
+        let should_mount = !config_empty.xplane_path.is_empty() && mount_dir.exists();
+
         assert!(
-            config_empty.xplane_path.is_empty() || !mount_dir.exists(),
-            "Mount dir should not exist when xplane_path is empty: {}",
+            !should_mount,
+            "Mount should be skipped when xplane_path is empty; computed mount dir: {}",
             mount_str
         );
     }

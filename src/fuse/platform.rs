@@ -16,11 +16,38 @@ pub fn is_fuse_available() -> bool {
         // Check if WinFsp is installed by trying to initialize it
         winfsp::winfsp_init().is_ok()
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
     {
-        // macOS/Linux: FUSE is typically available
-        // Could add more specific checks here (e.g., check for /dev/fuse)
-        true
+        let fuse_device = std::path::Path::new("/dev/fuse");
+        fuse_device.exists()
+            && std::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(fuse_device)
+                .is_ok()
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // macFUSE device naming has varied across versions/installations.
+        // Treat FUSE as available if a known device node exists and is
+        // accessible for read/write.
+        for fuse_device in ["/dev/macfuse0", "/dev/osxfuse0"] {
+            let fuse_device = std::path::Path::new(fuse_device);
+            if fuse_device.exists()
+                && std::fs::OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .open(fuse_device)
+                    .is_ok()
+            {
+                return true;
+            }
+        }
+        false
+    }
+    #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
+    {
+        false
     }
 }
 

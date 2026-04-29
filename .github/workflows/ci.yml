@@ -18,7 +18,7 @@ jobs:
   check:
     name: Format & Lint
     runs-on: ubuntu-latest
-    if: startsWith(github.head_ref, 'release-plz-') == false # no need to retest on releases
+    if: ${{ startsWith(github.head_ref, 'release-plz-') == false }} # no need to retest on releases
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
@@ -52,7 +52,7 @@ jobs:
     name: Test (${{ matrix.os }})
     needs: check
     runs-on: ${{ matrix.os }}
-    if: startsWith(github.head_ref, 'release-plz-') == false # no need to retest on releases
+    if: ${{ startsWith(github.head_ref, 'release-plz-') == false }} # no need to retest on releases
     timeout-minutes: 45
     strategy:
       fail-fast: false
@@ -79,10 +79,10 @@ jobs:
               $winFspDir = "C:\Program Files (x86)\WinFsp\"
           }
 
-  Write-Host "WinFSP found at: $winFspDir"
-  "WINFSP_DIR=$winFspDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-  # Add WinFsp bin to PATH so winfsp-x64.dll can be found at runtime
-  "$winFspDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          Write-Host "WinFSP found at: $winFspDir"
+          "WINFSP_DIR=$winFspDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          # Add WinFsp bin to PATH so winfsp-x64.dll can be found at runtime
+          "$winFspDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
