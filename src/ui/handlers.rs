@@ -186,6 +186,10 @@ pub fn handle_service_status(state: &AppState) -> ServiceStatus {
     ServiceStatus::Stopped
 }
 
+pub fn set_debug_mode(state: &mut AppState, v: bool) {
+    state.config.debug_mode = v;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -210,5 +214,15 @@ mod tests {
         let mut state = AppState::new();
         handle_set_xplane_path(&mut state, "/test/path".to_string());
         assert_eq!(state.config.xplane_path, "/test/path");
+    }
+
+    #[test]
+    fn test_set_debug_mode() {
+        let mut state = AppState::new();
+        assert!(!state.config.debug_mode);
+        set_debug_mode(&mut state, true);
+        assert!(state.config.debug_mode);
+        set_debug_mode(&mut state, false);
+        assert!(!state.config.debug_mode);
     }
 }

@@ -14,6 +14,19 @@ use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
+/// Initialize logger: RUST_LOG env var overrides config setting
+fn init_logger(config: &AutoOrthoConfig) {
+    let env = env_logger::Env::default();
+
+    // If RUST_LOG is set, it overrides config
+    if std::env::var("RUST_LOG").is_ok() {
+        env_logger::Builder::from_env(env).init();
+    } else {
+        let default_filter = if config.debug_mode { "debug" } else { "info" };
+        env_logger::Builder::from_env(env.default_filter_or(default_filter)).init();
+    }
+}
+
 #[derive(Parser)]
 #[command(name = "autoortho")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -44,8 +57,9 @@ enum Commands {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // Default to info level, RUST_LOG=debug for verbose output
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    // Initialize logger: RUST_LOG env var overrides config setting
+    let config = AutoOrthoConfig::load();
+    init_logger(&config);
 
     let cli = Cli::parse();
 
