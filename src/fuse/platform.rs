@@ -11,7 +11,17 @@
 
 /// Check if FUSE/virtual filesystem support is available on this platform.
 pub fn is_fuse_available() -> bool {
-    true
+    #[cfg(windows)]
+    {
+        // Check if WinFsp is installed by trying to initialize it
+        winfsp::winfsp_init().is_ok()
+    }
+    #[cfg(not(windows))]
+    {
+        // macOS/Linux: FUSE is typically available
+        // Could add more specific checks here (e.g., check for /dev/fuse)
+        true
+    }
 }
 
 /// Platform name for logging.

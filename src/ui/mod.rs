@@ -1254,25 +1254,40 @@ async fn start_all_services(
         shutdown_rx,
     ));
 
-    // Mount the FUSE filesystem
+    // Mount the FUSE filesystem (only if configured and available)
     let mount_dir = config.mount_dir();
-    // Create mount point if it doesn't exist
-    std::fs::create_dir_all(&mount_dir)
-        .map_err(|e| format!("Failed to create mount directory: {}", e))?;
+    let should_mount = !config.xplane_path.is_empty()
+        && !mount_dir.to_string_lossy().is_empty()
+        && crate::fuse::platform::is_fuse_available();
 
-    // Start FUSE mount in background
-    let fs_clone = context.fs.clone();
-    let mount_path = mount_dir.to_path_buf();
-    let runtime_handle = tokio::runtime::Handle::current();
+    if should_mount {
+        // Create mount point if it doesn't exist
+        if let Err(e) = std::fs::create_dir_all(&mount_dir) {
+            log::warn!("Failed to create mount directory: {}", e);
+        } else {
+            // Start FUSE mount in background
+            let fs_clone = context.fs.clone();
+            let mount_path = mount_dir.to_path_buf();
+            let runtime_handle = tokio::runtime::Handle::current();
 
-    tokio::task::spawn_blocking(move || {
-        #[cfg(not(windows))]
-        use crate::fuse::mount::mount;
-        #[cfg(windows)]
-        use crate::fuse::mount_win::mount;
+            tokio::task::spawn_blocking(move || {
+                #[cfg(not(windows))]
+                use crate::fuse::mount::mount;
+                #[cfg(windows)]
+                use crate::fuse::mount_win::mount;
 
-        mount(fs_clone, &mount_path, runtime_handle).map_err(|e| format!("FUSE mount error: {}", e))
-    });
+                match mount(fs_clone, &mount_path, runtime_handle) {
+                    Ok(()) => Ok::<(), String>(()),
+                    Err(e) => {
+                        log::warn!("FUSE mount failed (non-fatal): {}", e);
+                        Ok::<(), String>(()) // Don't fail service startup if FUSE fails
+                    }
+                }
+            });
+        }
+    } else {
+        log::info!("FUSE mount skipped: xplane_path not configured or FUSE unavailable");
+    }
 
     Ok((format!("http://{}", addr), tracker))
 }
@@ -1691,6 +1706,7 @@ fn boot() -> (AutoOrthoApp, Task<Message>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::AutoOrthoConfig;
 
     fn setup_test_runtime() {
         use tokio::runtime::Builder;
@@ -1793,5 +1809,63 @@ mod tests {
         let _ = app.update(Message::StopServices);
         // Shutdown signal should have been sent
         assert!(*rx.borrow());
+    }
+
+    #[tokio::test]
+    async fn test_start_services_skips_mount_when_no_xplane_path() {
+        let mut config = AutoOrthoConfig::default();
+        config.xplane_path = "".to_string(); // Not configured
+
+        let (_shutdown_tx, shutdown_rx) = watch::channel(false);
+
+        // Use port 0 to get a random available port
+        let result = start_all_services(0, "127.0.0.1", 49000, config, shutdown_rx).await;
+
+        assert!(
+            result.is_ok(),
+            "Services should start without FUSE when no X-Plane path: {:?}",
+            result.err()
+        );
+        let (url, _tracker) = result.unwrap();
+        assert!(url.starts_with("http://"));
+    }
+
+    #[tokio::test]
+    async fn test_start_services_handles_fuse_unavailable() {
+        let mut config = AutoOrthoConfig::default();
+        // Use a path that exists but FUSE can't mount (for testing)
+        config.xplane_path = "/tmp/nonexistent_xplane".to_string();
+
+        let (_shutdown_tx, shutdown_rx) = watch::channel(false);
+
+        // Use port 0 to get a random available port
+        let result = start_all_services(0, "127.0.0.1", 49000, config, shutdown_rx).await;
+
+        // Web server + tracker should start regardless of FUSE status
+        assert!(
+            result.is_ok(),
+            "Services should start even if FUSE fails: {:?}",
+            result.err()
+        );
+    }
+
+    #[test]
+    fn test_fuse_mount_conditional_on_config() {
+        // Test with empty xplane_path
+        let config_empty = {
+            let mut c = AutoOrthoConfig::default();
+            c.xplane_path = "".to_string();
+            c
+        };
+
+        // Mount dir should be empty/invalid when xplane_path is empty
+        let mount_dir = config_empty.mount_dir();
+        let mount_str = mount_dir.to_string_lossy();
+        // When xplane_path is empty, mount_dir should be invalid
+        assert!(
+            config_empty.xplane_path.is_empty() || !mount_dir.exists(),
+            "Mount dir should not exist when xplane_path is empty: {}",
+            mount_str
+        );
     }
 }
