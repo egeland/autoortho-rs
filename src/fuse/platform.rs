@@ -43,7 +43,7 @@ pub fn is_fuse_available() -> bool {
                 return true;
             }
         }
-        return false;
+        false
     }
     #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
     {

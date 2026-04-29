@@ -7,6 +7,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::sync::atomic::Ordering;
+#[cfg(test)]
 use tempfile::TempDir;
 use tokio::sync::{oneshot, watch};
 
@@ -1817,7 +1818,7 @@ mod tests {
         let mut config = AutoOrthoConfig::default();
         config.xplane_path = "".to_string(); // Not configured
         // Use temp directory for cache to avoid polluting user environment
-        config.cache_dir = tempfile::TempDir::new().unwrap().path().to_string_lossy().to_string();
+        config.cache_dir = TempDir::new().unwrap().path().to_string_lossy().to_string();
         // Disable DDS cache for test to avoid filesystem operations
         config.enable_dds_cache = false;
 
@@ -1841,7 +1842,7 @@ mod tests {
         // Use a path that exists but FUSE can't mount (for testing)
         config.xplane_path = "/tmp/nonexistent_xplane".to_string();
         // Use temp directory for cache to avoid polluting user environment
-        config.cache_dir = tempfile::TempDir::new().unwrap().path().to_string_lossy().to_string();
+        config.cache_dir = TempDir::new().unwrap().path().to_string_lossy().to_string();
         // Disable DDS cache for test to avoid filesystem operations
         config.enable_dds_cache = false;
 
