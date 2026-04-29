@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.60](https://github.com/egeland/autoortho-rs/compare/v0.6.59...v0.6.60) - 2026-04-29
+
+### Added
+
+- add debug mode setting with UI toggle ([#247](https://github.com/egeland/autoortho-rs/pull/247))
+
 ## [0.6.59](https://github.com/egeland/autoortho-rs/compare/v0.6.58...v0.6.59) - 2026-04-29
 
 ### Fixed
