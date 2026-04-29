@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.59](https://github.com/egeland/autoortho-rs/compare/v0.6.58...v0.6.59) - 2026-04-29
+
+### Fixed
+
+- make FUSE mount conditional to fix Windows build ([#244](https://github.com/egeland/autoortho-rs/pull/244))
+- *(ci)* add WinFsp bin to PATH for Windows DLL resolution ([#243](https://github.com/egeland/autoortho-rs/pull/243))
+- connect to map, and actually use FUSE, formatted ([#241](https://github.com/egeland/autoortho-rs/pull/241))
+- connect to map, and actually use FUSE ([#239](https://github.com/egeland/autoortho-rs/pull/239))
+
+### Other
+
+- Fix/workflow ([#245](https://github.com/egeland/autoortho-rs/pull/245))
+- bump lru from 0.16.4 to 0.17.0 ([#227](https://github.com/egeland/autoortho-rs/pull/227))
+
 ## [0.6.58](https://github.com/egeland/autoortho-rs/compare/v0.6.57...v0.6.58) - 2026-04-27
 
 ### Fixed
