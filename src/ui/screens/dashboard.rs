@@ -1,7 +1,7 @@
 use crate::ui::Message;
 use crate::ui::helpers::*;
 use crate::ui::state::{AppState, ServiceStatus};
-use iced::widget::{button, column, container, row, rule, space, text, tooltip};
+use iced::widget::{button, column, container, row, rule, space, text};
 use iced::{Element, Fill, Length};
 
 /// Main dashboard screen — real-time status and controls
@@ -93,19 +93,52 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .spacing(8);
 
             if state.simbrief_route_summary.is_some() {
-                btn_row = btn_row.push(tooltip(
-                    button(text(format!("{} Prefetch Route", ICON_MAP)).size(14)).padding([8, 16]),
-                    container(
-                        text("Coming soon — pre-cache tiles along the route before departure.")
-                            .size(12),
-                    )
-                    .padding(8)
-                    .style(container::rounded_box),
-                    tooltip::Position::Bottom,
-                ));
+                if state.prefetch_running {
+                    btn_row = btn_row.push(
+                        button(text(format!("{} Prefetching…", ICON_MAP)).size(14))
+                            .padding([8, 16]),
+                    );
+                } else {
+                    btn_row = btn_row.push(
+                        button(text(format!("{} Prefetch Route", ICON_MAP)).size(14))
+                            .padding([8, 16])
+                            .style(button::success)
+                            .on_press(Message::PrefetchRoute),
+                    );
+                }
             }
 
             section = section.push(btn_row);
+
+            // Prefetch progress / status
+            if state.prefetch_running {
+                let progress_text = if state.prefetch_total > 0 {
+                    format!(
+                        "{} Pre-caching tiles: {}/{}",
+                        ICON_MAP, state.prefetch_completed, state.prefetch_total
+                    )
+                } else {
+                    format!("{} Pre-caching route tiles…", ICON_MAP)
+                };
+                section = section.push(
+                    text(progress_text)
+                        .size(13)
+                        .color(iced::Color::from_rgb(0.0, 0.6, 0.0)),
+                );
+            } else if let Some(ref status) = state.prefetch_status {
+                let color = if status.to_lowercase().contains("error")
+                    || status.to_lowercase().contains("fail")
+                {
+                    iced::Color::from_rgb(0.8, 0.1, 0.1)
+                } else {
+                    iced::Color::from_rgb(0.0, 0.6, 0.0)
+                };
+                section = section.push(
+                    text(format!("{} {}", ICON_MAP, status))
+                        .size(13)
+                        .color(color),
+                );
+            }
         }
 
         if let Some(ref summary) = state.simbrief_route_summary {

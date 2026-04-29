@@ -154,6 +154,12 @@ pub struct AppState {
     // Developer fallback test state
     pub test_fallback_running: bool,
     pub test_fallback_result: Option<FallbackTestResult>,
+
+    // Route prefetch state
+    pub prefetch_running: bool,
+    pub prefetch_status: Option<String>,
+    pub prefetch_completed: u32,
+    pub prefetch_total: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -217,6 +223,10 @@ impl AppState {
             test_tile_image: None,
             test_fallback_running: false,
             test_fallback_result: None,
+            prefetch_running: false,
+            prefetch_status: None,
+            prefetch_completed: 0,
+            prefetch_total: 0,
         }
     }
 
@@ -379,5 +389,14 @@ mod tests {
 
         state.web_server = ServiceStatus::Running;
         assert!(state.any_service_running());
+    }
+
+    #[test]
+    fn test_prefetch_state_defaults() {
+        let state = AppState::new();
+        assert!(!state.prefetch_running);
+        assert!(state.prefetch_status.is_none());
+        assert_eq!(state.prefetch_completed, 0);
+        assert_eq!(state.prefetch_total, 0);
     }
 }
