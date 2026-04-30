@@ -120,7 +120,7 @@ pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::er
         if std::process::Command::new("fusermount")
             .args(["-u", "-z", &mount_str])
             .status()
-            .map_or(false, |s| s.success())
+            .is_ok_and(|s| s.success())
         {
             log::info!("Linux fusermount succeeded for {}", mount_str);
         } else {
