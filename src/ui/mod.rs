@@ -1317,6 +1317,11 @@ async fn start_all_services(
         if let Err(e) = std::fs::create_dir_all(&mount_dir) {
             log::warn!("Failed to create mount directory: {}", e);
         } else {
+            // Clean up any stale mount before mounting
+            if let Err(e) = crate::fuse::platform::cleanup_mount(&mount_dir) {
+                log::debug!("Stale mount cleanup failed (ignored): {}", e);
+            }
+
             // Start FUSE mount in background
             let fs_clone = context.fs.clone();
             let mount_path = mount_dir.to_path_buf();

@@ -70,3 +70,69 @@ pub fn requires_driver_install() -> bool {
     // Linux typically has FUSE built into the kernel
     cfg!(target_os = "macos") || cfg!(target_os = "windows")
 }
+
+/// Attempt to clean up any stale mount at the given path before mounting.
+/// This is similar to Python's `setupmount()` which checks for existing mounts
+/// and unmounts them before mounting again.
+pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    let mount_str = mountpoint.to_string_lossy().to_string();
+
+    #[cfg(windows)]
+    {
+        // Try to unmount using WinFsp's fspmount tool
+        // This is similar to Python's winsetup.force_unmount()
+        let status = std::process::Command::new("fspmount")
+            .args(["-u", &mount_str])
+            .status();
+        match status {
+            Ok(s) if s.success() => {
+                log::info!("WinFsp unmount succeeded for {}", mount_str);
+            }
+            _ => {
+                // Ignore errors - maybe not mounted
+                log::debug!("WinFsp unmount failed or not mounted: {:?}", status);
+            }
+        }
+        // Also try fsutil
+        let _ = std::process::Command::new("fsutil")
+            .args(["volume", "dismount", &mount_str])
+            .status();
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let status = std::process::Command::new("diskutil")
+            .args(["unmount", "force", &mount_str])
+            .status();
+        match status {
+            Ok(s) if s.success() => {
+                log::info!("macOS unmount succeeded for {}", mount_str);
+            }
+            _ => {
+                log::debug!("macOS unmount failed or not mounted");
+            }
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        // Try fusermount -u
+        if std::process::Command::new("fusermount")
+            .args(["-u", "-z", &mount_str])
+            .status()
+            .is_ok_and(|s| s.success())
+        {
+            log::info!("Linux fusermount succeeded for {}", mount_str);
+        } else {
+            // Try umount -l
+            let _ = std::process::Command::new("umount")
+                .args(["-l", &mount_str])
+                .status();
+        }
+    }
+
+    // Give OS time to clean up
+    std::thread::sleep(std::time::Duration::from_secs(1));
+
+    Ok(())
+}
