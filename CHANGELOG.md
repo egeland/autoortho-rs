@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.62](https://github.com/egeland/autoortho-rs/compare/v0.6.61...v0.6.62) - 2026-04-30
+
+### Fixed
+
+- add stale mount cleanup before FUSE mount (P1) ([#251](https://github.com/egeland/autoortho-rs/pull/251))
+
 ## [0.6.61](https://github.com/egeland/autoortho-rs/compare/v0.6.60...v0.6.61) - 2026-04-29
 
 ### Added
