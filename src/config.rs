@@ -592,6 +592,65 @@ impl AutoOrthoConfig {
     }
 }
 
+/// Snapshot of config fields commonly needed for prefetch/dynamic zoom.
+/// Cloned once from `AutoOrthoConfig` to avoid repeated `config.read()` lock + clone.
+#[derive(Debug, Clone)]
+pub struct ConfigSnapshot {
+    pub tile_provider: String,
+    pub max_zoom: u32,
+    pub zoom_rules: Vec<ZoomRule>,
+    pub enable_dynamic_zoom: bool,
+    pub enable_night_exclusion: bool,
+    pub night_threshold: f32,
+    pub day_threshold: f32,
+    pub simbrief_user_id: String,
+    pub chunk_memory_cache_mb: u64,
+    pub dds_memory_cache_mb: u64,
+    pub prefetch_route_percent: u32,
+    pub route_prefetch_radius_nm: u32,
+    pub airport_radius_nm: u32,
+    pub prefetch_airports: bool,
+    pub use_simbrief_altitude: bool,
+    pub route_consideration_radius_nm: u32,
+}
+
+impl ConfigSnapshot {
+    /// Calculate the number of DDS tiles that fit in the configured memory.
+    pub fn dds_memory_cache_entries(&self) -> usize {
+        const DDS_TILE_SIZE_MB: u64 = 1; // Approximate 512x512 DDS tile
+        ((self.dds_memory_cache_mb / DDS_TILE_SIZE_MB).max(1)) as usize
+    }
+
+    /// Calculate the number of chunks that fit in the configured memory.
+    pub fn chunk_memory_cache_entries(&self) -> usize {
+        const CHUNK_SIZE_KB: u64 = 1024; // 1MB chunks
+        ((self.chunk_memory_cache_mb * 1024 / CHUNK_SIZE_KB).max(1)) as usize
+    }
+}
+
+impl From<&AutoOrthoConfig> for ConfigSnapshot {
+    fn from(config: &AutoOrthoConfig) -> Self {
+        Self {
+            tile_provider: config.tile_provider.clone(),
+            max_zoom: config.max_zoom,
+            zoom_rules: config.zoom_rules.clone(),
+            enable_dynamic_zoom: config.enable_dynamic_zoom,
+            enable_night_exclusion: config.enable_night_exclusion,
+            night_threshold: config.night_threshold,
+            day_threshold: config.day_threshold,
+            simbrief_user_id: config.simbrief_user_id.clone(),
+            chunk_memory_cache_mb: config.chunk_memory_cache_mb,
+            dds_memory_cache_mb: config.dds_memory_cache_mb,
+            prefetch_route_percent: config.prefetch_route_percent,
+            route_prefetch_radius_nm: config.route_prefetch_radius_nm,
+            airport_radius_nm: config.airport_radius_nm,
+            prefetch_airports: config.prefetch_airports,
+            use_simbrief_altitude: config.use_simbrief_altitude,
+            route_consideration_radius_nm: config.route_consideration_radius_nm,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -725,6 +784,20 @@ mod tests {
         let toml = toml::to_string(&config).unwrap();
         let config2: AutoOrthoConfig = toml::from_str(&toml).unwrap();
         assert!(config2.debug_mode);
+    }
+
+    #[test]
+    fn test_config_snapshot_from_config() {
+        let config = AutoOrthoConfig::default();
+        let snapshot: ConfigSnapshot = (&config).into();
+        assert_eq!(snapshot.tile_provider, config.tile_provider);
+        assert_eq!(snapshot.max_zoom, config.max_zoom);
+        assert_eq!(snapshot.zoom_rules.len(), config.zoom_rules.len());
+        assert_eq!(snapshot.enable_dynamic_zoom, config.enable_dynamic_zoom);
+        assert_eq!(
+            snapshot.enable_night_exclusion,
+            config.enable_night_exclusion
+        );
     }
 
     #[test]

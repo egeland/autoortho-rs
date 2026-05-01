@@ -2,7 +2,7 @@
 // Copyright (c) 2026 the AutoOrtho-RS contributors
 
 use autoortho_lib::app_context::AppContext;
-use autoortho_lib::config::AutoOrthoConfig;
+use autoortho_lib::config::{AutoOrthoConfig, ConfigSnapshot};
 use autoortho_lib::dynamic_zoom::DynamicZoom;
 use autoortho_lib::tiles::fetcher::TileFetcher;
 use autoortho_lib::tiles::prefetch::{RoutePrefetchConfig, SpatialPrefetcher};
@@ -289,11 +289,13 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     let config = AutoOrthoConfig::default();
     let context = AppContext::init(config).await?;
 
+    let config_snapshot: ConfigSnapshot = (&*context.config.read()).into();
+
     let dynamic_zoom = DynamicZoom::new(
-        context.config.read().zoom_rules.clone(),
-        &context.config.read().tile_provider,
+        config_snapshot.zoom_rules.clone(),
+        &config_snapshot.tile_provider,
     );
-    if context.config.read().enable_dynamic_zoom {
+    if config_snapshot.enable_dynamic_zoom {
         info!(
             "Dynamic zoom enabled with {} rules",
             dynamic_zoom.zoom_rules().len()
@@ -305,14 +307,14 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
         context.custom_map.get_cells().len()
     );
 
-    let chunk_cache_entries = context.config.read().chunk_memory_cache_entries();
-    let dds_cache_entries = context.config.read().dds_memory_cache_entries();
+    let chunk_cache_entries = config_snapshot.chunk_memory_cache_entries();
+    let dds_cache_entries = config_snapshot.dds_memory_cache_entries();
     info!(
         "Memory cache: {} chunk entries, {} DDS tile entries",
         chunk_cache_entries, dds_cache_entries
     );
 
-    let provider_name = context.config.read().tile_provider.clone();
+    let provider_name = config_snapshot.tile_provider.clone();
     info!("Provider: {} ({})", provider_name, provider_name);
 
     // Start web server
@@ -336,10 +338,11 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     // Night exclusion: poll sun_pitch from the dataref tracker and update the
     // filesystem's night exclusion flag accordingly.
     let fs = context.fs.clone();
-    let (enable_night_exclusion, night_threshold, day_threshold) = {
-        let c = context.config.read();
-        (c.enable_night_exclusion, c.night_threshold, c.day_threshold)
-    };
+    let (enable_night_exclusion, night_threshold, day_threshold) = (
+        config_snapshot.enable_night_exclusion,
+        config_snapshot.night_threshold,
+        config_snapshot.day_threshold,
+    );
     if enable_night_exclusion {
         let night_flag = fs.night_exclusion_flag();
         let tracker_for_night = tracker.clone();
@@ -364,7 +367,7 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     }
 
     // SimBrief route prefetch: if user_id is configured, fetch flight plan and start prefetch
-    let simbrief_user_id = context.config.read().simbrief_user_id.clone();
+    let simbrief_user_id = config_snapshot.simbrief_user_id.clone();
     if !simbrief_user_id.is_empty() {
         let config = context.config.clone();
         let fetcher = context.fetcher.clone();
@@ -446,6 +449,8 @@ async fn run_simbrief_prefetch(
         plan.origin, plan.destination
     );
 
+    let config_snapshot: ConfigSnapshot = (&*config.read()).into();
+
     let (
         prefetch_route_percent,
         route_prefetch_radius_nm,
@@ -457,21 +462,18 @@ async fn run_simbrief_prefetch(
         enable_dynamic_zoom,
         use_simbrief_altitude,
         route_consideration_radius_nm,
-    ) = {
-        let c = config.read();
-        (
-            c.prefetch_route_percent,
-            c.route_prefetch_radius_nm,
-            c.airport_radius_nm,
-            c.prefetch_airports,
-            c.max_zoom,
-            c.zoom_rules.clone(),
-            c.tile_provider.clone(),
-            c.enable_dynamic_zoom,
-            c.use_simbrief_altitude,
-            c.route_consideration_radius_nm as f64,
-        )
-    };
+    ) = (
+        config_snapshot.prefetch_route_percent,
+        config_snapshot.route_prefetch_radius_nm,
+        config_snapshot.airport_radius_nm,
+        config_snapshot.prefetch_airports,
+        config_snapshot.max_zoom,
+        config_snapshot.zoom_rules.clone(),
+        config_snapshot.tile_provider.clone(),
+        config_snapshot.enable_dynamic_zoom,
+        config_snapshot.use_simbrief_altitude,
+        config_snapshot.route_consideration_radius_nm as f64,
+    );
 
     let mut prefetcher = SpatialPrefetcher::new();
     let route_config = RoutePrefetchConfig {
