@@ -33,30 +33,43 @@ impl StatsStore {
         }
     }
 
+    /// Execute a closure with exclusive access to the snapshot.
+    fn with_snapshot<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut StatsSnapshot) -> R,
+    {
+        f(&mut self.snapshot.lock())
+    }
+
     pub fn record_download(&self, bytes: u64) {
-        let mut snap = self.snapshot.lock();
-        snap.tiles_downloaded += 1;
-        snap.bytes_downloaded += bytes;
+        self.with_snapshot(|snap| {
+            snap.tiles_downloaded += 1;
+            snap.bytes_downloaded += bytes;
+        })
     }
 
     pub fn record_cache_hit(&self) {
-        let mut snap = self.snapshot.lock();
-        snap.cache_hits += 1;
+        self.with_snapshot(|snap| {
+            snap.cache_hits += 1;
+        })
     }
 
     pub fn record_cache_miss(&self) {
-        let mut snap = self.snapshot.lock();
-        snap.cache_misses += 1;
+        self.with_snapshot(|snap| {
+            snap.cache_misses += 1;
+        })
     }
 
     pub fn set_pending_tiles(&self, count: u32) {
-        let mut snap = self.snapshot.lock();
-        snap.tiles_pending = count;
+        self.with_snapshot(|snap| {
+            snap.tiles_pending = count;
+        })
     }
 
     pub fn set_completed_tiles(&self, count: u32) {
-        let mut snap = self.snapshot.lock();
-        snap.tiles_completed = count;
+        self.with_snapshot(|snap| {
+            snap.tiles_completed = count;
+        })
     }
 
     pub fn snapshot(&self) -> StatsSnapshot {
@@ -74,11 +87,12 @@ impl StatsStore {
     }
 
     pub fn clear(&self) {
-        let mut snap = self.snapshot.lock();
-        snap.tiles_downloaded = 0;
-        snap.bytes_downloaded = 0;
-        snap.cache_hits = 0;
-        snap.cache_misses = 0;
+        self.with_snapshot(|snap| {
+            snap.tiles_downloaded = 0;
+            snap.bytes_downloaded = 0;
+            snap.cache_hits = 0;
+            snap.cache_misses = 0;
+        })
     }
 }
 
