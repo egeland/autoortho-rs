@@ -76,7 +76,10 @@ DynamicZoom::new(config.zoom_rules.clone(), &config.tile_provider)
 
 **Suggested refactor:** Add constructor to `AppContext` or use `ConfigSnapshot`.
 
-**Estimated savings:** ~5 lines, single point of configuration.
+**Status in `main.rs`:** DONE - uses `ConfigSnapshot`.
+**Status in `settings.rs`:** SKIPPED - 68+ uses of `state.config`; UI needs direct field access.
+
+**Estimated savings:** ~5 lines (already achieved in `main.rs`).
 
 ---
 
@@ -143,8 +146,8 @@ pub fn clear_averages(&self) {
 ## Priority 2: Minor Improvements
 
 ### 1. Error Message Clarity
-- Update "Unsupported format" to include actual extension (if applicable).
-- Update "Empty URL" to specify which URL was empty (if applicable).
+- ~~Update "Unsupported format" to include actual extension (if applicable).~~ DOES NOT EXIST in codebase.
+- ~~Update "Empty URL" to specify which URL was empty (if applicable).~~ DOES NOT EXIST in codebase.
 
 ### 2. Test Coverage Gaps
 - Add tests for refactored StatsStore patterns.
