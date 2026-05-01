@@ -654,7 +654,7 @@ impl From<&AutoOrthoConfig> for ConfigSnapshot {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
+    use crate::test_utils::test_config_in_temp;
 
     #[test]
     fn test_default_config() {
@@ -674,10 +674,9 @@ mod tests {
 
     #[test]
     fn test_save_and_load() {
-        let tmp = TempDir::new().unwrap();
-        let path = tmp.path().join("config.toml");
+        let (mut config, _tmp) = test_config_in_temp();
+        let path = std::path::Path::new(&config.cache_dir).join("config.toml");
 
-        let mut config = AutoOrthoConfig::default();
         config.tile_provider = "BI".to_string();
         config.xplane_port = 12345;
         config.scenery_download_dir = "/my/downloads".to_string();

@@ -6,6 +6,9 @@ pub mod app_context;
 pub mod config;
 pub mod dynamic_zoom;
 
+#[cfg(test)]
+pub mod test_utils;
+
 pub mod fuse;
 
 pub mod pipeline;
