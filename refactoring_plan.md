@@ -40,8 +40,9 @@ where F: FnOnce(&mut StatsSnapshot) -> R
 
 ---
 
-### Pattern 2: Config Extraction Pattern (MEDIUM - 2+ locations)
-**Location:** `src/main.rs` (`run_with_mount`, `run_simbrief_prefetch`)
+### Pattern 2: Config Extraction Pattern (MEDIUM - 12+ locations)
+**Location:** `src/main.rs` (9 `config.read()` occurrences), `src/webui/routes.rs` (3 occurrences)
+**Additional context:** `src/ui/state.rs` has 6+ `.clone()` calls related to config extraction
 
 ```rust
 let (field1, field2, ...) = {
@@ -103,6 +104,42 @@ Could extract into `start_night_exclusion_monitor()` helper.
 
 ---
 
+### Pattern 6: DatarefTracker Averager Lock Pattern (HIGH - 10 occurrences)
+**Location:** `src/xplane/dataref.rs`
+
+Repetitive `write().expect()` calls for 5 averager locks in `update_from_response()` (5 occurrences) and `clear_averages()` (5 occurrences):
+```rust
+self.lat_avg.write().expect("lat avg lock poisoned").add(...);
+self.lon_avg.write().expect("lon avg lock poisoned").add(...);
+// ... 3 more
+```
+
+**Suggested refactor:** Add helper method to iterate over averagers:
+```rust
+fn with_averagers<F>(&self, mut f: F)
+where F: FnMut(&mut Averager)
+{
+    let averagers = [
+        &self.lat_avg, &self.lon_avg, &self.alt_avg,
+        &self.hdg_avg, &self.spd_avg
+    ];
+    for avg in averagers {
+        f(&mut avg.write().expect("averager lock poisoned"));
+    }
+}
+```
+
+Refactor `clear_averages()` to:
+```rust
+pub fn clear_averages(&self) {
+    self.with_averagers(|avg| avg.clear());
+}
+```
+
+**Estimated savings:** ~20 lines, reduced boilerplate and consistent error messages.
+
+---
+
 ## Priority 2: Minor Improvements
 
 ### 1. Error Message Clarity
@@ -139,6 +176,11 @@ Could extract into `start_night_exclusion_monitor()` helper.
 2. Simplify DynamicZoom creation
 3. Apply minor improvements
 
+### Phase 5: DatarefTracker Averager Refactor
+1. Add `with_averagers()` helper to `DatarefTracker`
+2. Refactor `update_from_response()` and `clear_averages()`
+3. Test: `cargo test dataref` (8 tests)
+
 ---
 
 ## Estimated Impact
@@ -149,8 +191,9 @@ Could extract into `start_night_exclusion_monitor()` helper.
 | Phase 2 (Config) | ~20 | Low | 364 existing |
 | Phase 3 (Test Utils) | ~40 | Low | Existing + new |
 | Phase 4 (Minor) | ~15 | Low | Add 2+ new |
+| Phase 5 (DatarefTracker) | ~20 | Low | 8 existing dataref tests |
 
-**Total estimated savings:** 80-105 lines of duplicated/boilerplate code
+**Total estimated savings:** 100-125 lines of duplicated/boilerplate code
 
 **Quality improvements:**
 - Reduced boilerplate and cognitive load
