@@ -171,15 +171,22 @@ pub fn clear_averages(&self) {
 2. Migrate 2-3 test modules as proof of concept
 3. Test: `cargo test --lib`
 
+### Phase 5: DatarefTracker Averager Refactor (SKIPPED)
+**Reason:** `HeadingAverager` and `FlightDataAverager` are different types; unifying them via trait adds complexity without net line savings (~17 lines added vs 15 removed).
+1. ~~Add `with_averagers()` helper to `DatarefTracker`~~
+2. ~~Refactor `update_from_response()` and `clear_averages()`~~
+3. ~~Test: `cargo test dataref` (8 tests)~~
+
 ### Phase 4: Minor Extractions
 1. Extract night exclusion monitor
 2. Simplify DynamicZoom creation
 3. Apply minor improvements
 
-### Phase 5: DatarefTracker Averager Refactor
-1. Add `with_averagers()` helper to `DatarefTracker`
-2. Refactor `update_from_response()` and `clear_averages()`
-3. Test: `cargo test dataref` (8 tests)
+### Phase 5: DatarefTracker Averager Refactor (SKIPPED)
+**Reason:** `HeadingAverager` and `FlightDataAverager` are different types; unifying them via trait adds complexity without net line savings (~17 lines added vs 15 removed).
+1. ~~Add `with_averagers()` helper to `DatarefTracker`~~
+2. ~~Refactor `update_from_response()` and `clear_averages()`~~
+3. ~~Test: `cargo test dataref` (8 tests)~~
 
 ---
 

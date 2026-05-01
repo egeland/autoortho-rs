@@ -277,6 +277,34 @@ async fn test_tile_generation(provider_name: &str) -> Result<(), Box<dyn Error>>
     Ok(())
 }
 
+/// Start night exclusion monitor that updates the filesystem's night flag
+/// based on sun pitch from the dataref tracker.
+fn start_night_exclusion_monitor(
+    night_flag: Arc<std::sync::atomic::AtomicBool>,
+    tracker: Arc<autoortho_lib::xplane::dataref::DatarefTracker>,
+    night_threshold: f32,
+    day_threshold: f32,
+) {
+    use autoortho_lib::time_exclusion::TimeExclusion;
+
+    info!(
+        "Night exclusion enabled (night <= {}°, day >= {}°)",
+        night_threshold, day_threshold
+    );
+
+    tokio::spawn(async move {
+        let te = TimeExclusion::new(night_threshold, day_threshold);
+        loop {
+            let data = tracker.get_flight_data();
+            if data.data_valid {
+                let is_night = te.is_night(data.sun_pitch);
+                night_flag.store(is_night, std::sync::atomic::Ordering::Relaxed);
+            }
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+        }
+    });
+}
+
 /// Run with FUSE mount — serves DDS tiles at the mount point.
 async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     use std::path::Path;
@@ -338,30 +366,15 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     // Night exclusion: poll sun_pitch from the dataref tracker and update the
     // filesystem's night exclusion flag accordingly.
     let fs = context.fs.clone();
-    let (enable_night_exclusion, night_threshold, day_threshold) = (
-        config_snapshot.enable_night_exclusion,
-        config_snapshot.night_threshold,
-        config_snapshot.day_threshold,
-    );
-    if enable_night_exclusion {
+    if config_snapshot.enable_night_exclusion {
         let night_flag = fs.night_exclusion_flag();
         let tracker_for_night = tracker.clone();
-        info!(
-            "Night exclusion enabled (night <= {}°, day >= {}°)",
-            night_threshold, day_threshold
+        start_night_exclusion_monitor(
+            night_flag,
+            tracker_for_night,
+            config_snapshot.night_threshold,
+            config_snapshot.day_threshold,
         );
-        tokio::spawn(async move {
-            use autoortho_lib::time_exclusion::TimeExclusion;
-            let te = TimeExclusion::new(night_threshold, day_threshold);
-            loop {
-                let data = tracker_for_night.get_flight_data();
-                if data.data_valid {
-                    let is_night = te.is_night(data.sun_pitch);
-                    night_flag.store(is_night, std::sync::atomic::Ordering::Relaxed);
-                }
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-            }
-        });
     } else {
         info!("Night exclusion disabled");
     }
