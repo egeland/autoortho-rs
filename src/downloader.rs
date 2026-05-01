@@ -23,6 +23,14 @@ fn validate_extract_path(target_dir: &Path, entry_path: &Path) -> Result<PathBuf
         .canonicalize()
         .map_err(|e| DownloadError::ExtractFailed(format!("Cannot resolve target: {}", e)))?;
 
+    // Block absolute paths
+    if entry_path.is_absolute() {
+        return Err(DownloadError::ExtractFailed(format!(
+            "Absolute path blocked: {}",
+            entry_path.display()
+        )));
+    }
+
     // Check for parent directory traversal
     for component in entry_path.components() {
         if let std::path::Component::ParentDir = component {
@@ -45,15 +53,6 @@ fn validate_extract_path(target_dir: &Path, entry_path: &Path) -> Result<PathBuf
         })?;
 
         if !canonical.starts_with(&canonical_target) {
-            return Err(DownloadError::ExtractFailed(format!(
-                "Path traversal attempt blocked: {}",
-                entry_path.display()
-            )));
-        }
-    } else {
-        // For new paths, verify the path would be inside target
-        let entry_str = entry_path.to_string_lossy();
-        if entry_str.contains("..") {
             return Err(DownloadError::ExtractFailed(format!(
                 "Path traversal attempt blocked: {}",
                 entry_path.display()
@@ -170,9 +169,41 @@ impl SceneryDownloader {
     }
 
     fn extract_7z(&self, archive: &Path, extract_to: &Path) -> Result<(), DownloadError> {
-        use sevenz_rust::decompress_file;
+        use sevenz_rust::{
+            Error as SevenZError, SevenZArchiveEntry, decompress_file_with_extract_fn,
+        };
+        use std::fs::File;
+        use std::io::{Read, copy};
+        use std::path::Path;
 
-        decompress_file(archive, extract_to)
+        let extract_to_owned = extract_to.to_path_buf();
+
+        let extract_fn = |entry: &SevenZArchiveEntry, reader: &mut dyn Read, _dest: &PathBuf| {
+            let entry_path = Path::new(entry.name());
+            let validated_path =
+                validate_extract_path(&extract_to_owned, entry_path).map_err(|e| {
+                    let io_err = std::io::Error::other(e);
+                    SevenZError::Io(io_err, "path validation failed".into())
+                })?;
+
+            if entry.is_directory() {
+                std::fs::create_dir_all(&validated_path)
+                    .map_err(|e| SevenZError::Io(e, "failed to create directory".into()))?;
+            } else {
+                if let Some(parent) = validated_path.parent() {
+                    std::fs::create_dir_all(parent).map_err(|e| {
+                        SevenZError::Io(e, "failed to create parent directory".into())
+                    })?;
+                }
+                let mut outfile = File::create(&validated_path)
+                    .map_err(|e| SevenZError::Io(e, "failed to create output file".into()))?;
+                copy(reader, &mut outfile)
+                    .map_err(|e| SevenZError::Io(e, "failed to copy content".into()))?;
+            }
+            Ok(true)
+        };
+
+        decompress_file_with_extract_fn(archive, extract_to, extract_fn)
             .map_err(|e| DownloadError::ExtractFailed(e.to_string()))?;
 
         Ok(())
