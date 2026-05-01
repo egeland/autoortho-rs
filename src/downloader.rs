@@ -66,15 +66,11 @@ fn validate_extract_path(target_dir: &Path, entry_path: &Path) -> Result<PathBuf
 /// Scenery pack download manager
 pub struct SceneryDownloader {
     download_dir: PathBuf,
-    _cache_dir: PathBuf,
 }
 
 impl SceneryDownloader {
-    pub fn new(download_dir: PathBuf, cache_dir: PathBuf) -> Self {
-        Self {
-            download_dir,
-            _cache_dir: cache_dir,
-        }
+    pub fn new(download_dir: PathBuf) -> Self {
+        Self { download_dir }
     }
 
     /// Download a scenery pack from URL
@@ -226,7 +222,7 @@ mod tests {
     #[test]
     fn test_downloader_creation() {
         let tmp = TempDir::new().unwrap();
-        let dl = SceneryDownloader::new(tmp.path().to_path_buf(), tmp.path().to_path_buf());
+        let dl = SceneryDownloader::new(tmp.path().to_path_buf());
 
         assert_eq!(dl.download_dir, tmp.path().to_path_buf());
     }
@@ -234,7 +230,7 @@ mod tests {
     #[tokio::test]
     async fn test_download_empty_url() {
         let tmp = TempDir::new().unwrap();
-        let dl = SceneryDownloader::new(tmp.path().to_path_buf(), tmp.path().to_path_buf());
+        let dl = SceneryDownloader::new(tmp.path().to_path_buf());
 
         let result = dl.download("", "test").await;
         assert!(result.is_err());
@@ -243,7 +239,7 @@ mod tests {
     #[tokio::test]
     async fn test_download_creates_path() {
         let tmp = TempDir::new().unwrap();
-        let dl = SceneryDownloader::new(tmp.path().to_path_buf(), tmp.path().to_path_buf());
+        let dl = SceneryDownloader::new(tmp.path().to_path_buf());
 
         let result = dl.download("http://example.com/pack.zip", "test").await;
         assert!(result.is_ok());
@@ -255,7 +251,7 @@ mod tests {
     #[test]
     fn test_extract_missing_file() {
         let tmp = TempDir::new().unwrap();
-        let dl = SceneryDownloader::new(tmp.path().to_path_buf(), tmp.path().to_path_buf());
+        let dl = SceneryDownloader::new(tmp.path().to_path_buf());
 
         let missing = tmp.path().join("missing.zip").to_path_buf();
         let result = dl.extract(&missing, &tmp.path().to_path_buf());
@@ -266,7 +262,7 @@ mod tests {
     #[test]
     fn test_extract_unsupported_format() {
         let tmp = TempDir::new().unwrap();
-        let dl = SceneryDownloader::new(tmp.path().to_path_buf(), tmp.path().to_path_buf());
+        let dl = SceneryDownloader::new(tmp.path().to_path_buf());
 
         // Create a dummy .rar file
         let file = tmp.path().join("test.rar").to_path_buf();
@@ -283,7 +279,7 @@ mod tests {
         use zip::write::SimpleFileOptions;
 
         let tmp = TempDir::new().unwrap();
-        let dl = SceneryDownloader::new(tmp.path().to_path_buf(), tmp.path().to_path_buf());
+        let dl = SceneryDownloader::new(tmp.path().to_path_buf());
 
         let zip_path = tmp.path().join("malicious.zip");
 
@@ -309,7 +305,7 @@ mod tests {
         use zip::write::SimpleFileOptions;
 
         let tmp = TempDir::new().unwrap();
-        let dl = SceneryDownloader::new(tmp.path().to_path_buf(), tmp.path().to_path_buf());
+        let dl = SceneryDownloader::new(tmp.path().to_path_buf());
 
         let zip_path = tmp.path().join("normal.zip");
 
