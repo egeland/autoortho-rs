@@ -426,49 +426,6 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[allow(dead_code)]
-async fn run_server() -> Result<(), Box<dyn Error>> {
-    info!("AutoOrtho Rust v{} starting", env!("CARGO_PKG_VERSION"));
-
-    let config = AutoOrthoConfig::default();
-    info!("Using tile provider: {}", config.tile_provider);
-    info!("Zoom levels: {} - {}", config.min_zoom, config.max_zoom);
-
-    let context = AppContext::init(config).await?;
-    info!(
-        "Custom map: {} cells defined",
-        context.custom_map.get_cells().len()
-    );
-    let chunk_cache_entries = context.config.read().chunk_memory_cache_entries();
-    let dds_cache_entries = context.config.read().dds_memory_cache_entries();
-    info!(
-        "Memory cache: {} chunk entries, {} DDS tile entries",
-        chunk_cache_entries, dds_cache_entries
-    );
-
-    let web_config = context.config.clone();
-    let stats = context.stats.clone();
-    let tracker = context.tracker.clone();
-    let addr = autoortho_lib::webui::start_server(
-        autoortho_lib::webui::WEB_UI_PORT,
-        stats,
-        tracker,
-        web_config,
-    )
-    .await
-    .map_err(|e| format!("Web server error: {}", e))?;
-    info!("Web UI at http://{}", addr);
-
-    let mount_dir = context.config.read().mount_dir();
-    info!("AutoOrtho ready. Mount: {}", mount_dir.display());
-    info!("Press Ctrl+C to shut down.");
-
-    tokio::signal::ctrl_c().await?;
-    info!("Shutting down...");
-
-    Ok(())
-}
-
 async fn run_simbrief_prefetch(
     simbrief_user_id: &str,
     config: Arc<RwLock<AutoOrthoConfig>>,

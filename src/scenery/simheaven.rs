@@ -27,17 +27,11 @@ pub enum SimHeavenError {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum KubilusRegion {
-    #[allow(dead_code)]
     NorthAmerica,
-    #[allow(dead_code)]
     SouthAmerica,
-    #[allow(dead_code)]
     Europe,
-    #[allow(dead_code)]
     Asia,
-    #[allow(dead_code)]
     Africa,
-    #[allow(dead_code)]
     AustraliaPacific,
 }
 

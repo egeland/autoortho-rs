@@ -51,14 +51,8 @@ pub struct SceneryPackage {
 
 /// Metadata from *_info.json
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 struct RegionInfo {
-    id: String,
     name: String,
-    #[serde(default)]
-    ortho_prefix: String,
-    #[serde(default)]
-    overlay_prefix: String,
 }
 
 /// Fetch available scenery regions from GitHub releases.
@@ -215,10 +209,8 @@ fn format_region_name(id: &str) -> String {
 // --- GitHub API types ---
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 struct GitHubRelease {
     tag_name: String,
-    name: Option<String>,
     assets: Vec<GitHubAsset>,
 }
 
