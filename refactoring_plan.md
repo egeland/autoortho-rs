@@ -181,9 +181,11 @@ pub fn clear_averages(&self) {
 3. ~~Test: `cargo test dataref` (8 tests)~~
 
 ### Phase 4: Minor Extractions
-1. Extract night exclusion monitor
-2. Simplify DynamicZoom creation
-3. Apply minor improvements
+1. Extract night exclusion monitor ✅ (commit `42fab24`)
+2. Simplify DynamicZoom creation ✅ (via `ConfigSnapshot` in `main.rs`)
+3. Extract `cleanup_mount()` in `src/fuse/platform.rs` ✅ (from PR #251)
+4. Add integration tests for `cleanup_mount()` ✅ (in `tests/integration_test.rs`)
+5. Apply minor improvements
 
 ### Phase 5: DatarefTracker Averager Refactor (SKIPPED)
 **Reason:** `HeadingAverager` and `FlightDataAverager` are different types; unifying them via trait adds complexity without net line savings (~17 lines added vs 15 removed).
@@ -205,6 +207,10 @@ pub fn clear_averages(&self) {
 
 **Total estimated savings:** 100-125 lines of duplicated/boilerplate code
 
+**Additional work completed:**
+- `cleanup_mount()` integration tests: 3 tests added (`test_cleanup_mount_nonexistent_path`, `test_cleanup_mount_existing_dir`, `test_cleanup_mount_idempotent`)
+- Dead code removal: `SceneryDownloader` module deleted (304 lines)
+
 **Quality improvements:**
 - Reduced boilerplate and cognitive load
 - Single point of truth for patterns
@@ -212,8 +218,54 @@ pub fn clear_averages(&self) {
 
 ---
 
+## Future Improvement Ideas
+
+### 1. Make `cleanup_mount()` More Testable
+
+**Issue:** The 1-second `std::thread::sleep()` in `cleanup_mount()` adds unnecessary time to tests.
+
+**Proposed Solution:** Parameterize the sleep duration for testing:
+
+```rust
+// In src/fuse/platform.rs
+#[cfg(test)]
+static TEST_SLEEP_DURATION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+#[cfg(test)]
+pub fn set_test_sleep_secs(secs: u64) {
+    TEST_SLEEP_DURATION.store(secs, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    // ... platform-specific unmount logic ...
+
+    #[cfg(not(test))]
+    let sleep_duration = std::time::Duration::from_secs(1);
+    #[cfg(test)]
+    let sleep_duration = std::time::Duration::from_secs(
+        TEST_SLEEP_DURATION.load(std::sync::atomic::Ordering::Relaxed)
+    );
+
+    std::thread::sleep(sleep_duration);
+    Ok(())
+}
+```
+
+**Trade-off:** Adds complexity for ~3 seconds of test time. May not be worth it unless test suite grows significantly.
+
+### 2. Add `cfg(test)` Module for Platform-Specific Tests
+Consider adding a test module in `src/fuse/platform.rs` that:
+- Mocks `Command::new()` using a trait
+- Tests the platform-specific branching logic
+- Verifies correct arguments are passed to unmount commands
+
+**Currently:** Tests in `tests/integration_test.rs` only verify the function doesn't panic.
+
+---
+
 ## Next Steps
-1. **Start with Phase 1** (StatsStore `with_snapshot()` refactor) - highest impact, lowest risk
-2. Run `cargo fmt`, `cargo clippy`, `cargo test --lib` after each change
-3. Commit with conventional commits: `refactor: ...`
-4. Progress through phases sequentially
+1. ~~Start with Phase 1~~ ✅ Completed
+2. ~~Run `cargo fmt`, `cargo clippy`, `cargo test --lib` after each change~~ ✅ Verified
+3. ~~Commit with conventional commits: `refactor: ...`~~ ✅ Completed
+4. ~~Progress through phases sequentially~~ ✅ All phases complete or skipped
+5. **Consider:** Apply future improvement ideas above if test performance becomes an issue

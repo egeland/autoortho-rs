@@ -6,6 +6,7 @@ use autoortho_lib::tiles::chunk::Chunk;
 use autoortho_lib::tiles::coords::TileCoords;
 use autoortho_lib::tiles::provider::ProviderFactory;
 use autoortho_lib::xplane::RrefCodec;
+use tempfile::TempDir;
 
 #[test]
 fn test_full_pipeline_config() {
@@ -318,5 +319,44 @@ async fn test_naip_https_url() {
         response.status() == 200 || response.status() == 404,
         "NAIP HTTPS should respond: {}",
         response.status()
+    );
+}
+
+// --- cleanup_mount integration tests ---
+
+#[test]
+fn test_cleanup_mount_nonexistent_path() {
+    use autoortho_lib::fuse::platform::cleanup_mount;
+    let path = std::path::Path::new("/nonexistent/autoortho_test_mount");
+    let result = cleanup_mount(path);
+    assert!(
+        result.is_ok(),
+        "cleanup_mount should succeed even for nonexistent paths"
+    );
+}
+
+#[test]
+fn test_cleanup_mount_existing_dir() {
+    use autoortho_lib::fuse::platform::cleanup_mount;
+    let tmp = TempDir::new().unwrap();
+    let result = cleanup_mount(tmp.path());
+    assert!(
+        result.is_ok(),
+        "cleanup_mount should succeed for existing directories"
+    );
+}
+
+#[test]
+fn test_cleanup_mount_idempotent() {
+    use autoortho_lib::fuse::platform::cleanup_mount;
+    let tmp = TempDir::new().unwrap();
+    // First call
+    let result1 = cleanup_mount(tmp.path());
+    assert!(result1.is_ok(), "First cleanup_mount call should succeed");
+    // Second call should also succeed
+    let result2 = cleanup_mount(tmp.path());
+    assert!(
+        result2.is_ok(),
+        "Second cleanup_mount call should also succeed"
     );
 }
