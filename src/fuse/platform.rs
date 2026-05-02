@@ -119,13 +119,6 @@ pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::er
                 );
             }
         }
-
-        // Also try net use to remove drive letter if applicable
-        if mount_norm.len() == 2 && mount_norm.ends_with(':') {
-            let _ = std::process::Command::new("net")
-                .args(["use", &mount_norm, "/delete", "/y"])
-                .status();
-        }
     }
 
     #[cfg(target_os = "macos")]

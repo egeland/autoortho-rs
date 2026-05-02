@@ -81,6 +81,7 @@ libc = "0.2"
 # Windows: use winfsp directly (not via unifuse, due to crate version conflicts)
 [target.'cfg(windows)'.dependencies]
 winfsp = { version = "0.12", features = ["full"] }
+winfsp-sys = { version = "0.12", features = ["full"] }
 
 [dev-dependencies]
 tempfile = "3"
