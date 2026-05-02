@@ -1,0 +1,57 @@
+name: Quick Windows Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_tests:
+        description: Run tests after build
+        required: false
+        default: false
+        type: boolean
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Quick Windows Build
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install WinFSP
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi" -OutFile winfsp.msi
+          Start-Process -FilePath "msiexec.exe" -ArgumentList "/i winfsp.msi /qn /norestart INSTALLLEVEL=1001" -Wait -NoNewWindow
+
+          $regPath32 = 'HKLM:\SOFTWARE\WOW6432Node\WinFsp'
+          $regPath64 = 'HKLM:\SOFTWARE\WinFsp'
+
+          if (Test-Path $regPath32) {
+              $winFspDir = (Get-ItemProperty -Path $regPath32 -Name InstallDir).InstallDir
+          } elseif (Test-Path $regPath64) {
+              $winFspDir = (Get-ItemProperty -Path $regPath64 -Name InstallDir).InstallDir
+          } else {
+              $winFspDir = "C:\Program Files (x86)\WinFsp\"
+          }
+
+          Write-Host "WinFSP found at: $winFspDir"
+          "WINFSP_DIR=$winFspDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$winFspDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build (debug)
+        run: cargo build
+
+      - name: Run library tests
+        if: ${{ inputs.run_tests }}
+        run: cargo test --lib
+
+      - name: Run integration tests
+        if: ${{ inputs.run_tests }}
+        run: cargo test --test integration_test

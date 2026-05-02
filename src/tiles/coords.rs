@@ -59,13 +59,6 @@ impl std::fmt::Display for TileCoord {
 pub struct TileCoords;
 
 impl TileCoords {
-    /// Clamp latitude to valid Web Mercator range
-    #[allow(dead_code)]
-    fn clamp_latitude(lat: f64) -> f64 {
-        let max = 85.051_129;
-        lat.max(-max).min(max)
-    }
-
     /// Convert lat/lon to tile x/y at given zoom level
     /// Returns (tile_col, tile_row)
     pub fn latlng_to_tile(lat: f64, lon: f64, zoom: u32) -> Result<(u32, u32), CoordError> {

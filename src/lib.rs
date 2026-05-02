@@ -4,8 +4,10 @@
 pub mod altitude_predictor;
 pub mod app_context;
 pub mod config;
-pub mod downloader;
 pub mod dynamic_zoom;
+
+#[cfg(test)]
+pub mod test_utils;
 
 pub mod fuse;
 
