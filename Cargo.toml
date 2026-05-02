@@ -78,10 +78,10 @@ futures-lite = "2.6"
 unifuse = "0.1"
 libc = "0.2"
 
-# Windows: use winfsp directly (not via unifuse, due to crate version conflicts)
+# Windows: use Dokan (user-mode file system) instead of WinFsp
 [target.'cfg(windows)'.dependencies]
-winfsp = { version = "0.12", features = ["full"] }
-winfsp-sys = "0.12"
+dokan = "0.3.1"
+dokan-sys = "0.3.1"
 
 [dev-dependencies]
 tempfile = "3"
