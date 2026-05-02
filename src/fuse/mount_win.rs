@@ -325,7 +325,7 @@ mod winfsp_impl {
             .post_cleanup_when_modified_only(true)
             .filesystem_name("AutoOrtho");
 
-        let mut host = FileSystemHost::new(volume_params, winfsp_fs);
+        let mut host = FileSystemHost::new(volume_params, winfsp_fs)?;
         let mount_str = mountpoint.to_string_lossy().to_string();
         host.mount(&mount_str)?;
         Ok(host)
@@ -352,9 +352,9 @@ mod winfsp_impl {
         std::thread::sleep(std::time::Duration::from_secs(1));
 
         // Attempt to mount with retries
-        let mut last_err = None;
+        let mut last_err: Option<Box<dyn std::error::Error>> = None;
         for attempt in 1..=3 {
-            match Self::try_mount(fs.clone(), runtime.clone(), mountpoint) {
+            match try_mount(fs.clone(), runtime.clone(), mountpoint) {
                 Ok(host) => {
                     info!("AutoOrtho mounted at {}", mount_str);
                     // Block until unmounted (WinFSP handles this internally)
