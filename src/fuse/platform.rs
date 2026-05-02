@@ -79,36 +79,48 @@ pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::er
 
     #[cfg(windows)]
     {
-        // Try to unmount using WinFsp's fspmount tool
-        // Correct syntax: fspmount unmount <path> or fspmount -u <path>
-        // Also try with forward slashes as WinFsp expects
-        let mount_norm = mount_str.replace('\\', "/");
+        // Use FspMountRemove from winfsp-sys to remove stale mount point
+        use std::os::windows::ffi::OsStrExt;
+        use winfsp_sys::{FSP_MOUNT_DESC, FspMountRemove};
 
-        // Method 1: fspmount unmount
-        let status = std::process::Command::new("fspmount")
-            .args(["unmount", &mount_norm])
-            .status();
-        match status {
-            Ok(s) if s.success() => {
-                log::info!("WinFsp unmount succeeded for {}", mount_str);
-            }
-            _ => {
-                // Method 2: try with -u flag
-                let status2 = std::process::Command::new("fspmount")
-                    .args(["-u", &mount_norm])
-                    .status();
-                match status2 {
-                    Ok(s2) if s2.success() => {
-                        log::info!("WinFsp unmount (-u) succeeded for {}", mount_str);
-                    }
-                    _ => {
-                        log::debug!("WinFsp unmount failed or not mounted: {:?}", status);
-                    }
-                }
+        let mount_norm = mount_str.replace('/', "\\");
+
+        // Convert path to wide string (null-terminated)
+        let wide_path: Vec<u16> = std::ffi::OsStr::new(&mount_norm)
+            .encode_wide()
+            .chain(std::iter::once(0))
+            .collect();
+
+        // Create FSP_MOUNT_DESC with the mount point
+        let mut desc = FSP_MOUNT_DESC {
+            VolumeHandle: std::ptr::null_mut(),
+            VolumeName: std::ptr::null_mut(),
+            Security: std::ptr::null_mut(),
+            Reserved: 0,
+            MountPoint: wide_path.as_ptr() as *mut u16,
+            MountHandle: std::ptr::null_mut(),
+        };
+
+        // Call FspMountRemove to remove the stale mount point
+        let status = unsafe { FspMountRemove(&mut desc as *mut FSP_MOUNT_DESC) };
+
+        if status == 0 {
+            log::info!("Successfully removed stale mount point: {}", mount_norm);
+        } else {
+            // STATUS_OBJECT_NAME_NOT_FOUND (0xC0000034) means not mounted - that's OK
+            const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC0000034_u32 as i32;
+            if status == STATUS_OBJECT_NAME_NOT_FOUND {
+                log::debug!("Mount point not found (not mounted): {}", mount_norm);
+            } else {
+                log::warn!(
+                    "FspMountRemove returned NTSTATUS: {:#X} for {}",
+                    status,
+                    mount_norm
+                );
             }
         }
 
-        // Method 3: Use net use to remove drive letter if applicable
+        // Also try net use to remove drive letter if applicable
         if mount_norm.len() == 2 && mount_norm.ends_with(':') {
             let _ = std::process::Command::new("net")
                 .args(["use", &mount_norm, "/delete", "/y"])

@@ -374,24 +374,8 @@ mod winfsp_impl {
                         );
                         last_err = Some(e);
 
-                        // Normalize path for WinFsp tools
-                        let mount_norm = mount_str.replace('\\', "/");
-
-                        // Explicitly run fspmount unmount commands
-                        log::info!("Running: fspmount unmount {}", mount_norm);
-                        let status = std::process::Command::new("fspmount")
-                            .args(["unmount", &mount_norm])
-                            .status();
-                        log::debug!("fspmount unmount status: {:?}", status);
-
-                        // Also try with -u flag
-                        let status2 = std::process::Command::new("fspmount")
-                            .args(["-u", &mount_norm])
-                            .status();
-                        log::debug!("fspmount -u status: {:?}", status2);
-
-                        // Also try cleanup_mount for other methods (net use, etc.)
-                        let _ = crate::fuse::platform::cleanup_mount(mountpoint);
+                        // Use FspMountRemove to remove the stale mount point
+                        crate::fuse::platform::cleanup_mount(mountpoint);
 
                         // Wait for OS to release the name
                         std::thread::sleep(std::time::Duration::from_secs(2));
