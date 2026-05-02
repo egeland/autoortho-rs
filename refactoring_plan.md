@@ -174,12 +174,6 @@ pub fn clear_averages(&self) {
 2. Migrate 2-3 test modules as proof of concept
 3. Test: `cargo test --lib`
 
-### Phase 5: DatarefTracker Averager Refactor (SKIPPED)
-**Reason:** `HeadingAverager` and `FlightDataAverager` are different types; unifying them via trait adds complexity without net line savings (~17 lines added vs 15 removed).
-1. ~~Add `with_averagers()` helper to `DatarefTracker`~~
-2. ~~Refactor `update_from_response()` and `clear_averages()`~~
-3. ~~Test: `cargo test dataref` (8 tests)~~
-
 ### Phase 4: Minor Extractions
 1. Extract night exclusion monitor ✅ (commit `42fab24`)
 2. Simplify DynamicZoom creation ✅ (via `ConfigSnapshot` in `main.rs`)
@@ -203,7 +197,6 @@ pub fn clear_averages(&self) {
 | Phase 2 (Config) | ~20 | Low | 364 existing |
 | Phase 3 (Test Utils) | ~40 | Low | Existing + new |
 | Phase 4 (Minor) | ~15 | Low | Add 2+ new |
-| Phase 5 (DatarefTracker) | ~20 | Low | 8 existing dataref tests |
 
 **Total estimated savings:** 100-125 lines of duplicated/boilerplate code
 

@@ -327,8 +327,10 @@ async fn test_naip_https_url() {
 #[test]
 fn test_cleanup_mount_nonexistent_path() {
     use autoortho_lib::fuse::platform::cleanup_mount;
-    let path = std::path::Path::new("/nonexistent/autoortho_test_mount");
-    let result = cleanup_mount(path);
+    // Use TempDir to derive a guaranteed-nonexistent path (portable across platforms)
+    let tmp = TempDir::new().unwrap();
+    let nonexistent = tmp.path().join("does_not_exist");
+    let result = cleanup_mount(&nonexistent);
     assert!(
         result.is_ok(),
         "cleanup_mount should succeed even for nonexistent paths"

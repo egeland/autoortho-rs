@@ -617,13 +617,13 @@ pub struct ConfigSnapshot {
 impl ConfigSnapshot {
     /// Calculate the number of DDS tiles that fit in the configured memory.
     pub fn dds_memory_cache_entries(&self) -> usize {
-        const DDS_TILE_SIZE_MB: u64 = 1; // Approximate 512x512 DDS tile
+        const DDS_TILE_SIZE_MB: u64 = 22; // Matches AutoOrthoConfig::DDS_TILE_SIZE_MB
         ((self.dds_memory_cache_mb / DDS_TILE_SIZE_MB).max(1)) as usize
     }
 
     /// Calculate the number of chunks that fit in the configured memory.
     pub fn chunk_memory_cache_entries(&self) -> usize {
-        const CHUNK_SIZE_KB: u64 = 1024; // 1MB chunks
+        const CHUNK_SIZE_KB: u64 = 30; // Matches AutoOrthoConfig::CHUNK_SIZE_KB
         ((self.chunk_memory_cache_mb * 1024 / CHUNK_SIZE_KB).max(1)) as usize
     }
 }
