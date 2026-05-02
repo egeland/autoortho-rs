@@ -303,25 +303,14 @@ mod winfsp_impl {
         }
     }
 
-    pub fn mount(
+    const STATUS_OBJECT_NAME_COLLISION: i32 = 0xD0000035_u32 as i32;
+
+    fn try_mount(
         fs: Arc<DdsFileSystem>,
-        mountpoint: &Path,
         runtime: tokio::runtime::Handle,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        // Initialize WinFSP library (must be called before creating FileSystemHost)
-        let _init = winfsp::winfsp_init().map_err(|e| -> Box<dyn std::error::Error> {
-            format!(
-                "WinFSP not found ({e}). Install WinFSP from: https://github.com/winfsp/winfsp/releases"
-            )
-            .into()
-        })?;
-
+        mountpoint: &Path,
+    ) -> Result<FileSystemHost<AutoOrthoWinFsp>, Box<dyn std::error::Error>> {
         let winfsp_fs = AutoOrthoWinFsp::new(fs, runtime);
-
-        info!(
-            "Mounting AutoOrtho at {} using winfsp",
-            mountpoint.display()
-        );
 
         let mut volume_params = VolumeParams::new();
         volume_params
@@ -336,16 +325,90 @@ mod winfsp_impl {
             .post_cleanup_when_modified_only(true)
             .filesystem_name("AutoOrtho");
 
-        let mut host = FileSystemHost::new(volume_params, winfsp_fs)?;
+        let mut host = FileSystemHost::new(volume_params, winfsp_fs);
         let mount_str = mountpoint.to_string_lossy().to_string();
         host.mount(&mount_str)?;
+        Ok(host)
+    }
 
-        info!("AutoOrtho mounted at {}", mountpoint.display());
+    pub fn mount(
+        fs: Arc<DdsFileSystem>,
+        mountpoint: &Path,
+        runtime: tokio::runtime::Handle,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        // Initialize WinFSP library (must be called before creating FileSystemHost)
+        let _init = winfsp::winfsp_init().map_err(|e| -> Box<dyn std::error::Error> {
+            format!(
+                "WinFSP not found ({e}). Install WinFSP from: https://github.com/winfsp/winfsp/releases"
+            )
+            .into()
+        })?;
 
-        // Block until unmounted (WinFSP handles this internally via the service loop)
-        // The mount call returns when the filesystem is unmounted.
+        let mount_str = mountpoint.to_string_lossy().to_string();
+        info!("Mounting AutoOrtho at {} using winfsp", mount_str);
 
-        info!("AutoOrtho unmounted from {}", mountpoint.display());
-        Ok(())
+        // Try cleanup before mounting
+        let _ = crate::fuse::platform::cleanup_mount(mountpoint);
+        std::thread::sleep(std::time::Duration::from_secs(1));
+
+        // Attempt to mount with retries
+        let mut last_err = None;
+        for attempt in 1..=3 {
+            match Self::try_mount(fs.clone(), runtime.clone(), mountpoint) {
+                Ok(host) => {
+                    info!("AutoOrtho mounted at {}", mount_str);
+                    // Block until unmounted (WinFSP handles this internally)
+                    // The host will unmount when dropped
+                    info!("AutoOrtho unmounted from {}", mount_str);
+                    return Ok(());
+                }
+                Err(e) => {
+                    let err_msg = e.to_string();
+                    if err_msg.contains("0xD0000035")
+                        || err_msg.contains("Object Name already exists")
+                    {
+                        log::warn!(
+                            "Mount collision (attempt {}): {}. Unmounting and retrying...",
+                            attempt,
+                            err_msg
+                        );
+                        last_err = Some(e);
+
+                        // Normalize path for WinFsp tools
+                        let mount_norm = mount_str.replace('\\', "/");
+
+                        // Explicitly run fspmount unmount commands
+                        log::info!("Running: fspmount unmount {}", mount_norm);
+                        let status = std::process::Command::new("fspmount")
+                            .args(["unmount", &mount_norm])
+                            .status();
+                        log::debug!("fspmount unmount status: {:?}", status);
+
+                        // Also try with -u flag
+                        let status2 = std::process::Command::new("fspmount")
+                            .args(["-u", &mount_norm])
+                            .status();
+                        log::debug!("fspmount -u status: {:?}", status2);
+
+                        // Also try cleanup_mount for other methods (net use, etc.)
+                        let _ = crate::fuse::platform::cleanup_mount(mountpoint);
+
+                        // Wait for OS to release the name
+                        std::thread::sleep(std::time::Duration::from_secs(2));
+                        continue;
+                    }
+                    return Err(e);
+                }
+            }
+        }
+
+        Err(last_err
+            .unwrap_or_else(|| {
+                format!(
+                    "Failed to mount after 3 attempts. Try manually: fspmount unmount {}",
+                    mount_str
+                )
+            })
+            .into())
     }
 }

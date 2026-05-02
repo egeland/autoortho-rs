@@ -80,23 +80,40 @@ pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::er
     #[cfg(windows)]
     {
         // Try to unmount using WinFsp's fspmount tool
-        // This is similar to Python's winsetup.force_unmount()
+        // Correct syntax: fspmount unmount <path> or fspmount -u <path>
+        // Also try with forward slashes as WinFsp expects
+        let mount_norm = mount_str.replace('\\', "/");
+
+        // Method 1: fspmount unmount
         let status = std::process::Command::new("fspmount")
-            .args(["-u", &mount_str])
+            .args(["unmount", &mount_norm])
             .status();
         match status {
             Ok(s) if s.success() => {
                 log::info!("WinFsp unmount succeeded for {}", mount_str);
             }
             _ => {
-                // Ignore errors - maybe not mounted
-                log::debug!("WinFsp unmount failed or not mounted: {:?}", status);
+                // Method 2: try with -u flag
+                let status2 = std::process::Command::new("fspmount")
+                    .args(["-u", &mount_norm])
+                    .status();
+                match status2 {
+                    Ok(s2) if s2.success() => {
+                        log::info!("WinFsp unmount (-u) succeeded for {}", mount_str);
+                    }
+                    _ => {
+                        log::debug!("WinFsp unmount failed or not mounted: {:?}", status);
+                    }
+                }
             }
         }
-        // Also try fsutil
-        let _ = std::process::Command::new("fsutil")
-            .args(["volume", "dismount", &mount_str])
-            .status();
+
+        // Method 3: Use net use to remove drive letter if applicable
+        if mount_norm.len() == 2 && mount_norm.ends_with(':') {
+            let _ = std::process::Command::new("net")
+                .args(["use", &mount_norm, "/delete", "/y"])
+                .status();
+        }
     }
 
     #[cfg(target_os = "macos")]
