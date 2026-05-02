@@ -79,9 +79,12 @@ pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::er
 
     #[cfg(windows)]
     {
-        // Use FspMountRemove from winfsp-sys to remove stale mount point
+        // For stale WinFsp mounts, FspMountRemove doesn't work because it requires
+        // a valid FSP_MOUNT_DESC from FspMountSet in the same process.
+        // Instead, we use Windows APIs to remove the symbolic link/DOS device.
         use std::os::windows::ffi::OsStrExt;
-        use winfsp_sys::{FSP_MOUNT_DESC, FspMountRemove};
+        use windows::Win32::Storage::FileSystem::{DefineDosDeviceW, DeleteFileW};
+        use windows::Win32::System::SystemInformation::*;
 
         let mount_norm = mount_str.replace('/', "\\");
 
@@ -90,35 +93,39 @@ pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::er
             .encode_wide()
             .chain(std::iter::once(0))
             .collect();
+        let pcwstr = windows::core::PCWSTR(wide_path.as_ptr());
 
-        // Create FSP_MOUNT_DESC with the mount point
-        let mut desc = FSP_MOUNT_DESC {
-            VolumeHandle: std::ptr::null_mut(),
-            VolumeName: std::ptr::null_mut(),
-            Security: std::ptr::null_mut(),
-            Reserved: 0,
-            MountPoint: wide_path.as_ptr() as *mut u16,
-            MountHandle: std::ptr::null_mut(),
-        };
+        // Try to remove the DOS device mapping using DefineDosDeviceW
+        // This is what WinFsp uses to create/remove mount points
+        let result = unsafe { DefineDosDeviceW(DDD_REMOVE_DEFINITION, pcwstr, None) };
 
-        // Call FspMountRemove to remove the stale mount point
-        let status = unsafe { FspMountRemove(&mut desc as *mut FSP_MOUNT_DESC) };
-
-        if status == 0 {
-            log::info!("Successfully removed stale mount point: {}", mount_norm);
+        if result.is_ok() {
+            log::info!(
+                "Successfully removed stale mount point via DefineDosDeviceW: {}",
+                mount_norm
+            );
         } else {
-            // STATUS_OBJECT_NAME_NOT_FOUND (0xC0000034) means not mounted - that's OK
-            const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC0000034_u32 as i32;
-            if status == STATUS_OBJECT_NAME_NOT_FOUND {
-                log::debug!("Mount point not found (not mounted): {}", mount_norm);
-            } else {
-                log::warn!(
-                    "FspMountRemove returned NTSTATUS: {:#X} for {}",
-                    status,
+            log::warn!(
+                "DefineDosDeviceW failed for {}, trying DeleteFileW",
+                mount_norm
+            );
+
+            // Try to delete the symbolic link using DeleteFileW
+            // (Yes, DeleteFileW can delete symbolic links on Windows)
+            let result2 = unsafe { DeleteFileW(pcwstr) };
+
+            if result2.is_ok() {
+                log::info!(
+                    "Successfully removed stale mount point via DeleteFileW: {}",
                     mount_norm
                 );
+            } else {
+                log::warn!("Failed to remove stale mount point: {}. ", mount_norm);
             }
         }
+
+        // Give OS time to clean up
+        std::thread::sleep(std::time::Duration::from_secs(1));
     }
 
     #[cfg(target_os = "macos")]
