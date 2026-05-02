@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.63](https://github.com/egeland/autoortho-rs/compare/v0.6.62...v0.6.63) - 2026-05-02
+
+### Other
+
+- code deduplication and quality improvements ([#253](https://github.com/egeland/autoortho-rs/pull/253))
+
 ## [0.6.62](https://github.com/egeland/autoortho-rs/compare/v0.6.61...v0.6.62) - 2026-04-30
 
 ### Fixed
