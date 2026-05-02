@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.6.64](https://github.com/egeland/autoortho-rs/compare/v0.6.63...v0.6.64) - 2026-05-02
+
+### Added
+
+- create reusable Windows build workflow with artifact support ([#256](https://github.com/egeland/autoortho-rs/pull/256))
+
+### Fixed
+
+- *(windows)* Handle stale WinFsp mounts with retry logic ([#258](https://github.com/egeland/autoortho-rs/pull/258))
+
 ## [0.6.63](https://github.com/egeland/autoortho-rs/compare/v0.6.62...v0.6.63) - 2026-05-02
 
 ### Other
