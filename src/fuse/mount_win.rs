@@ -402,13 +402,12 @@ mod winfsp_impl {
             }
         }
 
-        Err(last_err
-            .unwrap_or_else(|| {
-                format!(
-                    "Failed to mount after 3 attempts. Try manually: fspmount unmount {}",
-                    mount_str
-                )
-            })
-            .into())
+        Err(last_err.unwrap_or_else(|| {
+            format!(
+                "Failed to mount after 3 attempts. Try manually: fspmount unmount {}",
+                mount_str
+            )
+            .into()
+        }))
     }
 }
