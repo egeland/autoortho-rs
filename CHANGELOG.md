@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.65](https://github.com/egeland/autoortho-rs/compare/v0.6.64...v0.6.65) - 2026-05-02
+
+### Other
+
+- Fix Windows FUSE mount collision issue (fspmount not found) ([#261](https://github.com/egeland/autoortho-rs/pull/261))
+
 ## [0.6.64](https://github.com/egeland/autoortho-rs/compare/v0.6.63...v0.6.64) - 2026-05-02
 
 ### Added
