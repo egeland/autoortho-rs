@@ -17,7 +17,7 @@
 - **Core Modules**:
   - `src/pipeline/`: Image processing: JPEG decode, DDS gen, cache, budget
   - `src/tiles/`: Tile engine: coords, chunks, assembly, prefetch, providers, fetcher, fallback
-  - `src/fuse/`: FUSE (Linux/macOS: unifuse; Windows: winfsp)
+  - `src/fuse/`: FUSE (Linux/macOS: unifuse; Windows: Dokan2)
   - `src/xplane/`: X-Plane integration: dataref, simbrief, UDP
   - `src/webui/`: Web UI: axum, WebSocket, REST API
   - `src/ui/`: Desktop UI (iced): setup, settings, dashboard, dev tools
@@ -27,7 +27,7 @@
 
 ## Platform-Specific Notes
 
-- **Windows**: WinFsp required, `winfsp-x64.dll` must be distributed (GPL-3.0 license)
+- **Windows**: Dokan2 required, `Dokan.dll` must be distributed
 - **macOS**: macFUSE required for FUSE mounting
 - **Linux**: libfuse-dev required for building
 - **Cross-Compilation**: Cross-compile via `cargo-dist`: x86_64 Linux (gnu/musl), macOS (x86_64/aarch64), Windows (x86_64 msvc)

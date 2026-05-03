@@ -2,7 +2,7 @@
 //!
 //! unifuse provides a cross-platform async FUSE abstraction:
 //! - Linux/macOS: uses rfuse3
-//! - Windows: uses winfsp (requires WinFSP runtime)
+//! - Windows: uses dokan via unifuse (requires Dokan runtime)
 
 pub use self::unifuse_impl::mount;
 

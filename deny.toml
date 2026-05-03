@@ -57,10 +57,3 @@ name = "s2n-tls"
 expression = "Apache-2.0"
 license-files = [{ path = "LICENSE", hash = 0x677f2d98 }]
 
-[[licenses.clarify]]
-name = "winfsp"
-expression = "GPL-3.0"
-
-[[licenses.clarify]]
-name = "winfsp-sys"
-expression = "GPL-3.0"

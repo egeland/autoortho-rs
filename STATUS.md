@@ -12,4 +12,4 @@
 
 # Application
 
-- P1: When a flight is started, it would be expected that tiles get loaded and directories mapped into the Custom Scenery via WinFSP, but nothing appears in the Custom Scenery folder on application start.
+- P1: When a flight is started, it would be expected that tiles get loaded and directories mapped into the Custom Scenery via Dokan2, but nothing appears in the Custom Scenery folder on application start.

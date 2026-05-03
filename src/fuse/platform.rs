@@ -67,7 +67,7 @@ pub fn platform_name() -> &'static str {
 
 /// Check if the platform requires a kernel extension or driver for FUSE.
 pub fn requires_driver_install() -> bool {
-    // macOS requires macFUSE kext, Windows requires WinFsp driver
+    // macOS requires macFUSE kext, Windows requires Dokan driver
     // Linux typically has FUSE built into the kernel
     cfg!(target_os = "macos") || cfg!(target_os = "windows")
 }

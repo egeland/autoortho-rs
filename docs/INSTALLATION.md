@@ -125,12 +125,12 @@ sudo usermod -a -G fuse $USER
 
 ## Windows Installation
 
-### 1. Install WinFsp
+### 1. Install Dokan2
 
-AutoOrtho uses WinFsp for the virtual filesystem on Windows:
+AutoOrtho uses Dokan2 for the virtual filesystem on Windows:
 
-1. Download WinFsp from: https://github.com/winfsp/winfsp/releases
-2. Run the installer (winfsp.msi or winfsp-x64.msi)
+1. Download Dokan2 from: https://github.com/dokan-dev/dokan/releases
+2. Run the installer (DokanSetup.exe)
 3. Complete the installation wizard
 
 ### 2. Build AutoOrtho
@@ -215,11 +215,11 @@ sudo mknod /dev/fuse 0 0
 sudo chmod 666 /dev/fuse
 ```
 
-### Windows: "WinFsp not installed"
+### Windows: "Dokan2 not installed"
 
-Ensure WinFsp is installed and running. Check in Services:
+Ensure Dokan2 is installed and running. Check in Services:
 1. Press Win+R, type `services.msc`
-2. Look for "WinFsp" service
+2. Look for "Dokan" service
 3. Ensure it's started and set to Automatic
 
 ### All Platforms: "Port already in use"
@@ -257,7 +257,7 @@ del C:\path\to\autoortho.exe
 rmdir /s %APPDATA%\autoortho
 ```
 
-To uninstall macFUSE/WinFsp, use the respective uninstaller or system settings.
+To uninstall macFUSE/Dokan2, use the respective uninstaller or system settings.
 
 ## Updating
 

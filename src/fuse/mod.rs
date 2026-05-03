@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn test_is_fuse_available() {
-        // On Windows, this depends on WinFsp being installed
+        // On Windows, this depends on Dokan2 being installed
         // On Unix-like systems, this should return true if FUSE is available
         let result = platform::is_fuse_available();
         // We don't assert a specific value since availability depends on the environment
