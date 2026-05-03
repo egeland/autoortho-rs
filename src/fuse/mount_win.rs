@@ -130,30 +130,13 @@ mod dokan_impl {
                         .unwrap()
                         .insert(fh, clean_path.to_path_buf());
 
-                    let now = SystemTime::now();
-
                     let context = FileContext {
                         path: clean_path.to_path_buf(),
                         inode: ino,
                     };
 
-                    let file_info = FileInfo {
-                        attributes: if file_attr.is_dir {
-                            winnt::FILE_ATTRIBUTE_DIRECTORY
-                        } else {
-                            winnt::FILE_ATTRIBUTE_NORMAL
-                        },
-                        creation_time: now,
-                        last_access_time: now,
-                        last_write_time: now,
-                        file_size: file_attr.size,
-                        number_of_links: 0,
-                        file_index: ino,
-                    };
-
                     Ok(CreateFileInfo {
                         context,
-                        file_info,
                         is_dir: file_attr.is_dir,
                         new_file_created: false,
                     })
