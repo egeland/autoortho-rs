@@ -9,17 +9,16 @@ mod dokan_impl {
     use crate::fuse::filesystem::DdsFileSystem;
     use crate::fuse::{MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
     use dokan::{
-        FileSystemMounter, MountFlags, MountOptions, OperationResult,
-        data::{CreateFileInfo, DiskSpaceInfo, FileInfo, FindData, VolumeInfo},
-        file_system_handler::FileSystemHandler,
-        init, shutdown,
+        CreateFileInfo, DiskSpaceInfo, FileInfo, FileSystemHandler, FileSystemMounter, FindData,
+        MountFlags, MountOptions, OperationInfo, OperationResult, VolumeInfo, init, shutdown,
     };
+    use dokan_sys::ntstatus::*;
     use log::{debug, error, info, warn};
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex, RwLock};
     use std::time::SystemTime;
-    use widestring::{U16CString, U16String};
+    use widestring::{U16CStr, U16String};
 
     const ROOT_INO: u64 = 1;
     const TEXTURES_INO: u64 = 2;
@@ -99,32 +98,29 @@ mod dokan_impl {
         }
     }
 
-    impl<'c, 'h: 'c> FileSystemHandler<'c, 'h> for AutoOrthoHandler
-    where
-        'h: 'c,
-    {
+    impl<'c, 'h: 'c> FileSystemHandler<'c, 'h> for AutoOrthoHandler {
         type Context = FileContext;
 
         fn create_file(
             &'h self,
-            file_name: &widestring::U16CStr,
+            file_name: &U16CStr,
             _security_context: &dokan_sys::DOKAN_IO_SECURITY_CONTEXT,
             _desired_access: u32,
             _file_attributes: u32,
             _share_access: u32,
             _create_disposition: u32,
             _create_options: u32,
-            _info: &mut dokan::OperationInfo<'c, 'h, Self>,
+            info: &mut OperationInfo<'c, 'h, Self>,
         ) -> OperationResult<CreateFileInfo<Self::Context>> {
             let path_str = file_name.to_string_lossy();
-            let path = Path::new(path_str.as_ref());
+            let path = Path::new(&path_str);
             let clean_path = Path::new(&self.path_to_string(path));
 
             debug!("dokan create_file: {:?}", path_str);
 
             if is_poison_path(&path_str) {
                 info!("Poison pill detected at {}. Shutting down.", path_str);
-                return Err(dokan_sys::STATUS_FILE_IS_A_DIRECTORY);
+                return Err(STATUS_FILE_IS_A_DIRECTORY);
             }
 
             let ino = self.path_to_inode(clean_path);
@@ -141,22 +137,24 @@ mod dokan_impl {
                         .unwrap()
                         .insert(fh, clean_path.to_path_buf());
 
+                    let now = SystemTime::now();
+                    let file_time = Self::system_time_to_file_time(now);
+
                     let context = FileContext {
                         path: clean_path.to_path_buf(),
                         inode: ino,
                     };
 
-                    let now = SystemTime::now();
                     let file_info = FileInfo {
                         attributes: if file_attr.is_dir {
                             winapi::um::winnt::FILE_ATTRIBUTE_DIRECTORY
                         } else {
                             winapi::um::winnt::FILE_ATTRIBUTE_NORMAL
                         },
-                        creation_time: Self::system_time_to_file_time(now),
-                        last_access_time: Self::system_time_to_file_time(now),
-                        last_write_time: Self::system_time_to_file_time(now),
-                        change_time: Self::system_time_to_file_time(now),
+                        creation_time: file_time,
+                        last_access_time: file_time,
+                        last_write_time: file_time,
+                        change_time: file_time,
                         file_size: file_attr.size,
                         allocation_size: if file_attr.is_dir {
                             0
@@ -172,23 +170,23 @@ mod dokan_impl {
                         is_dir: file_attr.is_dir,
                     })
                 }
-                Err(_) => Err(dokan_sys::STATUS_OBJECT_NAME_NOT_FOUND),
+                Err(_) => Err(STATUS_OBJECT_NAME_NOT_FOUND),
             }
         }
 
         fn cleanup(
-            &'h self,
-            _file_name: &widestring::U16CStr,
-            _info: &dokan::OperationInfo<'c, 'h, Self>,
+            &self,
+            _file_name: &U16CStr,
+            info: &OperationInfo<'c, 'h, Self>,
             _context: &'c Self::Context,
         ) {
             // Nothing special needed for cleanup
         }
 
         fn close_file(
-            &'h self,
-            _file_name: &widestring::U16CStr,
-            _info: &dokan::OperationInfo<'c, 'h, Self>,
+            &self,
+            _file_name: &U16CStr,
+            info: &OperationInfo<'c, 'h, Self>,
             context: &'c Self::Context,
         ) {
             debug!("dokan close_file: {:?}", context.path);
@@ -196,11 +194,11 @@ mod dokan_impl {
         }
 
         fn read_file(
-            &'h self,
-            _file_name: &widestring::U16CStr,
+            &self,
+            _file_name: &U16CStr,
             offset: i64,
             buffer: &mut [u8],
-            _info: &dokan::OperationInfo<'c, 'h, Self>,
+            info: &OperationInfo<'c, 'h, Self>,
             context: &'c Self::Context,
         ) -> OperationResult<u32> {
             let path_str = self.path_to_string(&context.path);
@@ -225,16 +223,16 @@ mod dokan_impl {
                 }
                 Err(e) => {
                     warn!("dokan read_file error for {:?}: {:?}", context.path, e);
-                    Err(dokan_sys::STATUS_UNSUCCESSFUL)
+                    Err(STATUS_UNSUCCESSFUL)
                 }
             }
         }
 
         fn find_files(
-            &'h self,
-            _file_name: &widestring::U16CStr,
+            &self,
+            _file_name: &U16CStr,
             mut fill_find_data: impl FnMut(&FindData) -> dokan::FillDataResult,
-            _info: &dokan::OperationInfo<'c, 'h, Self>,
+            info: &OperationInfo<'c, 'h, Self>,
             context: &'c Self::Context,
         ) -> OperationResult<()> {
             let dir_path = &context.path;
@@ -257,7 +255,7 @@ mod dokan_impl {
                 allocation_size: 0,
             };
             if fill_find_data(&dot).is_err() {
-                return Err(dokan_sys::STATUS_UNSUCCESSFUL);
+                return Err(STATUS_UNSUCCESSFUL);
             }
 
             let dotdot = FindData {
@@ -270,7 +268,7 @@ mod dokan_impl {
                 allocation_size: 0,
             };
             if fill_find_data(&dotdot).is_err() {
-                return Err(dokan_sys::STATUS_UNSUCCESSFUL);
+                return Err(STATUS_UNSUCCESSFUL);
             }
 
             if is_root {
@@ -285,7 +283,7 @@ mod dokan_impl {
                         allocation_size: 4096,
                     };
                     if fill_find_data(&data).is_err() {
-                        return Err(dokan_sys::STATUS_UNSUCCESSFUL);
+                        return Err(STATUS_UNSUCCESSFUL);
                     }
                 }
             } else if is_textures || is_terrain {
@@ -299,7 +297,7 @@ mod dokan_impl {
                     allocation_size: 0,
                 };
                 if fill_find_data(&data).is_err() {
-                    return Err(dokan_sys::STATUS_UNSUCCESSFUL);
+                    return Err(STATUS_UNSUCCESSFUL);
                 }
             }
 
@@ -307,9 +305,9 @@ mod dokan_impl {
         }
 
         fn get_file_information(
-            &'h self,
-            _file_name: &widestring::U16CStr,
-            _info: &dokan::OperationInfo<'c, 'h, Self>,
+            &self,
+            _file_name: &U16CStr,
+            info: &OperationInfo<'c, 'h, Self>,
             context: &'c Self::Context,
         ) -> OperationResult<FileInfo> {
             let path_str = self.path_to_string(&context.path);
@@ -338,12 +336,12 @@ mod dokan_impl {
                 });
             }
 
-            Err(dokan_sys::STATUS_OBJECT_NAME_NOT_FOUND)
+            Err(STATUS_OBJECT_NAME_NOT_FOUND)
         }
 
         fn get_volume_information(
-            &'h self,
-            _info: &dokan::OperationInfo<'c, 'h, Self>,
+            &self,
+            info: &OperationInfo<'c, 'h, Self>,
         ) -> OperationResult<VolumeInfo> {
             Ok(VolumeInfo {
                 volume_label: U16String::from_str("AutoOrtho").unwrap(),
@@ -355,8 +353,8 @@ mod dokan_impl {
         }
 
         fn get_disk_free_space(
-            &'h self,
-            _info: &dokan::OperationInfo<'c, 'h, Self>,
+            &self,
+            info: &OperationInfo<'c, 'h, Self>,
         ) -> OperationResult<DiskSpaceInfo> {
             Ok(DiskSpaceInfo {
                 total_size: 1_000_000_000_000,
