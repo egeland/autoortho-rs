@@ -1307,43 +1307,50 @@ async fn start_all_services(
     ));
 
     // Mount the FUSE filesystem (only if configured and available)
-    let mount_dir = config.mount_dir();
-    let should_mount = !config.xplane_path.is_empty()
-        && !mount_dir.to_string_lossy().is_empty()
-        && crate::fuse::platform::is_fuse_available();
+    #[cfg(feature = "fuse")]
+    {
+        let mount_dir = config.mount_dir();
+        let should_mount = !config.xplane_path.is_empty()
+            && !mount_dir.to_string_lossy().is_empty()
+            && crate::fuse::platform::is_fuse_available();
 
-    if should_mount {
-        // Create mount point if it doesn't exist
-        if let Err(e) = std::fs::create_dir_all(&mount_dir) {
-            log::warn!("Failed to create mount directory: {}", e);
-        } else {
-            // Clean up any stale mount before mounting
-            if let Err(e) = crate::fuse::platform::cleanup_mount(&mount_dir) {
-                log::debug!("Stale mount cleanup failed (ignored): {}", e);
-            }
-
-            // Start FUSE mount in background
-            let fs_clone = context.fs.clone();
-            let mount_path = mount_dir.to_path_buf();
-            let runtime_handle = tokio::runtime::Handle::current();
-
-            tokio::task::spawn_blocking(move || {
-                #[cfg(not(windows))]
-                use crate::fuse::mount::mount;
-                #[cfg(windows)]
-                use crate::fuse::mount_win::mount;
-
-                match mount(fs_clone, &mount_path, runtime_handle) {
-                    Ok(()) => Ok::<(), String>(()),
-                    Err(e) => {
-                        log::warn!("FUSE mount failed (non-fatal): {}", e);
-                        Ok::<(), String>(()) // Don't fail service startup if FUSE fails
-                    }
+        if should_mount {
+            // Create mount point if it doesn't exist
+            if let Err(e) = std::fs::create_dir_all(&mount_dir) {
+                log::warn!("Failed to create mount directory: {}", e);
+            } else {
+                // Clean up any stale mount before mounting
+                if let Err(e) = crate::fuse::platform::cleanup_mount(&mount_dir) {
+                    log::debug!("Stale mount cleanup failed (ignored): {}", e);
                 }
-            });
+
+                // Start FUSE mount in background
+                let fs_clone = context.fs.clone();
+                let mount_path = mount_dir.to_path_buf();
+                let runtime_handle = tokio::runtime::Handle::current();
+
+                tokio::task::spawn_blocking(move || {
+                    #[cfg(not(windows))]
+                    use crate::fuse::mount::mount;
+                    #[cfg(windows)]
+                    use crate::fuse::mount_win::mount;
+
+                    match mount(fs_clone, &mount_path, runtime_handle) {
+                        Ok(()) => Ok::<(), String>(()),
+                        Err(e) => {
+                            log::warn!("FUSE mount failed (non-fatal): {}", e);
+                            Ok::<(), String>(()) // Don't fail service startup if FUSE fails
+                        }
+                    }
+                });
+            }
+        } else {
+            log::info!("FUSE mount skipped: xplane_path not configured or FUSE unavailable");
         }
-    } else {
-        log::info!("FUSE mount skipped: xplane_path not configured or FUSE unavailable");
+    }
+    #[cfg(not(feature = "fuse"))]
+    {
+        log::info!("FUSE mount skipped: fuse feature not enabled");
     }
 
     Ok((format!("http://{}", addr), tracker))
@@ -2042,6 +2049,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "fuse")]
     async fn test_start_services_skips_mount_when_no_xplane_path() {
         let mut config = AutoOrthoConfig::default();
         config.xplane_path = "".to_string(); // Not configured
@@ -2065,6 +2073,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(feature = "fuse")]
     async fn test_start_services_handles_fuse_unavailable() {
         let mut config = AutoOrthoConfig::default();
         // Use a path that exists but FUSE can't mount (for testing)
