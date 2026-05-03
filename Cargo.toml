@@ -80,12 +80,11 @@ unifuse = { version = "0.1", optional = true }
 libc = { version = "0.2", optional = true }
 
 # Windows: use Dokan (user-mode file system)
-# Using crates.io version (0.3.x) - supports Dokan 1.x and 2.x
+# Using crates.io version (0.3.x)
 [target.'cfg(windows)'.dependencies]
 dokan = { version = "0.3", package = "dokan", optional = true }
 dokan-sys = { version = "0.3", package = "dokan-sys", optional = true }
-# Pin to same version as dokan uses to work around version conflict
-widestring = { version = "=0.4.3", optional = true }
+widestring = { version = "0.4", optional = true }
 winapi = { version = "0.3", optional = true }
 
 [features]
