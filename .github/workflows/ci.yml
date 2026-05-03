@@ -91,8 +91,12 @@ jobs:
         if: matrix.os != 'windows-latest'
 
       - name: Run library tests (Windows)
-        run: cargo test --lib
+        run: cargo test --lib --no-default-features
         if: matrix.os == 'windows-latest'
+
+      - name: Run integration tests
+        run: cargo test --test integration_test
+        if: matrix.os != 'windows-latest'
 
       - name: Build with fuse feature (Windows)
         if: matrix.os == 'windows-latest'
@@ -100,11 +104,3 @@ jobs:
           cargo build --all-features
           ./target/debug/autoortho --help
           ./target/debug/autoortho --version
-
-      - name: Run integration tests
-        run: cargo test --test integration_test
-        if: matrix.os != 'windows-latest'
-
-      - name: Run integration tests (Windows)
-        run: cargo test --test integration_test
-        if: matrix.os == 'windows-latest'

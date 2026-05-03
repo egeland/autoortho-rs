@@ -87,6 +87,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             let rt = tokio::runtime::Runtime::new()?;
             return rt.block_on(test_tile_generation(provider_name));
         }
+        #[cfg(feature = "fuse")]
         Commands::Mount { mountpoint } => {
             let config = AutoOrthoConfig::load();
             let config_mount_dir = config.mount_dir().to_string_lossy().into_owned();
