@@ -13,9 +13,7 @@ mod dokan_impl {
     use std::sync::{Arc, Mutex};
     use std::time::SystemTime;
 
-    use dokan::filesystem::{
-        FileContext, FileInfo, FileSystem, VolumeInfo,
-    };
+    use dokan::filesystem::{FileContext, FileInfo, FileSystem, VolumeInfo};
     use dokan::mount::{MountOptions, mount as dokan_mount};
 
     const ROOT_INO: u64 = 1;

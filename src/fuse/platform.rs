@@ -87,7 +87,10 @@ pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::er
             .status()
             .is_ok_and(|s| s.success())
         {
-            log::info!("Successfully removed stale Dokan mount point: {}", mount_str);
+            log::info!(
+                "Successfully removed stale Dokan mount point: {}",
+                mount_str
+            );
         } else {
             log::debug!("Dokan unmount failed or not mounted");
         }
