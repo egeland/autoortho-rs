@@ -79,9 +79,10 @@ unifuse = "0.1"
 libc = "0.2"
 
 # Windows: use Dokan (user-mode file system) instead of WinFsp
+# Using GitHub version for Dokany 2.3.x support
 [target.'cfg(windows)'.dependencies]
-dokan = "0.3.1"
-dokan-sys = "0.3.1"
+dokan = { git = "https://github.com/dokan-dev/dokan-rust", package = "dokan" }
+dokan-sys = { git = "https://github.com/dokan-dev/dokan-rust", package = "dokan-sys" }
 
 [dev-dependencies]
 tempfile = "3"
