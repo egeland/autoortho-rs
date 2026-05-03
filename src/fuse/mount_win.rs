@@ -18,7 +18,7 @@ mod dokan_impl {
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex, RwLock};
     use std::time::SystemTime;
-    use widestring::{U16CStr, U16CString, U16String};
+    use widestring::{U16CStr, U16CString};
 
     const ROOT_INO: u64 = 1;
     const TEXTURES_INO: u64 = 2;
@@ -220,7 +220,7 @@ mod dokan_impl {
                 last_access_time: now,
                 last_write_time: now,
                 file_size: 0,
-                file_name: U16String::from_str("."),
+                file_name: U16CString::from_str(".").unwrap(),
             };
             if fill_find_data(&dot).is_err() {
                 return Err(STATUS_UNSUCCESSFUL);
@@ -232,7 +232,7 @@ mod dokan_impl {
                 last_access_time: now,
                 last_write_time: now,
                 file_size: 0,
-                file_name: U16String::from_str(".."),
+                file_name: U16CString::from_str("..").unwrap(),
             };
             if fill_find_data(&dotdot).is_err() {
                 return Err(STATUS_UNSUCCESSFUL);
@@ -246,7 +246,7 @@ mod dokan_impl {
                         last_access_time: now,
                         last_write_time: now,
                         file_size: 0,
-                        file_name: U16String::from_str(dir),
+                        file_name: U16CString::from_str(dir).unwrap(),
                     };
                     if fill_find_data(&data).is_err() {
                         return Err(STATUS_UNSUCCESSFUL);
@@ -259,7 +259,7 @@ mod dokan_impl {
                     last_access_time: now,
                     last_write_time: now,
                     file_size: 0,
-                    file_name: U16String::from_str(MARKER_FILE),
+                    file_name: U16CString::from_str(MARKER_FILE).unwrap(),
                 };
                 if fill_find_data(&data).is_err() {
                     return Err(STATUS_UNSUCCESSFUL);

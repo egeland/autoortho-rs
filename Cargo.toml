@@ -84,6 +84,7 @@ libc = "0.2"
 dokan = { git = "https://github.com/dokan-dev/dokan-rust", package = "dokan" }
 dokan-sys = { git = "https://github.com/dokan-dev/dokan-rust", package = "dokan-sys" }
 widestring = "1"
+winapi = "0.3"
 
 [dev-dependencies]
 tempfile = "3"

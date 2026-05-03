@@ -472,6 +472,8 @@ dependencies = [
  "tower-http",
  "unifuse",
  "uuid",
+ "widestring",
+ "winapi",
  "zip",
  "zstd",
 ]
