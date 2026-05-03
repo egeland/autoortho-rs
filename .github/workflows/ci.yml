@@ -88,6 +88,16 @@ jobs:
 
       - name: Run library tests
         run: cargo test --lib --all-features
+        if: matrix.os != 'windows-latest'
+
+      - name: Run library tests (Windows)
+        run: cargo test --lib
+        if: matrix.os == 'windows-latest'
 
       - name: Run integration tests
         run: cargo test --test integration_test
+        if: matrix.os != 'windows-latest'
+
+      - name: Run integration tests (Windows)
+        run: cargo test --test integration_test
+        if: matrix.os == 'windows-latest'
