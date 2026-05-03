@@ -304,11 +304,11 @@ mod dokan_impl {
             _info: &OperationInfo<'c, 'h, Self>,
         ) -> OperationResult<VolumeInfo> {
             Ok(VolumeInfo {
-                name: U16CString::from_str("AutoOrtho").unwrap(),
+                name: U16CStr::from_str("AutoOrtho"),
                 serial_number: 0x12345678,
                 max_component_length: 256,
                 fs_flags: 0,
-                fs_name: U16CString::from_str("Dokan").unwrap(),
+                fs_name: U16CStr::from_str("Dokan"),
             })
         }
 
@@ -347,7 +347,7 @@ mod dokan_impl {
             ..Default::default()
         };
 
-        let mut mounter = FileSystemMounter::new(&handler, &mount_cstr, &options);
+        let mut mounter = FileSystemMounter::new(&handler, mount_cstr.as_uc_str(), &options);
 
         // This blocks until unmounted
         match mounter.mount() {
@@ -364,7 +364,8 @@ mod dokan_impl {
                     let _ = crate::fuse::platform::cleanup_mount(mountpoint);
                     std::thread::sleep(std::time::Duration::from_secs(2));
                     // Try again
-                    let mut mounter = FileSystemMounter::new(&handler, &mount_cstr, &options);
+                    let mut mounter =
+                        FileSystemMounter::new(&handler, mount_cstr.as_uc_str(), &options);
                     match mounter.mount() {
                         Ok(_filesystem) => {
                             info!("AutoOrtho mounted at {} (retry)", mount_str);
