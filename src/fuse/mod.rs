@@ -7,11 +7,7 @@ use thiserror::Error;
 
 pub mod filesystem;
 
-#[cfg(not(windows))]
 pub mod mount;
-
-#[cfg(windows)]
-pub mod mount_win;
 
 pub mod platform;
 
@@ -161,27 +157,15 @@ mod tests {
     }
 
     #[test]
-    #[cfg(windows)]
-    fn test_cross_platform_fuse_available() {
-        use crate::fuse::mount_win as fuse_mount;
-        let _fuse_mount = fuse_mount::mount;
-        assert!(true, "FUSE mount module available on Windows");
-    }
-
-    #[test]
-    #[cfg(not(windows))]
     fn test_cross_platform_fuse_available() {
         use crate::fuse::mount as fuse_mount;
         let _fuse_mount = fuse_mount::mount;
-        assert!(true, "FUSE mount module available on non-Windows");
+        assert!(true, "FUSE mount module available on all platforms");
     }
 
     #[test]
     fn test_platform_name_windows() {
-        #[cfg(target_os = "windows")]
-        {
-            assert_eq!(platform::platform_name(), "Windows (WinFsp)");
-        }
+        assert_eq!(platform::platform_name(), "Windows (unifuse/WinFsp)");
     }
 
     #[test]

@@ -470,7 +470,7 @@ dependencies = [
  "tower-http",
  "unifuse",
  "uuid",
- "winfsp",
+ "windows 0.62.2",
  "zip",
  "zstd",
 ]

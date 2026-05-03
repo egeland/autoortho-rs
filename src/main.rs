@@ -429,10 +429,7 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
 
     // Run FUSE mount in a blocking thread (it blocks until unmounted)
     tokio::task::spawn_blocking::<_, Result<(), String>>(move || {
-        #[cfg(not(windows))]
         use autoortho_lib::fuse::mount::mount;
-        #[cfg(windows)]
-        use autoortho_lib::fuse::mount_win::mount;
         mount(fs_clone, &mount_path, runtime_handle).map_err(|e| e.to_string())
     })
     .await?

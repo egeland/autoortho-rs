@@ -1328,10 +1328,7 @@ async fn start_all_services(
             let runtime_handle = tokio::runtime::Handle::current();
 
             tokio::task::spawn_blocking(move || {
-                #[cfg(not(windows))]
                 use crate::fuse::mount::mount;
-                #[cfg(windows)]
-                use crate::fuse::mount_win::mount;
 
                 match mount(fs_clone, &mount_path, runtime_handle) {
                     Ok(()) => Ok::<(), String>(()),
