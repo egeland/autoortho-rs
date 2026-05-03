@@ -304,11 +304,11 @@ mod dokan_impl {
             _info: &OperationInfo<'c, 'h, Self>,
         ) -> OperationResult<VolumeInfo> {
             Ok(VolumeInfo {
-                name: U16CStr::from_str("AutoOrtho"),
+                name: U16CStr::from("AutoOrtho"),
                 serial_number: 0x12345678,
                 max_component_length: 256,
                 fs_flags: 0,
-                fs_name: U16CStr::from_str("Dokan"),
+                fs_name: U16CStr::from("Dokan"),
             })
         }
 
