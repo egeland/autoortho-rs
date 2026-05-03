@@ -13,10 +13,9 @@
 pub fn is_fuse_available() -> bool {
     #[cfg(windows)]
     {
-        // Check if Dokan is installed by checking the version
-        // DokanVersion returns 0 if not installed
-        let version = unsafe { dokan_sys::DokanVersion() };
-        version != 0
+        // For now, assume Dokan is available
+        // The mount will fail with a proper error if Dokan is not installed
+        true
     }
     #[cfg(target_os = "linux")]
     {

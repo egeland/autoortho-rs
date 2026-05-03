@@ -12,13 +12,13 @@ mod dokan_impl {
         CreateFileInfo, DiskSpaceInfo, FileInfo, FileSystemHandler, FileSystemMounter, FindData,
         MountFlags, MountOptions, OperationInfo, OperationResult, VolumeInfo, init, shutdown,
     };
-    use dokan_sys::ntstatus::*;
+    use dokan_sys::*;
     use log::{debug, error, info, warn};
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex, RwLock};
     use std::time::SystemTime;
-    use widestring::{U16CStr, U16String};
+    use widestring::{U16CStr, U16CString, U16String};
 
     const ROOT_INO: u64 = 1;
     const TEXTURES_INO: u64 = 2;
@@ -134,24 +134,10 @@ mod dokan_impl {
                         inode: ino,
                     };
 
-                    let file_info = FileInfo {
-                        attributes: if file_attr.is_dir {
-                            winapi::um::winnt::FILE_ATTRIBUTE_DIRECTORY
-                        } else {
-                            winapi::um::winnt::FILE_ATTRIBUTE_NORMAL
-                        },
-                        creation_time: now,
-                        last_access_time: now,
-                        last_write_time: now,
-                        file_size: file_attr.size,
-                        number_of_links: 0,
-                        file_index: ino,
-                    };
-
                     Ok(CreateFileInfo {
                         context,
-                        file_info,
                         is_dir: file_attr.is_dir,
+                        new_file_created: false,
                     })
                 }
                 Err(_) => Err(STATUS_OBJECT_NAME_NOT_FOUND),
@@ -234,7 +220,7 @@ mod dokan_impl {
                 last_access_time: now,
                 last_write_time: now,
                 file_size: 0,
-                file_name: U16String::from_str(".").unwrap(),
+                file_name: U16String::from_str("."),
             };
             if fill_find_data(&dot).is_err() {
                 return Err(STATUS_UNSUCCESSFUL);
@@ -246,7 +232,7 @@ mod dokan_impl {
                 last_access_time: now,
                 last_write_time: now,
                 file_size: 0,
-                file_name: U16String::from_str("..").unwrap(),
+                file_name: U16String::from_str(".."),
             };
             if fill_find_data(&dotdot).is_err() {
                 return Err(STATUS_UNSUCCESSFUL);
@@ -260,7 +246,7 @@ mod dokan_impl {
                         last_access_time: now,
                         last_write_time: now,
                         file_size: 0,
-                        file_name: U16String::from_str(dir).unwrap(),
+                        file_name: U16String::from_str(dir),
                     };
                     if fill_find_data(&data).is_err() {
                         return Err(STATUS_UNSUCCESSFUL);
@@ -273,7 +259,7 @@ mod dokan_impl {
                     last_access_time: now,
                     last_write_time: now,
                     file_size: 0,
-                    file_name: U16String::from_str(MARKER_FILE).unwrap(),
+                    file_name: U16String::from_str(MARKER_FILE),
                 };
                 if fill_find_data(&data).is_err() {
                     return Err(STATUS_UNSUCCESSFUL);
@@ -317,11 +303,11 @@ mod dokan_impl {
             _info: &OperationInfo<'c, 'h, Self>,
         ) -> OperationResult<VolumeInfo> {
             Ok(VolumeInfo {
-                name: U16String::from_str("AutoOrtho"),
+                name: U16CString::from_str("AutoOrtho").unwrap(),
                 serial_number: 0x12345678,
                 max_component_length: 256,
                 fs_flags: 0,
-                fs_name: U16String::from_str("Dokan"),
+                fs_name: U16CString::from_str("Dokan").unwrap(),
             })
         }
 
