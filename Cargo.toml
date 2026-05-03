@@ -84,7 +84,6 @@ libc = { version = "0.2", optional = true }
 [target.'cfg(windows)'.dependencies]
 dokan = { version = "0.3", package = "dokan", optional = true }
 dokan-sys = { version = "0.3", package = "dokan-sys", optional = true }
-# Note: dokan brings in widestring 0.4.x via transitive dep, we need these for our code:
 widestring = { version = "0.4", optional = true }
 winapi = { version = "0.3", optional = true }
 
