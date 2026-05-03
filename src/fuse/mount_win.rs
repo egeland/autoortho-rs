@@ -29,7 +29,7 @@ mod dokan_impl {
 
     /// Context type for open files
     #[derive(Debug)]
-    struct FileContext {
+    pub struct FileContext {
         path: PathBuf,
         inode: u64,
     }
@@ -101,7 +101,7 @@ mod dokan_impl {
             _share_access: u32,
             _create_disposition: u32,
             _create_options: u32,
-            #[allow(unused_mut)] info: &mut OperationInfo<'c, 'h, Self>,
+            #[allow(unused_variables)] _info: &mut OperationInfo<'c, 'h, Self>,
         ) -> OperationResult<CreateFileInfo<Self::Context>> {
             let path_str = file_name.to_string_lossy();
             let path = Path::new(&path_str);
