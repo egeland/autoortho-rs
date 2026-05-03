@@ -13,9 +13,16 @@
 pub fn is_fuse_available() -> bool {
     #[cfg(windows)]
     {
-        // Check if Dokan is installed by trying to load the library
-        // Dokan's Rust bindings will return an error if the driver is not installed
-        dokan::DokanInit().is_ok()
+        // Check if Dokan is installed by trying to initialize it
+        // Use dokan_sys directly since dokan::init() doesn't return a value
+        let result = unsafe { dokan_sys::DokanInit() };
+        if result != 0 {
+            // Success - shutdown immediately since we're just checking
+            unsafe { dokan_sys::DokanShutdown() };
+            true
+        } else {
+            false
+        }
     }
     #[cfg(target_os = "linux")]
     {
