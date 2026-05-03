@@ -86,16 +86,6 @@ mod dokan_impl {
         fn path_to_string(&self, path: &Path) -> String {
             path.to_string_lossy().replace('\\', "/")
         }
-
-        fn system_time_to_file_time(time: SystemTime) -> u64 {
-            // Windows FILETIME: 100-nanosecond intervals since 1601-01-01
-            const EPOCH_DIFF: u64 = 11_644_473_600;
-            let duration = time
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default();
-            (duration.as_secs() + EPOCH_DIFF) * 10_000_000
-                + u64::from(duration.subsec_nanos()) / 100
-        }
     }
 
     impl<'c, 'h: 'c> FileSystemHandler<'c, 'h> for AutoOrthoHandler {
@@ -138,7 +128,6 @@ mod dokan_impl {
                         .insert(fh, clean_path.to_path_buf());
 
                     let now = SystemTime::now();
-                    let file_time = Self::system_time_to_file_time(now);
 
                     let context = FileContext {
                         path: clean_path.to_path_buf(),
@@ -151,17 +140,12 @@ mod dokan_impl {
                         } else {
                             winapi::um::winnt::FILE_ATTRIBUTE_NORMAL
                         },
-                        creation_time: file_time,
-                        last_access_time: file_time,
-                        last_write_time: file_time,
-                        change_time: file_time,
+                        creation_time: now,
+                        last_access_time: now,
+                        last_write_time: now,
                         file_size: file_attr.size,
-                        allocation_size: if file_attr.is_dir {
-                            0
-                        } else {
-                            (file_attr.size + 4095) / 4096 * 4096
-                        },
-                        index_number: ino,
+                        number_of_links: 0,
+                        file_index: ino,
                     };
 
                     Ok(CreateFileInfo {
@@ -177,7 +161,7 @@ mod dokan_impl {
         fn cleanup(
             &self,
             _file_name: &U16CStr,
-            info: &OperationInfo<'c, 'h, Self>,
+            _info: &OperationInfo<'c, 'h, Self>,
             _context: &'c Self::Context,
         ) {
             // Nothing special needed for cleanup
@@ -186,7 +170,7 @@ mod dokan_impl {
         fn close_file(
             &self,
             _file_name: &U16CStr,
-            info: &OperationInfo<'c, 'h, Self>,
+            _info: &OperationInfo<'c, 'h, Self>,
             context: &'c Self::Context,
         ) {
             debug!("dokan close_file: {:?}", context.path);
@@ -198,7 +182,7 @@ mod dokan_impl {
             _file_name: &U16CStr,
             offset: i64,
             buffer: &mut [u8],
-            info: &OperationInfo<'c, 'h, Self>,
+            _info: &OperationInfo<'c, 'h, Self>,
             context: &'c Self::Context,
         ) -> OperationResult<u32> {
             let path_str = self.path_to_string(&context.path);
@@ -232,7 +216,7 @@ mod dokan_impl {
             &self,
             _file_name: &U16CStr,
             mut fill_find_data: impl FnMut(&FindData) -> dokan::FillDataResult,
-            info: &OperationInfo<'c, 'h, Self>,
+            _info: &OperationInfo<'c, 'h, Self>,
             context: &'c Self::Context,
         ) -> OperationResult<()> {
             let dir_path = &context.path;
@@ -242,30 +226,27 @@ mod dokan_impl {
             let is_terrain = dir_path_str.ends_with("/terrain");
 
             let now = SystemTime::now();
-            let file_time = Self::system_time_to_file_time(now);
 
             // Add . and ..
             let dot = FindData {
-                file_name: U16String::from_str(".").unwrap(),
                 attributes: winapi::um::winnt::FILE_ATTRIBUTE_DIRECTORY,
-                creation_time: file_time,
-                last_access_time: file_time,
-                last_write_time: file_time,
+                creation_time: now,
+                last_access_time: now,
+                last_write_time: now,
                 file_size: 0,
-                allocation_size: 0,
+                file_name: U16String::from_str(".").unwrap(),
             };
             if fill_find_data(&dot).is_err() {
                 return Err(STATUS_UNSUCCESSFUL);
             }
 
             let dotdot = FindData {
-                file_name: U16String::from_str("..").unwrap(),
                 attributes: winapi::um::winnt::FILE_ATTRIBUTE_DIRECTORY,
-                creation_time: file_time,
-                last_access_time: file_time,
-                last_write_time: file_time,
+                creation_time: now,
+                last_access_time: now,
+                last_write_time: now,
                 file_size: 0,
-                allocation_size: 0,
+                file_name: U16String::from_str("..").unwrap(),
             };
             if fill_find_data(&dotdot).is_err() {
                 return Err(STATUS_UNSUCCESSFUL);
@@ -274,13 +255,12 @@ mod dokan_impl {
             if is_root {
                 for dir in VIRTUAL_DIRS {
                     let data = FindData {
-                        file_name: U16String::from_str(dir).unwrap(),
                         attributes: winapi::um::winnt::FILE_ATTRIBUTE_DIRECTORY,
-                        creation_time: file_time,
-                        last_access_time: file_time,
-                        last_write_time: file_time,
+                        creation_time: now,
+                        last_access_time: now,
+                        last_write_time: now,
                         file_size: 0,
-                        allocation_size: 4096,
+                        file_name: U16String::from_str(dir).unwrap(),
                     };
                     if fill_find_data(&data).is_err() {
                         return Err(STATUS_UNSUCCESSFUL);
@@ -288,13 +268,12 @@ mod dokan_impl {
                 }
             } else if is_textures || is_terrain {
                 let data = FindData {
-                    file_name: U16String::from_str(MARKER_FILE).unwrap(),
                     attributes: winapi::um::winnt::FILE_ATTRIBUTE_NORMAL,
-                    creation_time: file_time,
-                    last_access_time: file_time,
-                    last_write_time: file_time,
+                    creation_time: now,
+                    last_access_time: now,
+                    last_write_time: now,
                     file_size: 0,
-                    allocation_size: 0,
+                    file_name: U16String::from_str(MARKER_FILE).unwrap(),
                 };
                 if fill_find_data(&data).is_err() {
                     return Err(STATUS_UNSUCCESSFUL);
@@ -307,14 +286,13 @@ mod dokan_impl {
         fn get_file_information(
             &self,
             _file_name: &U16CStr,
-            info: &OperationInfo<'c, 'h, Self>,
+            _info: &OperationInfo<'c, 'h, Self>,
             context: &'c Self::Context,
         ) -> OperationResult<FileInfo> {
             let path_str = self.path_to_string(&context.path);
 
             if let Ok(attr) = self.runtime.block_on(self.fs.get_attr(&path_str)) {
                 let now = SystemTime::now();
-                let file_time = Self::system_time_to_file_time(now);
 
                 return Ok(FileInfo {
                     attributes: if attr.is_dir {
@@ -322,17 +300,12 @@ mod dokan_impl {
                     } else {
                         winapi::um::winnt::FILE_ATTRIBUTE_NORMAL
                     },
-                    creation_time: file_time,
-                    last_access_time: file_time,
-                    last_write_time: file_time,
-                    change_time: file_time,
+                    creation_time: now,
+                    last_access_time: now,
+                    last_write_time: now,
                     file_size: attr.size,
-                    allocation_size: if attr.is_dir {
-                        0
-                    } else {
-                        (attr.size + 4095) / 4096 * 4096
-                    },
-                    index_number: context.inode,
+                    number_of_links: 0,
+                    file_index: context.inode,
                 });
             }
 
@@ -341,25 +314,25 @@ mod dokan_impl {
 
         fn get_volume_information(
             &self,
-            info: &OperationInfo<'c, 'h, Self>,
+            _info: &OperationInfo<'c, 'h, Self>,
         ) -> OperationResult<VolumeInfo> {
             Ok(VolumeInfo {
-                volume_label: U16String::from_str("AutoOrtho").unwrap(),
-                file_system_name: U16String::from_str("Dokan").unwrap(),
+                name: U16String::from_str("AutoOrtho"),
                 serial_number: 0x12345678,
                 max_component_length: 256,
-                characteristics: 0,
+                fs_flags: 0,
+                fs_name: U16String::from_str("Dokan"),
             })
         }
 
         fn get_disk_free_space(
             &self,
-            info: &OperationInfo<'c, 'h, Self>,
+            _info: &OperationInfo<'c, 'h, Self>,
         ) -> OperationResult<DiskSpaceInfo> {
             Ok(DiskSpaceInfo {
-                total_size: 1_000_000_000_000,
-                free_size: 500_000_000_000,
-                available_size: 500_000_000_000,
+                byte_count: 1_000_000_000_000,
+                free_byte_count: 500_000_000_000,
+                available_byte_count: 500_000_000_000,
             })
         }
     }

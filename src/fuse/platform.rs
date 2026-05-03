@@ -13,16 +13,10 @@
 pub fn is_fuse_available() -> bool {
     #[cfg(windows)]
     {
-        // Check if Dokan is installed by trying to initialize it
-        // Use dokan_sys directly since dokan::init() doesn't return a value
-        let result = unsafe { dokan_sys::DokanInit() };
-        if result != 0 {
-            // Success - shutdown immediately since we're just checking
-            unsafe { dokan_sys::DokanShutdown() };
-            true
-        } else {
-            false
-        }
+        // Check if Dokan is installed by checking the version
+        // DokanVersion returns 0 if not installed
+        let version = unsafe { dokan_sys::DokanVersion() };
+        version != 0
     }
     #[cfg(target_os = "linux")]
     {
