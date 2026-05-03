@@ -12,13 +12,14 @@ mod dokan_impl {
         CreateFileInfo, DiskSpaceInfo, FileInfo, FileSystemHandler, FileSystemMounter, FindData,
         MountFlags, MountOptions, OperationInfo, OperationResult, VolumeInfo, init, shutdown,
     };
-    use dokan_sys::*;
     use log::{debug, error, info, warn};
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex, RwLock};
     use std::time::SystemTime;
     use widestring::{U16CStr, U16CString};
+    use winapi::shared::ntstatus::*;
+    use winapi::um::winnt;
 
     const ROOT_INO: u64 = 1;
     const TEXTURES_INO: u64 = 2;
@@ -215,7 +216,7 @@ mod dokan_impl {
 
             // Add . and ..
             let dot = FindData {
-                attributes: winapi::um::winnt::FILE_ATTRIBUTE_DIRECTORY,
+                attributes: winnt::FILE_ATTRIBUTE_DIRECTORY,
                 creation_time: now,
                 last_access_time: now,
                 last_write_time: now,
@@ -227,7 +228,7 @@ mod dokan_impl {
             }
 
             let dotdot = FindData {
-                attributes: winapi::um::winnt::FILE_ATTRIBUTE_DIRECTORY,
+                attributes: winnt::FILE_ATTRIBUTE_DIRECTORY,
                 creation_time: now,
                 last_access_time: now,
                 last_write_time: now,
@@ -241,7 +242,7 @@ mod dokan_impl {
             if is_root {
                 for dir in VIRTUAL_DIRS {
                     let data = FindData {
-                        attributes: winapi::um::winnt::FILE_ATTRIBUTE_DIRECTORY,
+                        attributes: winnt::FILE_ATTRIBUTE_DIRECTORY,
                         creation_time: now,
                         last_access_time: now,
                         last_write_time: now,
@@ -254,7 +255,7 @@ mod dokan_impl {
                 }
             } else if is_textures || is_terrain {
                 let data = FindData {
-                    attributes: winapi::um::winnt::FILE_ATTRIBUTE_NORMAL,
+                    attributes: winnt::FILE_ATTRIBUTE_NORMAL,
                     creation_time: now,
                     last_access_time: now,
                     last_write_time: now,
@@ -282,9 +283,9 @@ mod dokan_impl {
 
                 return Ok(FileInfo {
                     attributes: if attr.is_dir {
-                        winapi::um::winnt::FILE_ATTRIBUTE_DIRECTORY
+                        winnt::FILE_ATTRIBUTE_DIRECTORY
                     } else {
-                        winapi::um::winnt::FILE_ATTRIBUTE_NORMAL
+                        winnt::FILE_ATTRIBUTE_NORMAL
                     },
                     creation_time: now,
                     last_access_time: now,
