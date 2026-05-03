@@ -84,8 +84,7 @@ libc = { version = "0.2", optional = true }
 [target.'cfg(windows)'.dependencies]
 dokan = { version = "0.3", package = "dokan", optional = true }
 dokan-sys = { version = "0.3", package = "dokan-sys", optional = true }
-widestring = { version = "1", optional = true }
-winapi = { version = "0.3", optional = true }
+# Note: dokan brings in widestring 0.4.x, don't add explicit 1.x to avoid conflicts
 
 [features]
 default = ["fuse"]
@@ -94,8 +93,6 @@ fuse = [
   "dep:libc",
   "dep:dokan",
   "dep:dokan-sys",
-  "dep:widestring",
-  "dep:winapi",
 ]
 
 [dev-dependencies]
