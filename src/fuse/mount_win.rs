@@ -101,11 +101,13 @@ mod dokan_impl {
             _share_access: u32,
             _create_disposition: u32,
             _create_options: u32,
-            info: &mut OperationInfo<'c, 'h, Self>,
+            #[allow(unused_mut)] info: &mut OperationInfo<'c, 'h, Self>,
         ) -> OperationResult<CreateFileInfo<Self::Context>> {
             let path_str = file_name.to_string_lossy();
             let path = Path::new(&path_str);
-            let clean_path = Path::new(&self.path_to_string(path));
+            // Store the converted string to avoid temporary value
+            let path_str_converted = self.path_to_string(path);
+            let clean_path = Path::new(&path_str_converted);
 
             debug!("dokan create_file: {:?}", path_str);
 
@@ -135,8 +137,23 @@ mod dokan_impl {
                         inode: ino,
                     };
 
+                    let file_info = FileInfo {
+                        attributes: if file_attr.is_dir {
+                            winnt::FILE_ATTRIBUTE_DIRECTORY
+                        } else {
+                            winnt::FILE_ATTRIBUTE_NORMAL
+                        },
+                        creation_time: now,
+                        last_access_time: now,
+                        last_write_time: now,
+                        file_size: file_attr.size,
+                        number_of_links: 0,
+                        file_index: ino,
+                    };
+
                     Ok(CreateFileInfo {
                         context,
+                        file_info,
                         is_dir: file_attr.is_dir,
                         new_file_created: false,
                     })
