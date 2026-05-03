@@ -347,7 +347,7 @@ mod dokan_impl {
             ..Default::default()
         };
 
-        let mut mounter = FileSystemMounter::new(&handler, mount_cstr.as_uc_str(), &options);
+        let mut mounter = FileSystemMounter::new(&handler, mount_cstr.as_ucstr(), &options);
 
         // This blocks until unmounted
         match mounter.mount() {
@@ -365,7 +365,7 @@ mod dokan_impl {
                     std::thread::sleep(std::time::Duration::from_secs(2));
                     // Try again
                     let mut mounter =
-                        FileSystemMounter::new(&handler, mount_cstr.as_uc_str(), &options);
+                        FileSystemMounter::new(&handler, mount_cstr.as_ucstr(), &options);
                     match mounter.mount() {
                         Ok(_filesystem) => {
                             info!("AutoOrtho mounted at {} (retry)", mount_str);
