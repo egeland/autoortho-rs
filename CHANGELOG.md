@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.6.66](https://github.com/egeland/autoortho-rs/compare/v0.6.65...v0.6.66) - 2026-05-03
+
+### Added
+
+- Replace Windows WinFsp with Dokan for FUSE ([#266](https://github.com/egeland/autoortho-rs/pull/266))
+
 ## [0.6.65](https://github.com/egeland/autoortho-rs/compare/v0.6.64...v0.6.65) - 2026-05-02
 
 ### Other
