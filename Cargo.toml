@@ -72,16 +72,31 @@ zip = "8.5"
 sevenz-rust = "0.6"
 futures-lite = "2.6"
 
-# FUSE support - unifuse provides cross-platform async FUSE (rfuse3 on Unix)
+# FUSE support - unifuse provides cross-platform async FUSE (fuse3 on Unix)
+# On Windows, use Dokan (user-mode file system)
 # Note: on Windows, unifuse has compatibility issues, so we use winfsp directly instead
 [target.'cfg(not(windows))'.dependencies]
-unifuse = "0.1"
-libc = "0.2"
+unifuse = { version = "0.1", optional = true }
+libc = { version = "0.2", optional = true }
 
-# Windows: use winfsp directly (not via unifuse, due to crate version conflicts)
+# Windows: use Dokan (user-mode file system) instead of WinFsp
+# Using GitHub version for Dokany 2.3.x support
 [target.'cfg(windows)'.dependencies]
-winfsp = { version = "0.12", features = ["full"] }
-winfsp-sys = "0.12"
+dokan = { git = "https://github.com/dokan-dev/dokan-rust", package = "dokan", optional = true }
+dokan-sys = { git = "https://github.com/dokan-dev/dokan-rust", package = "dokan-sys", optional = true }
+widestring = { version = "1", optional = true }
+winapi = { version = "0.3", optional = true }
+
+[features]
+default = ["fuse"]
+fuse = [
+  "dep:unifuse",
+  "dep:libc",
+  "dep:dokan",
+  "dep:dokan-sys",
+  "dep:widestring",
+  "dep:winapi",
+]
 
 [dev-dependencies]
 tempfile = "3"

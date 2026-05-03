@@ -9,6 +9,7 @@ pub mod dynamic_zoom;
 #[cfg(test)]
 pub mod test_utils;
 
+#[cfg(feature = "fuse")]
 pub mod fuse;
 
 pub mod pipeline;

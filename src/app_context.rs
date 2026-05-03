@@ -7,6 +7,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::config::AutoOrthoConfig;
+#[cfg(feature = "fuse")]
 use crate::fuse::filesystem::DdsFileSystem;
 use crate::pipeline::cache::DdsCache;
 use crate::stats::StatsStore;
@@ -21,6 +22,7 @@ pub struct AppContext {
     pub tracker: Arc<DatarefTracker>,
     pub fetcher: Arc<TileFetcher>,
     pub dds_cache: Option<Arc<Mutex<DdsCache>>>,
+    #[cfg(feature = "fuse")]
     pub fs: Arc<DdsFileSystem>,
     pub custom_map: Arc<CustomMapStore>,
 }
@@ -55,20 +57,36 @@ impl AppContext {
         };
 
         let fs = if let Some(dc) = dds_cache.clone() {
-            Arc::new(DdsFileSystem::with_disk_cache_and_custom_map(
-                fetcher.clone(),
-                dc,
-                custom_map.clone(),
-                &config.tile_provider,
-                dds_cache_entries,
-            ))
+            #[cfg(feature = "fuse")]
+            {
+                Arc::new(DdsFileSystem::with_disk_cache_and_custom_map(
+                    fetcher.clone(),
+                    dc,
+                    custom_map.clone(),
+                    &config.tile_provider,
+                    dds_cache_entries,
+                ))
+            }
+            #[cfg(not(feature = "fuse"))]
+            {
+                // Dummy value when fuse is not enabled
+                // We need to return something that compiles
+                panic!("DdsFileSystem requires fuse feature");
+            }
         } else {
-            Arc::new(DdsFileSystem::new_with_custom_map(
-                fetcher.clone(),
-                custom_map.clone(),
-                &config.tile_provider,
-                dds_cache_entries,
-            ))
+            #[cfg(feature = "fuse")]
+            {
+                Arc::new(DdsFileSystem::new_with_custom_map(
+                    fetcher.clone(),
+                    custom_map.clone(),
+                    &config.tile_provider,
+                    dds_cache_entries,
+                ))
+            }
+            #[cfg(not(feature = "fuse"))]
+            {
+                panic!("DdsFileSystem requires fuse feature");
+            }
         };
 
         let stats = Arc::new(StatsStore::new());
@@ -80,6 +98,7 @@ impl AppContext {
             tracker,
             fetcher,
             dds_cache,
+            #[cfg(feature = "fuse")]
             fs,
             custom_map,
         })
@@ -87,6 +106,7 @@ impl AppContext {
 }
 
 #[cfg(test)]
+#[cfg(feature = "fuse")]
 mod tests {
     use super::*;
     use tempfile::TempDir;

@@ -61,28 +61,25 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install WinFSP (Windows)
+      - name: Install Dokan (Windows)
         if: matrix.os == 'windows-latest'
         run: |
-          Invoke-WebRequest -Uri "https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi" -OutFile winfsp.msi
-          # Use -Wait to ensure the installer finishes and registry keys are written
-          Start-Process -FilePath "msiexec.exe" -ArgumentList "/i winfsp.msi /qn /norestart INSTALLLEVEL=1001" -Wait -NoNewWindow
-
-          $regPath32 = 'HKLM:\SOFTWARE\WOW6432Node\WinFsp'
-          $regPath64 = 'HKLM:\SOFTWARE\WinFsp'
-
-          if (Test-Path $regPath32) {
-              $winFspDir = (Get-ItemProperty -Path $regPath32 -Name InstallDir).InstallDir
-          } elseif (Test-Path $regPath64) {
-              $winFspDir = (Get-ItemProperty -Path $regPath64 -Name InstallDir).InstallDir
+          choco install dokany2 -y
+          # Set Dokan library path for dokan-sys
+          $dokanPath = "C:\Program Files\Dokan\Dokan 2.0"
+          if (Test-Path $dokanPath) {
+            "LIB=$dokanPath\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            "$dokanPath\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            Write-Host "Dokan found at: $dokanPath"
           } else {
-              $winFspDir = "C:\Program Files (x86)\WinFsp\"
+            Write-Host "Dokan not found in default path"
+            # Try Chocolatey tools path
+            $chocoPath = "C:\ProgramData\chocolatey\lib\dokany2\tools"
+            if (Test-Path $chocoPath) {
+              "LIB=$chocoPath\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              "$chocoPath\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            }
           }
-
-          Write-Host "WinFSP found at: $winFspDir"
-          "WINFSP_DIR=$winFspDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          # Add WinFsp bin to PATH so winfsp-x64.dll can be found at runtime
-          "$winFspDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -91,6 +88,19 @@ jobs:
 
       - name: Run library tests
         run: cargo test --lib --all-features
+        if: matrix.os != 'windows-latest'
+
+      - name: Run library tests (Windows)
+        run: cargo test --lib --no-default-features
+        if: matrix.os == 'windows-latest'
 
       - name: Run integration tests
         run: cargo test --test integration_test
+        if: matrix.os != 'windows-latest'
+
+      - name: Build with fuse feature (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          cargo build --all-features
+          ./target/debug/autoortho --help
+          ./target/debug/autoortho --version

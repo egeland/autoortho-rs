@@ -3,18 +3,19 @@
 //! Each platform has a different FUSE implementation:
 //! - macOS: macFUSE via the `fuser` crate
 //! - Linux: libfuse via the `fuser` crate (deferred)
-//! - Windows: WinFsp via the `winfsp` crate
+//! - Windows: Dokan via the `dokan` crate
 //!
 //! The `mount::AutoOrthoFuse` struct implements the fuser Filesystem trait
 //! and works on both macOS and Linux. Windows uses a separate
-//! implementation using the `winfsp` crate.
+//! implementation using the `dokan` crate.
 
 /// Check if FUSE/virtual filesystem support is available on this platform.
 pub fn is_fuse_available() -> bool {
     #[cfg(windows)]
     {
-        // Check if WinFsp is installed by trying to initialize it
-        winfsp::winfsp_init().is_ok()
+        // For now, assume Dokan is available
+        // The mount will fail with a proper error if Dokan is not installed
+        true
     }
     #[cfg(target_os = "linux")]
     {
@@ -58,7 +59,7 @@ pub fn platform_name() -> &'static str {
     } else if cfg!(target_os = "linux") {
         "Linux (libfuse)"
     } else if cfg!(target_os = "windows") {
-        "Windows (WinFsp)"
+        "Windows (Dokan)"
     } else {
         "Unknown platform"
     }
@@ -79,45 +80,19 @@ pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::er
 
     #[cfg(windows)]
     {
-        // Use FspMountRemove from winfsp-sys to remove stale mount point
-        use std::os::windows::ffi::OsStrExt;
-        use winfsp_sys::{FSP_MOUNT_DESC, FspMountRemove};
-
-        let mount_norm = mount_str.replace('/', "\\");
-
-        // Convert path to wide string (null-terminated)
-        let wide_path: Vec<u16> = std::ffi::OsStr::new(&mount_norm)
-            .encode_wide()
-            .chain(std::iter::once(0))
-            .collect();
-
-        // Create FSP_MOUNT_DESC with the mount point
-        let mut desc = FSP_MOUNT_DESC {
-            VolumeHandle: std::ptr::null_mut(),
-            VolumeName: std::ptr::null_mut(),
-            Security: std::ptr::null_mut(),
-            Reserved: 0,
-            MountPoint: wide_path.as_ptr() as *mut u16,
-            MountHandle: std::ptr::null_mut(),
-        };
-
-        // Call FspMountRemove to remove the stale mount point
-        let status = unsafe { FspMountRemove(&mut desc as *mut FSP_MOUNT_DESC) };
-
-        if status == 0 {
-            log::info!("Successfully removed stale mount point: {}", mount_norm);
+        // Dokan uses 'dokan unmount' or we can let the mount handle cleanup
+        // Try to remove stale Dokan mount point via command line
+        if std::process::Command::new("dokan")
+            .args(["unmount", &mount_str])
+            .status()
+            .is_ok_and(|s| s.success())
+        {
+            log::info!(
+                "Successfully removed stale Dokan mount point: {}",
+                mount_str
+            );
         } else {
-            // STATUS_OBJECT_NAME_NOT_FOUND (0xC0000034) means not mounted - that's OK
-            const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC0000034_u32 as i32;
-            if status == STATUS_OBJECT_NAME_NOT_FOUND {
-                log::debug!("Mount point not found (not mounted): {}", mount_norm);
-            } else {
-                log::warn!(
-                    "FspMountRemove returned NTSTATUS: {:#X} for {}",
-                    status,
-                    mount_norm
-                );
-            }
+            log::debug!("Dokan unmount failed or not mounted");
         }
     }
 

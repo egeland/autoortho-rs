@@ -165,7 +165,7 @@ mod tests {
     fn test_cross_platform_fuse_available() {
         use crate::fuse::mount_win as fuse_mount;
         let _fuse_mount = fuse_mount::mount;
-        assert!(true, "FUSE mount module available on Windows");
+        assert!(true, "Dokan mount module available on Windows");
     }
 
     #[test]
@@ -180,7 +180,7 @@ mod tests {
     fn test_platform_name_windows() {
         #[cfg(target_os = "windows")]
         {
-            assert_eq!(platform::platform_name(), "Windows (WinFsp)");
+            assert_eq!(platform::platform_name(), "Windows (Dokan)");
         }
     }
 

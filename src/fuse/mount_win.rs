@@ -1,28 +1,25 @@
-//! Windows FUSE mount implementation using winfsp.
+//! Windows FUSE mount implementation using Dokan.
 //!
-//! winfsp provides Windows File System Proxy functionality, similar to FUSE on Unix.
+//! Dokan provides Windows user-mode file system functionality, similar to FUSE on Unix.
+//! This implementation uses the updated dokan-rust API (GitHub version).
 
-pub use self::winfsp_impl::mount;
+pub use self::dokan_impl::mount;
 
-mod winfsp_impl {
+mod dokan_impl {
     use crate::fuse::filesystem::DdsFileSystem;
     use crate::fuse::{MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
-    use log::{debug, info, warn};
+    use dokan::{
+        CreateFileInfo, DiskSpaceInfo, FileInfo, FileSystemHandler, FileSystemMounter, FindData,
+        MountFlags, MountOptions, OperationInfo, OperationResult, VolumeInfo, init, shutdown,
+    };
+    use log::{debug, error, info, warn};
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
-    use std::sync::{Arc, Mutex};
+    use std::sync::{Arc, Mutex, RwLock};
     use std::time::SystemTime;
-
-    use winfsp::filesystem::{
-        DirBuffer, DirInfo, DirMarker, FileInfo, FileSecurity, FileSystemContext, OpenFileInfo,
-        VolumeInfo, WideNameInfo,
-    };
-    use winfsp::host::{FileSystemHost, VolumeParams};
-
-    // Raw NTSTATUS values (avoids direct dependency on `windows` crate)
-    const STATUS_OBJECT_NAME_NOT_FOUND: i32 = 0xC0000034_u32 as i32;
-    const STATUS_INVALID_HANDLE: i32 = 0xC0000008_u32 as i32;
-    const STATUS_UNSUCCESSFUL: i32 = 0xC0000001_u32 as i32;
+    use widestring::{U16CStr, U16CString};
+    use winapi::shared::ntstatus::*;
+    use winapi::um::winnt;
 
     const ROOT_INO: u64 = 1;
     const TEXTURES_INO: u64 = 2;
@@ -30,26 +27,31 @@ mod winfsp_impl {
     const MARKER_INO: u64 = 4;
     const DYNAMIC_INO_START: u64 = 1000;
 
-    pub struct AutoOrthoWinFsp {
-        fs: Arc<DdsFileSystem>,
-        runtime: tokio::runtime::Handle,
-        path_to_inode: Mutex<HashMap<PathBuf, u64>>,
-        next_inode: Mutex<u64>,
-        open_files: Mutex<HashMap<u64, PathBuf>>,
-        next_file_handle: Mutex<u64>,
-        dir_buffer: DirBuffer,
+    /// Context type for open files
+    #[derive(Debug)]
+    pub struct FileContext {
+        path: PathBuf,
+        inode: u64,
     }
 
-    impl AutoOrthoWinFsp {
+    pub struct AutoOrthoHandler {
+        fs: Arc<DdsFileSystem>,
+        runtime: tokio::runtime::Handle,
+        path_to_inode: RwLock<HashMap<PathBuf, u64>>,
+        next_inode: Mutex<u64>,
+        open_files: RwLock<HashMap<u64, PathBuf>>,
+        next_file_handle: Mutex<u64>,
+    }
+
+    impl AutoOrthoHandler {
         pub fn new(fs: Arc<DdsFileSystem>, runtime: tokio::runtime::Handle) -> Self {
             Self {
                 fs,
                 runtime,
-                path_to_inode: Mutex::new(HashMap::new()),
+                path_to_inode: RwLock::new(HashMap::new()),
                 next_inode: Mutex::new(DYNAMIC_INO_START),
-                open_files: Mutex::new(HashMap::new()),
+                open_files: RwLock::new(HashMap::new()),
                 next_file_handle: Mutex::new(1),
-                dir_buffer: DirBuffer::new(),
             }
         }
 
@@ -69,7 +71,7 @@ mod winfsp_impl {
                 return MARKER_INO;
             }
 
-            let mut p2i = self.path_to_inode.lock().unwrap();
+            let mut p2i = self.path_to_inode.write().unwrap();
             if let Some(&ino) = p2i.get(path) {
                 return ino;
             }
@@ -79,146 +81,103 @@ mod winfsp_impl {
             *next += 1;
 
             p2i.insert(path.to_path_buf(), ino);
-
             ino
         }
 
         fn path_to_string(&self, path: &Path) -> String {
             path.to_string_lossy().replace('\\', "/")
         }
-
-        fn system_time_to_u64(time: SystemTime) -> u64 {
-            // Windows FILETIME: 100-nanosecond intervals since 1601-01-01
-            // Unix epoch offset from Windows epoch: 11644473600 seconds
-            const EPOCH_DIFF: u64 = 11_644_473_600;
-            let duration = time
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default();
-            (duration.as_secs() + EPOCH_DIFF) * 10_000_000
-                + u64::from(duration.subsec_nanos()) / 100
-        }
-
-        fn fill_file_info(file_info: &mut FileInfo, is_dir: bool, size: u64, ino: u64) {
-            let now = Self::system_time_to_u64(SystemTime::now());
-            file_info.file_attributes = if is_dir { 0x10 } else { 0x80 };
-            file_info.file_size = size;
-            file_info.allocation_size = (size + 4095) / 4096 * 4096;
-            file_info.creation_time = now;
-            file_info.last_access_time = now;
-            file_info.last_write_time = now;
-            file_info.change_time = now;
-            file_info.index_number = ino;
-            file_info.hard_links = 0;
-        }
     }
 
-    impl FileSystemContext for AutoOrthoWinFsp {
-        type FileContext = u64;
+    impl<'c, 'h: 'c> FileSystemHandler<'c, 'h> for AutoOrthoHandler {
+        type Context = FileContext;
 
-        fn get_security_by_name(
-            &self,
-            file_name: &winfsp::U16CStr,
-            _security_descriptor: Option<&mut [std::ffi::c_void]>,
-            _reparse_point_resolver: impl FnOnce(&winfsp::U16CStr) -> Option<FileSecurity>,
-        ) -> winfsp::Result<FileSecurity> {
-            let path = file_name.to_string_lossy();
-            debug!("get_security_by_name: {:?}", path);
-
-            let path_str = self.path_to_string(&Path::new(&path));
-            if is_poison_path(&path_str) {
-                info!("Poison pill detected at {}. Shutting down.", path_str);
-                return Err(winfsp::FspError::NTSTATUS(STATUS_OBJECT_NAME_NOT_FOUND));
-            }
-
-            Ok(FileSecurity {
-                attributes: 0x80, // FILE_ATTRIBUTE_NORMAL
-                reparse: false,
-                sz_security_descriptor: 0,
-            })
-        }
-
-        fn open(
-            &self,
-            file_name: &winfsp::U16CStr,
+        fn create_file(
+            &'h self,
+            file_name: &U16CStr,
+            _security_context: &dokan_sys::DOKAN_IO_SECURITY_CONTEXT,
+            _desired_access: u32,
+            _file_attributes: u32,
+            _share_access: u32,
+            _create_disposition: u32,
             _create_options: u32,
-            _granted_access: u32,
-            file_info: &mut OpenFileInfo,
-        ) -> winfsp::Result<Self::FileContext> {
-            let path = file_name.to_string_lossy();
-            debug!("open: {:?}", path);
+            #[allow(unused_variables)] _info: &mut OperationInfo<'c, 'h, Self>,
+        ) -> OperationResult<CreateFileInfo<Self::Context>> {
+            let path_str = file_name.to_string_lossy();
+            let path = Path::new(&path_str);
+            // Store the converted string to avoid temporary value
+            let path_str_converted = self.path_to_string(path);
+            let clean_path = Path::new(&path_str_converted);
 
-            let path_str = self.path_to_string(&Path::new(&path));
+            debug!("dokan create_file: {:?}", path_str);
 
             if is_poison_path(&path_str) {
                 info!("Poison pill detected at {}. Shutting down.", path_str);
-                return Err(winfsp::FspError::NTSTATUS(STATUS_OBJECT_NAME_NOT_FOUND));
+                return Err(STATUS_FILE_IS_A_DIRECTORY);
             }
 
-            let ino = self.path_to_inode(Path::new(&path));
-
+            let ino = self.path_to_inode(clean_path);
             let attr = self.runtime.block_on(self.fs.get_attr(&path_str));
 
             match attr {
                 Ok(file_attr) => {
-                    let mut fh_guard = self.next_file_handle.lock().unwrap();
-                    let fh = *fh_guard;
-                    *fh_guard += 1;
+                    let mut next_fh = self.next_file_handle.lock().unwrap();
+                    let fh = *next_fh;
+                    *next_fh += 1;
 
                     self.open_files
-                        .lock()
+                        .write()
                         .unwrap()
-                        .insert(fh, PathBuf::from(&path));
+                        .insert(fh, clean_path.to_path_buf());
 
-                    let fi: &mut FileInfo = file_info.as_mut();
-                    Self::fill_file_info(fi, file_attr.is_dir, file_attr.size, ino);
+                    let context = FileContext {
+                        path: clean_path.to_path_buf(),
+                        inode: ino,
+                    };
 
-                    Ok(fh)
+                    Ok(CreateFileInfo {
+                        context,
+                        is_dir: file_attr.is_dir,
+                        new_file_created: false,
+                    })
                 }
-                Err(_) => Err(winfsp::FspError::NTSTATUS(STATUS_OBJECT_NAME_NOT_FOUND)),
+                Err(_) => Err(STATUS_OBJECT_NAME_NOT_FOUND),
             }
         }
 
-        fn close(&self, context: Self::FileContext) {
-            debug!("close: fh={}", context);
-            self.open_files.lock().unwrap().remove(&context);
+        fn cleanup(
+            &self,
+            _file_name: &U16CStr,
+            _info: &OperationInfo<'c, 'h, Self>,
+            _context: &'c Self::Context,
+        ) {
+            // Nothing special needed for cleanup
         }
 
-        fn get_file_info(
+        fn close_file(
             &self,
-            context: &Self::FileContext,
-            file_info: &mut FileInfo,
-        ) -> winfsp::Result<()> {
-            let path = self.open_files.lock().unwrap().get(context).cloned();
-            if let Some(path) = path {
-                let path_str = self.path_to_string(&path);
-                let ino = self.path_to_inode(&path);
-
-                if let Ok(attr) = self.runtime.block_on(self.fs.get_attr(&path_str)) {
-                    Self::fill_file_info(file_info, attr.is_dir, attr.size, ino);
-                    return Ok(());
-                }
-            }
-            Err(winfsp::FspError::NTSTATUS(STATUS_OBJECT_NAME_NOT_FOUND))
+            _file_name: &U16CStr,
+            _info: &OperationInfo<'c, 'h, Self>,
+            context: &'c Self::Context,
+        ) {
+            debug!("dokan close_file: {:?}", context.path);
+            self.open_files.write().unwrap().remove(&context.inode);
         }
 
-        fn read(
+        fn read_file(
             &self,
-            context: &Self::FileContext,
+            _file_name: &U16CStr,
+            offset: i64,
             buffer: &mut [u8],
-            offset: u64,
-        ) -> winfsp::Result<u32> {
-            let path = self
-                .open_files
-                .lock()
-                .unwrap()
-                .get(context)
-                .cloned()
-                .ok_or(winfsp::FspError::NTSTATUS(STATUS_INVALID_HANDLE))?;
-            let path_str = self.path_to_string(&path);
+            _info: &OperationInfo<'c, 'h, Self>,
+            context: &'c Self::Context,
+        ) -> OperationResult<u32> {
+            let path_str = self.path_to_string(&context.path);
+            let offset_u64 = offset as u64;
 
             debug!(
-                "read: fh={} offset={} size={}",
-                context,
+                "dokan read_file: path={} offset={} size={}",
+                path_str,
                 offset,
                 buffer.len()
             );
@@ -226,7 +185,7 @@ mod winfsp_impl {
             let size = buffer.len() as u32;
             match self
                 .runtime
-                .block_on(self.fs.read_dds(&path_str, offset, size))
+                .block_on(self.fs.read_dds(&path_str, offset_u64, size))
             {
                 Ok(data) => {
                     let len = data.len().min(buffer.len());
@@ -234,101 +193,135 @@ mod winfsp_impl {
                     Ok(len as u32)
                 }
                 Err(e) => {
-                    warn!("read error for {:?}: {:?}", path, e);
-                    Err(winfsp::FspError::NTSTATUS(STATUS_UNSUCCESSFUL))
+                    warn!("dokan read_file error for {:?}: {:?}", context.path, e);
+                    Err(STATUS_UNSUCCESSFUL)
                 }
             }
         }
 
-        fn read_directory(
+        fn find_files(
             &self,
-            context: &Self::FileContext,
-            _pattern: Option<&winfsp::U16CStr>,
-            marker: DirMarker,
-            buffer: &mut [u8],
-        ) -> winfsp::Result<u32> {
-            debug!("read_directory: context={}", context);
-
-            let dir_path = self
-                .open_files
-                .lock()
-                .unwrap()
-                .get(context)
-                .cloned()
-                .unwrap_or_else(|| PathBuf::from("/"));
+            _file_name: &U16CStr,
+            mut fill_find_data: impl FnMut(&FindData) -> dokan::FillDataResult,
+            _info: &OperationInfo<'c, 'h, Self>,
+            context: &'c Self::Context,
+        ) -> OperationResult<()> {
+            let dir_path = &context.path;
             let dir_path_str = dir_path.to_string_lossy().replace('\\', "/");
             let is_root = dir_path_str == "/" || dir_path_str.is_empty();
             let is_textures = dir_path_str.ends_with("/textures");
             let is_terrain = dir_path_str.ends_with("/terrain");
 
-            if marker.is_none() {
-                let lock = self.dir_buffer.acquire(true, None)?;
+            let now = SystemTime::now();
 
-                let add_entry = |name: &str, is_dir: bool, size: u64| -> winfsp::Result<()> {
-                    let mut dir_info = DirInfo::<255>::new();
-                    dir_info
-                        .set_name(name)
-                        .map_err(|_| winfsp::FspError::NTSTATUS(STATUS_UNSUCCESSFUL))?;
-                    let fi = dir_info.file_info_mut();
-                    fi.file_attributes = if is_dir { 0x10 } else { 0x80 };
-                    fi.file_size = size;
-                    fi.allocation_size = (size + 4095) / 4096 * 4096;
-                    lock.write(&mut dir_info)
-                        .map_err(|_| winfsp::FspError::NTSTATUS(STATUS_UNSUCCESSFUL))?;
-                    Ok(())
-                };
+            // Add . and ..
+            let dot = FindData {
+                attributes: winnt::FILE_ATTRIBUTE_DIRECTORY,
+                creation_time: now,
+                last_access_time: now,
+                last_write_time: now,
+                file_size: 0,
+                file_name: U16CString::from_str(".").unwrap(),
+            };
+            if fill_find_data(&dot).is_err() {
+                return Err(STATUS_UNSUCCESSFUL);
+            }
 
-                add_entry(".", true, 4096)?;
-                add_entry("..", true, 4096)?;
+            let dotdot = FindData {
+                attributes: winnt::FILE_ATTRIBUTE_DIRECTORY,
+                creation_time: now,
+                last_access_time: now,
+                last_write_time: now,
+                file_size: 0,
+                file_name: U16CString::from_str("..").unwrap(),
+            };
+            if fill_find_data(&dotdot).is_err() {
+                return Err(STATUS_UNSUCCESSFUL);
+            }
 
-                if is_root {
-                    for dir in VIRTUAL_DIRS {
-                        add_entry(dir, true, 4096)?;
+            if is_root {
+                for dir in VIRTUAL_DIRS {
+                    let data = FindData {
+                        attributes: winnt::FILE_ATTRIBUTE_DIRECTORY,
+                        creation_time: now,
+                        last_access_time: now,
+                        last_write_time: now,
+                        file_size: 0,
+                        file_name: U16CString::from_str(dir).unwrap(),
+                    };
+                    if fill_find_data(&data).is_err() {
+                        return Err(STATUS_UNSUCCESSFUL);
                     }
-                } else if is_textures || is_terrain {
-                    add_entry(MARKER_FILE, false, 0)?;
+                }
+            } else if is_textures || is_terrain {
+                let data = FindData {
+                    attributes: winnt::FILE_ATTRIBUTE_NORMAL,
+                    creation_time: now,
+                    last_access_time: now,
+                    last_write_time: now,
+                    file_size: 0,
+                    file_name: U16CString::from_str(MARKER_FILE).unwrap(),
+                };
+                if fill_find_data(&data).is_err() {
+                    return Err(STATUS_UNSUCCESSFUL);
                 }
             }
 
-            let bytes_read = self.dir_buffer.read(marker, buffer);
-            Ok(bytes_read)
-        }
-
-        fn get_volume_info(&self, out_volume_info: &mut VolumeInfo) -> winfsp::Result<()> {
-            out_volume_info.total_size = 1_000_000_000_000;
-            out_volume_info.free_size = 500_000_000_000;
-            out_volume_info.set_volume_label("AutoOrtho");
-
             Ok(())
         }
-    }
 
-    const STATUS_OBJECT_NAME_COLLISION: i32 = 0xD0000035_u32 as i32;
+        fn get_file_information(
+            &self,
+            _file_name: &U16CStr,
+            _info: &OperationInfo<'c, 'h, Self>,
+            context: &'c Self::Context,
+        ) -> OperationResult<FileInfo> {
+            let path_str = self.path_to_string(&context.path);
 
-    fn try_mount(
-        fs: Arc<DdsFileSystem>,
-        runtime: tokio::runtime::Handle,
-        mountpoint: &Path,
-    ) -> Result<FileSystemHost<AutoOrthoWinFsp>, Box<dyn std::error::Error>> {
-        let winfsp_fs = AutoOrthoWinFsp::new(fs, runtime);
+            if let Ok(attr) = self.runtime.block_on(self.fs.get_attr(&path_str)) {
+                let now = SystemTime::now();
 
-        let mut volume_params = VolumeParams::new();
-        volume_params
-            .sector_size(4096)
-            .sectors_per_allocation_unit(1)
-            .volume_serial_number(0x20260328)
-            .file_info_timeout(1000)
-            .case_sensitive_search(false)
-            .case_preserved_names(true)
-            .unicode_on_disk(true)
-            .persistent_acls(true)
-            .post_cleanup_when_modified_only(true)
-            .filesystem_name("AutoOrtho");
+                return Ok(FileInfo {
+                    attributes: if attr.is_dir {
+                        winnt::FILE_ATTRIBUTE_DIRECTORY
+                    } else {
+                        winnt::FILE_ATTRIBUTE_NORMAL
+                    },
+                    creation_time: now,
+                    last_access_time: now,
+                    last_write_time: now,
+                    file_size: attr.size,
+                    number_of_links: 0,
+                    file_index: context.inode,
+                });
+            }
 
-        let mut host = FileSystemHost::new(volume_params, winfsp_fs)?;
-        let mount_str = mountpoint.to_string_lossy().to_string();
-        host.mount(&mount_str)?;
-        Ok(host)
+            Err(STATUS_OBJECT_NAME_NOT_FOUND)
+        }
+
+        fn get_volume_information(
+            &self,
+            _info: &OperationInfo<'c, 'h, Self>,
+        ) -> OperationResult<VolumeInfo> {
+            Ok(VolumeInfo {
+                name: U16CString::from_str("AutoOrtho").unwrap(),
+                serial_number: 0x12345678,
+                max_component_length: 256,
+                fs_flags: 0,
+                fs_name: U16CString::from_str("Dokan").unwrap(),
+            })
+        }
+
+        fn get_disk_free_space(
+            &self,
+            _info: &OperationInfo<'c, 'h, Self>,
+        ) -> OperationResult<DiskSpaceInfo> {
+            Ok(DiskSpaceInfo {
+                byte_count: 1_000_000_000_000,
+                free_byte_count: 500_000_000_000,
+                available_byte_count: 500_000_000_000,
+            })
+        }
     }
 
     pub fn mount(
@@ -336,62 +329,58 @@ mod winfsp_impl {
         mountpoint: &Path,
         runtime: tokio::runtime::Handle,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        // Initialize WinFSP library (must be called before creating FileSystemHost)
-        let _init = winfsp::winfsp_init().map_err(|e| -> Box<dyn std::error::Error> {
-            format!(
-                "WinFSP not found ({e}). Install WinFSP from: https://github.com/winfsp/winfsp/releases"
-            )
-            .into()
-        })?;
+        // Initialize Dokan library
+        init();
 
+        let handler = AutoOrthoHandler::new(fs, runtime);
         let mount_str = mountpoint.to_string_lossy().to_string();
-        info!("Mounting AutoOrtho at {} using winfsp", mount_str);
+        let mount_cstr = U16CString::from_str(&mount_str)?;
 
-        // Try cleanup before mounting
+        info!("Mounting AutoOrtho at {} using Dokan", mount_str);
+
+        // Cleanup stale mount
         let _ = crate::fuse::platform::cleanup_mount(mountpoint);
         std::thread::sleep(std::time::Duration::from_secs(1));
 
-        // Attempt to mount with retries
-        let mut last_err: Option<Box<dyn std::error::Error>> = None;
-        for attempt in 1..=3 {
-            match try_mount(fs.clone(), runtime.clone(), mountpoint) {
-                Ok(host) => {
-                    info!("AutoOrtho mounted at {}", mount_str);
-                    // Block until unmounted (WinFSP handles this internally)
-                    // The host will unmount when dropped
-                    info!("AutoOrtho unmounted from {}", mount_str);
-                    return Ok(());
-                }
-                Err(e) => {
-                    let err_msg = e.to_string();
-                    if err_msg.contains("0xD0000035")
-                        || err_msg.contains("Object Name already exists")
-                    {
-                        log::warn!(
-                            "Mount collision (attempt {}): {}. Unmounting and retrying...",
-                            attempt,
-                            err_msg
-                        );
-                        last_err = Some(e);
+        let options = MountOptions {
+            flags: MountFlags::empty(),
+            ..Default::default()
+        };
 
-                        // Use FspMountRemove to remove the stale mount point
-                        crate::fuse::platform::cleanup_mount(mountpoint);
+        let mut mounter = FileSystemMounter::new(&handler, &mount_cstr, &options);
 
-                        // Wait for OS to release the name
-                        std::thread::sleep(std::time::Duration::from_secs(2));
-                        continue;
+        // This blocks until unmounted
+        match mounter.mount() {
+            Ok(_filesystem) => {
+                info!("AutoOrtho mounted at {}", mount_str);
+                shutdown();
+                Ok(())
+            }
+            Err(e) => {
+                error!("Failed to mount: {:?}", e);
+                // Check for mount collision
+                if format!("{:?}", e).contains("mount") {
+                    warn!("Mount collision, retrying...");
+                    let _ = crate::fuse::platform::cleanup_mount(mountpoint);
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+                    // Try again
+                    let mut mounter = FileSystemMounter::new(&handler, &mount_cstr, &options);
+                    match mounter.mount() {
+                        Ok(_filesystem) => {
+                            info!("AutoOrtho mounted at {} (retry)", mount_str);
+                            shutdown();
+                            Ok(())
+                        }
+                        Err(e) => {
+                            shutdown();
+                            Err(Box::new(e))
+                        }
                     }
-                    return Err(e);
+                } else {
+                    shutdown();
+                    Err(Box::new(e))
                 }
             }
         }
-
-        Err(last_err.unwrap_or_else(|| {
-            format!(
-                "Failed to mount after 3 attempts. Try manually: fspmount unmount {}",
-                mount_str
-            )
-            .into()
-        }))
     }
 }

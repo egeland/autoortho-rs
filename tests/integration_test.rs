@@ -1,4 +1,5 @@
 use autoortho_lib::config::AutoOrthoConfig;
+#[cfg(feature = "fuse")]
 use autoortho_lib::fuse::DdsPathParser;
 use autoortho_lib::pipeline::dds::{DdsBuilder, DdsFormat};
 use autoortho_lib::pipeline::decode::ImageBuffer;
@@ -26,6 +27,7 @@ fn test_tile_coordinates() {
 }
 
 #[test]
+#[cfg(feature = "fuse")]
 fn test_dds_path_parsing() {
     let parser = DdsPathParser::new();
     let (row, col, maptype, zoom) = parser.parse("/1234_5678_GO2_18.dds").unwrap();
@@ -325,6 +327,7 @@ async fn test_naip_https_url() {
 // --- cleanup_mount integration tests ---
 
 #[test]
+#[cfg(feature = "fuse")]
 fn test_cleanup_mount_nonexistent_path() {
     use autoortho_lib::fuse::platform::cleanup_mount;
     // Use TempDir to derive a guaranteed-nonexistent path (portable across platforms)
@@ -338,6 +341,7 @@ fn test_cleanup_mount_nonexistent_path() {
 }
 
 #[test]
+#[cfg(feature = "fuse")]
 fn test_cleanup_mount_existing_dir() {
     use autoortho_lib::fuse::platform::cleanup_mount;
     let tmp = TempDir::new().unwrap();
@@ -349,6 +353,7 @@ fn test_cleanup_mount_existing_dir() {
 }
 
 #[test]
+#[cfg(feature = "fuse")]
 fn test_cleanup_mount_idempotent() {
     use autoortho_lib::fuse::platform::cleanup_mount;
     let tmp = TempDir::new().unwrap();

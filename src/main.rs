@@ -48,6 +48,7 @@ enum Commands {
         provider: Option<String>,
     },
     /// Mount the filesystem at the specified path
+    #[cfg(feature = "fuse")]
     Mount {
         /// Mount point path (default: from config)
         mountpoint: Option<String>,
@@ -86,6 +87,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             let rt = tokio::runtime::Runtime::new()?;
             return rt.block_on(test_tile_generation(provider_name));
         }
+        #[cfg(feature = "fuse")]
         Commands::Mount { mountpoint } => {
             let config = AutoOrthoConfig::load();
             let config_mount_dir = config.mount_dir().to_string_lossy().into_owned();
@@ -307,6 +309,7 @@ fn start_night_exclusion_monitor(
 
 /// Run with FUSE mount — serves DDS tiles at the mount point.
 async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
+    #[cfg(feature = "fuse")]
     use std::path::Path;
 
     info!(
