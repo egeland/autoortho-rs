@@ -80,7 +80,9 @@ pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::er
         // a valid FSP_MOUNT_DESC from FspMountSet in the same process.
         // Instead, we use Windows APIs to remove the symbolic link/DOS device.
         use std::os::windows::ffi::OsStrExt;
-        use windows::Win32::Storage::FileSystem::{DefineDosDeviceW, DeleteFileW, DDD_REMOVE_DEFINITION};
+        use windows::Win32::Storage::FileSystem::{
+            DDD_REMOVE_DEFINITION, DefineDosDeviceW, DeleteFileW,
+        };
         use windows::Win32::System::SystemInformation::*;
 
         let mount_norm = mount_str.replace('/', "\\");

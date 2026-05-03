@@ -164,6 +164,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "windows")]
     fn test_platform_name_windows() {
         assert_eq!(platform::platform_name(), "Windows (unifuse/WinFsp)");
     }
