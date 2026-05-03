@@ -12,6 +12,8 @@ mod dokan_impl {
         CreateFileInfo, DiskSpaceInfo, FileInfo, FileSystemHandler, FileSystemMounter, FindData,
         MountFlags, MountOptions, OperationInfo, OperationResult, VolumeInfo, init, shutdown,
     };
+    // Use dokan's re-exports of widestring types - these are compatible with dokan's version
+    use dokan::dokan_sys::widestring::{U16CStr, U16CString};
     use log::{debug, error, info, warn};
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};

@@ -81,10 +81,10 @@ libc = { version = "0.2", optional = true }
 
 # Windows: use Dokan (user-mode file system)
 # Using crates.io version (0.3.x) - supports Dokan 1.x and 2.x
+# Note: dokan brings widestring 0.4.x, we don't add our own to avoid version conflict
 [target.'cfg(windows)'.dependencies]
 dokan = { version = "0.3", package = "dokan", optional = true }
 dokan-sys = { version = "0.3", package = "dokan-sys", optional = true }
-widestring = { version = "0.4", optional = true }
 winapi = { version = "0.3", optional = true }
 
 [features]
@@ -94,7 +94,6 @@ fuse = [
   "dep:libc",
   "dep:dokan",
   "dep:dokan-sys",
-  "dep:widestring",
   "dep:winapi",
 ]
 
