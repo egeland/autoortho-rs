@@ -252,7 +252,7 @@ Pre-download tiles for SimBrief flight plans:
 **Symptom:** "Permission denied" errors
 
 **Solutions:**
-1. Install macFUSE/WinFsp properly
+1. Install macFUSE/Dokan2 properly
 2. Grant extension permissions in system settings
 3. Run as standard user (not root)
 

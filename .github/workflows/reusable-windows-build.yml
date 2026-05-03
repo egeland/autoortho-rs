@@ -36,25 +36,22 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Install WinFSP
+      - name: Install Dokany
         run: |
-          Invoke-WebRequest -Uri "https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi" -OutFile winfsp.msi
-          Start-Process -FilePath "msiexec.exe" -ArgumentList "/i winfsp.msi /qn /norestart INSTALLLEVEL=1001" -Wait -NoNewWindow
+          Invoke-WebRequest -Uri "https://github.com/dokan-dev/dokan/releases/download/v1.1.2/DokanSetup_1.1.2.exe" -OutFile DokanSetup.exe
+          Start-Process -FilePath ".\DokanSetup.exe" -ArgumentList "/DOKAN_NO_DESKTOP /DOKAN_SILENT_INSTALL" -Wait -NoNewWindow
 
-          $regPath32 = 'HKLM:\SOFTWARE\WOW6432Node\WinFsp'
-          $regPath64 = 'HKLM:\SOFTWARE\WinFsp'
+          $regPath = 'HKLM:\SOFTWARE\Dokan'
 
-          if (Test-Path $regPath32) {
-              $winFspDir = (Get-ItemProperty -Path $regPath32 -Name InstallDir).InstallDir
-          } elseif (Test-Path $regPath64) {
-              $winFspDir = (Get-ItemProperty -Path $regPath64 -Name InstallDir).InstallDir
+          if (Test-Path $regPath) {
+              $dokanDir = (Get-ItemProperty -Path $regPath -Name InstallPath).InstallPath
           } else {
-              $winFspDir = "C:\Program Files (x86)\WinFsp\"
+              $dokanDir = "C:\Program Files\Dokan\Dokan Library v1.1"
           }
 
-          Write-Host "WinFSP found at: $winFspDir"
-          "WINFSP_DIR=$winFspDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "$winFspDir\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          Write-Host "Dokany found at: $dokanDir"
+          "DOKAN_DIR=$dokanDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "$dokanDir" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -76,7 +73,7 @@ jobs:
         if: ${{ inputs.create-artifact }}
         run: |
           $exePath = "target\${{ inputs.build-mode }}\autoortho.exe"
-          $dllPath = "$env:WINFSP_DIR\bin\winfsp-x64.dll"
+          $dllPath = "$env:DOKAN_DIR\Dokan.dll"
           $zipFile = "autoortho-windows.zip"
           
           Compress-Archive -Path $exePath, $dllPath -DestinationPath $zipFile

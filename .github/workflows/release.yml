@@ -75,24 +75,21 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install WinFSP (Windows)
+      - name: Install Dokany (Windows)
         if: contains(matrix.targets, 'x86_64-pc-windows-msvc')
         run: |
-          Invoke-WebRequest -Uri "https://github.com/winfsp/winfsp/releases/download/v2.1/winfsp-2.1.25156.msi" -OutFile winfsp.msi
-          Start-Process -FilePath "msiexec.exe" -ArgumentList "/i winfsp.msi /qn /norestart INSTALLLEVEL=1001" -Wait -NoNewWindow
-          
-          $regPath32 = 'HKLM:\SOFTWARE\WOW6432Node\WinFsp'
-          $regPath64 = 'HKLM:\SOFTWARE\WinFsp'
-          
-          if (Test-Path $regPath32) {
-              $winFspDir = (Get-ItemProperty -Path $regPath32 -Name InstallDir).InstallDir
-          } elseif (Test-Path $regPath64) {
-              $winFspDir = (Get-ItemProperty -Path $regPath64 -Name InstallDir).InstallDir
+          Invoke-WebRequest -Uri "https://github.com/dokan-dev/dokan/releases/download/v1.1.2/DokanSetup_1.1.2.exe" -OutFile DokanSetup.exe
+          Start-Process -FilePath ".\DokanSetup.exe" -ArgumentList "/DOKAN_NO_DESKTOP /DOKAN_SILENT_INSTALL" -Wait -NoNewWindow
+
+          $regPath = 'HKLM:\SOFTWARE\Dokan'
+
+          if (Test-Path $regPath) {
+              $dokanDir = (Get-ItemProperty -Path $regPath -Name InstallPath).InstallPath
           } else {
-              $winFspDir = "C:\Program Files (x86)\WinFsp\"
+              $dokanDir = "C:\Program Files\Dokan\Dokan Library v1.1"
           }
-          
-          "WINFSP_DIR=$winFspDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          "DOKAN_DIR=$dokanDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
@@ -101,14 +98,14 @@ jobs:
         run: |
           dist build ${{ needs.plan.outputs.tag-flag }} --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json
 
-      - name: Inject WinFSP DLL into Zip (Windows)
+      - name: Inject Dokany DLL into Zip (Windows)
         if: contains(matrix.targets, 'x86_64-pc-windows-msvc')
         run: |
           $zipFile = Get-ChildItem -Path "target/distrib" -Filter "*.zip" -Recurse | Select-Object -First 1 -ExpandProperty FullName
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $zip = [System.IO.Compression.ZipFile]::Open($zipFile, 'Update')
           $prefix = ($zip.Entries | Where-Object { $_.Name -eq 'autoortho.exe' }).FullName -replace 'autoortho\.exe$', ''
-          [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, "$env:WINFSP_DIR\bin\winfsp-x64.dll", "${prefix}winfsp-x64.dll")
+          [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, "$env:DOKAN_DIR\Dokan.dll", "${prefix}Dokan.dll")
           $zip.Dispose()
 
       - id: cargo-dist

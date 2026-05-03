@@ -5,7 +5,7 @@ A pure Rust reimplementation of AutoOrtho for X-Plane satellite scenery, providi
 ## Features
 
 - **Multiple Tile Providers**: Google Maps, Bing Maps, ArcGIS, USGS NAIP, USGS Topo, EOX, Firefly
-- **Cross-Platform FUSE Filesystem**: Linux (libfuse), macOS (macFUSE), Windows (WinFsp)
+- **Cross-Platform FUSE Filesystem**: Linux (libfuse), macOS (macFUSE), Windows (Dokan2)
 - **Real-Time Updates**: Web UI with live flight tracking via WebSocket
 - **Intelligent Caching**: DDS tile disk cache with LRU eviction and zstd compression
 - **Dynamic Zoom**: Altitude-based zoom level adjustment
@@ -40,7 +40,7 @@ A pure Rust reimplementation of AutoOrtho for X-Plane satellite scenery, providi
 
 - `filesystem.rs`: Virtual filesystem operations (getattr, read, listdir)
 - `mount.rs`: Linux/macOS FUSE mounting via unifuse
-- `mount_win.rs`: Windows WinFsp mounting
+- `mount_win.rs`: Windows Dokan2 mounting
 
 **X-Plane Integration** (`src/xplane/`)
 
@@ -106,7 +106,7 @@ chunk_memory_cache_mb = 512
 - Rust 1.75+ (install via [rustup](https://rustup.rs/))
 - **macOS**: macFUSE 4.x (install via Homebrew)
 - **Linux**: libfuse-dev (install via package manager)
-- **Windows**: WinFsp (download from [github.com/winfsp/winfsp](https://github.com/winfsp/winfsp))
+- **Windows**: Dokan2 (download from [github.com/dokan-dev/dokany](https://github.com/dokan-dev/dokany))
 
 ### Build Commands
 
@@ -172,7 +172,7 @@ Runs without GUI, using configuration from config file.
 | Config | config-rs + serde |
 | Error handling | thiserror |
 | Date/time | chrono |
-| Filesystem | unifuse, winfsp |
+| Filesystem | unifuse, dokan |
 | Platform detection | sysinfo |
 
 ## Platform Support
@@ -181,7 +181,7 @@ Runs without GUI, using configuration from config file.
 |----------|------------|--------|
 | macOS | macFUSE | ✅ Tested |
 | Linux | libfuse | ✅ Tested |
-| Windows | WinFsp | ✅ Tested |
+| Windows | Dokan2 | ✅ Tested |
 
 ## Architecture Decisions
 

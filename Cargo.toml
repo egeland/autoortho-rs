@@ -74,12 +74,12 @@ futures-lite = "2.6"
 
 # FUSE support - unifuse provides cross-platform async FUSE (fuse3 on Unix)
 # On Windows, use Dokan (user-mode file system)
-# Note: on Windows, unifuse has compatibility issues, so we use winfsp directly instead
+# Note: on Windows, unifuse has compatibility issues, so we use Dokan directly instead
 [target.'cfg(not(windows))'.dependencies]
 unifuse = { version = "0.1", optional = true }
 libc = { version = "0.2", optional = true }
 
-# Windows: use Dokan (user-mode file system) instead of WinFsp
+# Windows: use Dokan (user-mode file system)
 # Using GitHub version for Dokany 2.3.x support
 [target.'cfg(windows)'.dependencies]
 dokan = { git = "https://github.com/dokan-dev/dokan-rust", package = "dokan", optional = true }
