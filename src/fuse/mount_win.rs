@@ -349,7 +349,7 @@ mod dokan_impl {
         };
 
         // Create an owned copy for the mounter
-        let mount_point: U16CStr = mount_cstr.as_ucstr();
+        let mount_point: &U16CStr = mount_cstr.as_ucstr();
         let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
 
         // This blocks until unmounted
@@ -367,7 +367,7 @@ mod dokan_impl {
                     let _ = crate::fuse::platform::cleanup_mount(mountpoint);
                     std::thread::sleep(std::time::Duration::from_secs(2));
                     // Try again
-                    let mount_point: U16CStr = mount_cstr.as_ucstr();
+                    let mount_point: &U16CStr = mount_cstr.as_ucstr();
                     let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
                     match mounter.mount() {
                         Ok(_filesystem) => {
