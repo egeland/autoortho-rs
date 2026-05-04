@@ -8,9 +8,10 @@ pub use self::dokan_impl::mount;
 mod dokan_impl {
     use crate::fuse::filesystem::DdsFileSystem;
     use crate::fuse::{MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
+    use dokan::FillDataResult;
     use dokan::{
-        CreateFileInfo, DiskSpaceInfo, FileInfo, FileSystemHandler, FileSystemMounter, FindData,
-        MountFlags, MountOptions, OperationInfo, OperationResult, VolumeInfo, init, shutdown,
+        CreateFileInfo, DiskSpaceInfo, Drive, FileInfo, FileSystemHandler, FillData, FindData,
+        MountFlags, OperationInfo, OperationResult, VolumeInfo, init, shutdown,
     };
     use log::{debug, error, info, warn};
     use std::collections::HashMap;
@@ -343,17 +344,13 @@ mod dokan_impl {
         let _ = crate::fuse::platform::cleanup_mount(mountpoint);
         std::thread::sleep(std::time::Duration::from_secs(1));
 
-        let options = MountOptions {
-            flags: MountFlags::empty(),
-            ..Default::default()
-        };
-
-        // Create an owned copy for the mounter
         let mount_point: U16CStr = mount_cstr.as_ucstr();
-        let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
+        let mut drive = Drive::new()
+            .mount_point(&mount_point)
+            .flags(MountFlags::empty());
 
         // This blocks until unmounted
-        match mounter.mount() {
+        match drive.mount(&handler) {
             Ok(_filesystem) => {
                 info!("AutoOrtho mounted at {}", mount_str);
                 shutdown();
@@ -368,8 +365,10 @@ mod dokan_impl {
                     std::thread::sleep(std::time::Duration::from_secs(2));
                     // Try again
                     let mount_point: U16CStr = mount_cstr.as_ucstr();
-                    let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
-                    match mounter.mount() {
+                    let mut drive = Drive::new()
+                        .mount_point(&mount_point)
+                        .flags(MountFlags::empty());
+                    match drive.mount(&handler) {
                         Ok(_filesystem) => {
                             info!("AutoOrtho mounted at {} (retry)", mount_str);
                             shutdown();
