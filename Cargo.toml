@@ -80,11 +80,11 @@ unifuse = { version = "0.1", optional = true }
 libc = { version = "0.2", optional = true }
 
 # Windows: use Dokan (user-mode file system)
-# Using GitHub version with pinned revision
+# Using crates.io version (0.3.x)
 [target.'cfg(windows)'.dependencies]
-dokan = { git = "https://github.com/dokan-dev/dokan-rust", package = "dokan", rev = "ce2ec8565591d21ed5b58f8233e9d81a730823ad", optional = true }
-dokan-sys = { git = "https://github.com/dokan-dev/dokan-rust", package = "dokan-sys", rev = "ce2ec8565591d21ed5b58f8233e9d81a730823ad", optional = true }
-widestring = { version = "1", optional = true }
+dokan = { version = "0.3", package = "dokan", optional = true }
+dokan-sys = { version = "0.3", package = "dokan-sys", optional = true }
+widestring = { version = "0.4", optional = true }
 winapi = { version = "0.3", optional = true }
 
 [features]
