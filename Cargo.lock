@@ -2027,7 +2027,7 @@ dependencies = [
 [[package]]
 name = "dokan"
 version = "0.3.1+dokan230"
-source = "git+https://github.com/dokan-dev/dokan-rust#ce2ec8565591d21ed5b58f8233e9d81a730823ad"
+source = "git+https://github.com/dokan-dev/dokan-rust?rev=ce2ec8565591d21ed5b58f8233e9d81a730823ad#ce2ec8565591d21ed5b58f8233e9d81a730823ad"
 dependencies = [
  "bitflags 2.11.1",
  "dokan-sys",
@@ -2038,7 +2038,7 @@ dependencies = [
 [[package]]
 name = "dokan-sys"
 version = "0.3.1+dokan230"
-source = "git+https://github.com/dokan-dev/dokan-rust#ce2ec8565591d21ed5b58f8233e9d81a730823ad"
+source = "git+https://github.com/dokan-dev/dokan-rust?rev=ce2ec8565591d21ed5b58f8233e9d81a730823ad#ce2ec8565591d21ed5b58f8233e9d81a730823ad"
 dependencies = [
  "cc",
  "libc",
