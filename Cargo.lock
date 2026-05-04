@@ -472,7 +472,7 @@ dependencies = [
  "tower-http",
  "unifuse",
  "uuid",
- "widestring 0.4.3",
+ "widestring",
  "winapi",
  "zip",
  "zstd",
@@ -2026,21 +2026,19 @@ dependencies = [
 
 [[package]]
 name = "dokan"
-version = "0.3.1+dokan206"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2559899e13c4d1c2ad38fa09be2daf9cde88ff4b70495a70ce4aa371b3b3b1a"
+version = "0.3.1+dokan230"
+source = "git+https://github.com/dokan-dev/dokan-rust#ce2ec8565591d21ed5b58f8233e9d81a730823ad"
 dependencies = [
- "bitflags 1.3.2",
+ "bitflags 2.11.1",
  "dokan-sys",
- "widestring 0.4.3",
+ "widestring",
  "winapi",
 ]
 
 [[package]]
 name = "dokan-sys"
-version = "0.3.1+dokan206"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb7e49e8ac8b6867cd04fc1869a54d4bb32b680180ff2f86d695ef1955534668"
+version = "0.3.1+dokan230"
+source = "git+https://github.com/dokan-dev/dokan-rust#ce2ec8565591d21ed5b58f8233e9d81a730823ad"
 dependencies = [
  "cc",
  "libc",
@@ -2937,7 +2935,7 @@ checksum = "68df315d2857b2d8d2898be54a85e1d001bbbe0dbb5f8ef847b48dd3a23c4527"
 dependencies = [
  "cfg-if",
  "nix 0.30.1",
- "widestring 1.2.1",
+ "widestring",
  "windows 0.61.3",
 ]
 
@@ -7914,12 +7912,6 @@ dependencies = [
 
 [[package]]
 name = "widestring"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c168940144dd21fd8046987c16a46a33d5fc84eec29ef9dcddc2ac9e31526b7c"
-
-[[package]]
-name = "widestring"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72069c3113ab32ab29e5584db3c6ec55d416895e60715417b5b883a357c3e471"
@@ -8408,7 +8400,7 @@ dependencies = [
  "paste",
  "static_assertions",
  "thiserror 2.0.18",
- "widestring 1.2.1",
+ "widestring",
  "windows 0.61.3",
  "winfsp-sys",
 ]
