@@ -303,6 +303,7 @@ mod dokan_impl {
             &self,
             _info: &OperationInfo<'c, 'h, Self>,
         ) -> OperationResult<VolumeInfo> {
+            // Use U16CString for owned string since both widestring 0.4 and 1.x support this
             Ok(VolumeInfo {
                 name: U16CString::from_str("AutoOrtho").unwrap(),
                 serial_number: 0x12345678,
@@ -347,7 +348,9 @@ mod dokan_impl {
             ..Default::default()
         };
 
-        let mut mounter = FileSystemMounter::new(&handler, &mount_cstr, &options);
+        // Create an owned copy for the mounter
+        let mount_point: U16CStr = mount_cstr.as_ucstr();
+        let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
 
         // This blocks until unmounted
         match mounter.mount() {
@@ -364,7 +367,8 @@ mod dokan_impl {
                     let _ = crate::fuse::platform::cleanup_mount(mountpoint);
                     std::thread::sleep(std::time::Duration::from_secs(2));
                     // Try again
-                    let mut mounter = FileSystemMounter::new(&handler, &mount_cstr, &options);
+                    let mount_point: U16CStr = mount_cstr.as_ucstr();
+                    let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
                     match mounter.mount() {
                         Ok(_filesystem) => {
                             info!("AutoOrtho mounted at {} (retry)", mount_str);
