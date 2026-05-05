@@ -104,3 +104,34 @@ jobs:
           cargo build --all-features
           ./target/debug/autoortho --help
           ./target/debug/autoortho --version
+
+  release-pr-check:
+    name: Release PR Check
+    runs-on: ubuntu-latest
+    if: ${{ startsWith(github.head_ref, 'release-please') }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Validate Cargo.toml version
+        run: |
+          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\([0-9]\+\.[0-9]\+\.[0-9]\+\)".*/\1/')
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid version format in Cargo.toml: $VERSION"
+            exit 1
+          fi
+          echo "Version validated: $VERSION"
+
+      - name: Check CHANGELOG.md
+        run: |
+          if [ ! -s CHANGELOG.md ]; then
+            echo "CHANGELOG.md is empty or missing"
+            exit 1
+          fi
+          echo "CHANGELOG.md exists and has content"
+
+      - name: Quick build check
+        run: cargo check --all-features
