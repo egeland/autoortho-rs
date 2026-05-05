@@ -1,0 +1,31 @@
+name: Release Please
+
+# Release Please automates releases based on Conventional Commits
+# - Creates/updates a Release PR with version bump + CHANGELOG.md updates
+# - On merge, pushes a vX.Y.Z tag
+# - Tag triggers cargo-dist workflows (release-linux, release-macos, etc.)
+#
+# Unlike release-plz, Release Please NEVER invokes cargo,
+# so it sidesteps the cargo package issue with Windows dokan dependency.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    if: github.repository_owner == 'egeland'
+    steps:
+      - name: Release Please
+        uses: googleapis/release-please-action@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
