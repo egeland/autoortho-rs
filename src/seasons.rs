@@ -36,7 +36,6 @@ impl SeasonalAdjustment {
         }
     }
 
-    /// Check if seasonal adjustment is enabled
     pub fn is_enabled(&self) -> bool {
         self.enabled
     }
