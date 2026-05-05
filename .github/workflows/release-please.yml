@@ -31,6 +31,8 @@ jobs:
           app_id: ${{ secrets.APP_ID }}
           private_key: ${{ secrets.APP_PRIVATE_KEY }}
 
+      - uses: actions/checkout@v6
+
       - name: Release Please
         uses: googleapis/release-please-action@v5
         id: release-please
@@ -45,4 +47,8 @@ jobs:
         run: |
           gh pr merge --auto --merge '${{ steps.release-please.outputs.pr }}'
         env:
+          PR_JSON: ${{ steps.release-please.outputs.pr }}
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
+          gh pr merge --auto --merge "${PR_NUMBER}"
