@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.7.0](https://github.com/egeland/autoortho-rs/compare/v0.6.66...v0.7.0) (2026-05-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* Requires dokan >= 0.3 from crates.io
+
+### Features
+
+* switch from release-plz to release-please (test) ([b726375](https://github.com/egeland/autoortho-rs/commit/b726375a992e1e1392088597d0bef19fb29be21e))
+
+
+### Bug Fixes
+
+* add target-branch to release-please action ([affd55d](https://github.com/egeland/autoortho-rs/commit/affd55d478312f4a42a7b427f27e8bf6d10c17c9))
+* allow release-please workflow to trigger on test branches ([d9dd244](https://github.com/egeland/autoortho-rs/commit/d9dd2447a7455586319343a6171f779b4887956d))
+* specify path for release-please action to find config ([ae16ba8](https://github.com/egeland/autoortho-rs/commit/ae16ba8fc2e4ab02f9ba7c8fb61c9ab2e47525c2))
+* use crates.io dokan API (FileSystemMounter) instead of Drive ([fca561c](https://github.com/egeland/autoortho-rs/commit/fca561c3fd2b0781e2de7f9ac181534b2498db6e))
+* use crates.io dokan instead of git ([#272](https://github.com/egeland/autoortho-rs/issues/272)) ([d5c3cdd](https://github.com/egeland/autoortho-rs/commit/d5c3cdd4d20193da5ef9c9cb3687dca46dc55d36))
+* use dokan crates.io API (Drive builder) instead of old FileSystemMounter ([230fd75](https://github.com/egeland/autoortho-rs/commit/230fd751dafe259c29f08a6c8b185ed2ac059820))
+* use reference type for mount_point ([#277](https://github.com/egeland/autoortho-rs/issues/277)) ([74f35c9](https://github.com/egeland/autoortho-rs/commit/74f35c910ebd240fd9f85bcc153c7e6320c84798))
+
+
+### Miscellaneous
+
+* replace WinFSP with Dokan2 for Windows FUSE ([#271](https://github.com/egeland/autoortho-rs/issues/271)) ([ecc894b](https://github.com/egeland/autoortho-rs/commit/ecc894b949e22560006258b370398da408719453))
+
 ## [0.6.66](https://github.com/egeland/autoortho-rs/compare/v0.6.65...v0.6.66) - 2026-05-03
 
 ### Added
