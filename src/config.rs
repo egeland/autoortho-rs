@@ -349,10 +349,8 @@ impl AutoOrthoConfig {
 
     /// Validate all config fields are within acceptable ranges.
     pub fn validate(&self) -> Result<(), ConfigError> {
-        // Port
         validate_range(self.xplane_port as u64, 1, 65535, "xplane_port")?;
 
-        // Zoom levels
         let min_zoom = self.min_zoom as u64;
         let max_zoom = self.max_zoom as u64;
         validate_range(min_zoom, 0, 21, "min_zoom")?;
