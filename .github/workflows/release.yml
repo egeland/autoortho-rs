@@ -78,18 +78,22 @@ jobs:
       - name: Install Dokany (Windows)
         if: contains(matrix.targets, 'x86_64-pc-windows-msvc')
         run: |
-          Invoke-WebRequest -Uri "https://github.com/dokan-dev/dokan/releases/download/v1.1.2/DokanSetup_1.1.2.exe" -OutFile DokanSetup.exe
-          Start-Process -FilePath ".\DokanSetup.exe" -ArgumentList "/DOKAN_NO_DESKTOP /DOKAN_SILENT_INSTALL" -Wait -NoNewWindow
-
-          $regPath = 'HKLM:\SOFTWARE\Dokan'
-
-          if (Test-Path $regPath) {
-              $dokanDir = (Get-ItemProperty -Path $regPath -Name InstallPath).InstallPath
+          choco install dokany2 -y
+          # Set Dokan library path for dokan-sys
+          $dokanPath = "C:\Program Files\Dokan\Dokan 2.0"
+          if (Test-Path $dokanPath) {
+            "LIB=$dokanPath\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+            "$dokanPath\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            Write-Host "Dokan found at: $dokanPath"
           } else {
-              $dokanDir = "C:\Program Files\Dokan\Dokan Library v1.1"
+            Write-Host "Dokan not found in default path"
+            # Try Chocolatey tools path
+            $chocoPath = "C:\ProgramData\chocolatey\lib\dokany2\tools"
+            if (Test-Path $chocoPath) {
+              "LIB=$chocoPath\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              "$chocoPath\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            }
           }
-
-          "DOKAN_DIR=$dokanDir" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
