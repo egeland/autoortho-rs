@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.1](https://github.com/egeland/autoortho-rs/compare/v0.8.0...v0.8.1) (2026-05-05)
+
+
+### Bug Fixes
+
+* add bootstrap-sha to release-please config to limit commit history parsing ([#300](https://github.com/egeland/autoortho-rs/issues/300)) ([c0c0f8f](https://github.com/egeland/autoortho-rs/commit/c0c0f8f20f3185fb8855c1e11a27a57930612729))
+* handle tag determination in release workflow for manual dispatch ([#297](https://github.com/egeland/autoortho-rs/issues/297)) ([6be08e9](https://github.com/egeland/autoortho-rs/commit/6be08e95bd6b48127f3eeca9811dcc5c8c4a7846))
+* remove duplicate run key in release-please workflow ([#305](https://github.com/egeland/autoortho-rs/issues/305)) ([043cb51](https://github.com/egeland/autoortho-rs/commit/043cb51ccb633d94396800a130d0a02f36db1742))
+* remove redundant comment ([#299](https://github.com/egeland/autoortho-rs/issues/299)) ([44e5bd6](https://github.com/egeland/autoortho-rs/commit/44e5bd6a947a518b00b8272839eed9e091d6f462))
+* simplify release-please workflow to avoid shell parsing errors ([#302](https://github.com/egeland/autoortho-rs/issues/302)) ([4883939](https://github.com/egeland/autoortho-rs/commit/4883939974566462f83771ec70082f84539ed758))
+* simplify release-please workflow to avoid shell parsing errors ([#302](https://github.com/egeland/autoortho-rs/issues/302)) ([#304](https://github.com/egeland/autoortho-rs/issues/304)) ([45c2c6d](https://github.com/egeland/autoortho-rs/commit/45c2c6d93cd7ec845682f44c606107f93d623fde))
+* use --squash for auto-merge in release-please ([#307](https://github.com/egeland/autoortho-rs/issues/307)) ([92f95c8](https://github.com/egeland/autoortho-rs/commit/92f95c83d5e6a7bb40ab6bece1b290fb0cacbd19))
+
+
+### Miscellaneous
+
+* remove redundant comments in config.rs ([#298](https://github.com/egeland/autoortho-rs/issues/298)) ([6f0e4d4](https://github.com/egeland/autoortho-rs/commit/6f0e4d4c6efe67c48c6ce35a29c077574e2e2220))
+
 ## [0.8.0](https://github.com/egeland/autoortho-rs/compare/v0.7.1...v0.8.0) (2026-05-05)
 
 
