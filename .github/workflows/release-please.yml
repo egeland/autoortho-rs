@@ -43,6 +43,7 @@ jobs:
       - name: Enable auto-merge for Release PR
         if: steps.release-please.outputs.pr != ''
         run: |
-          gh pr merge --auto --merge "${{ steps.release-please.outputs.pr }}"
+          PR_NUM="${{ steps.release-please.outputs.pr }}"
+          gh pr merge --auto --merge "$PR_NUM"
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
