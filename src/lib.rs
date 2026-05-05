@@ -22,5 +22,6 @@ pub mod ui;
 pub mod webui;
 pub mod xplane;
 
-/// Library version, kept in sync with Cargo.toml
+/// Library version, kept in sync with Cargo.toml.
+/// This constant is used by the webui and other modules.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
