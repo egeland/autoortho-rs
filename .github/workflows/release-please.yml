@@ -24,10 +24,25 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository_owner == 'egeland'
     steps:
+      - name: Generate GitHub App Token
+        id: app-token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ secrets.APP_ID }}
+          private_key: ${{ secrets.APP_PRIVATE_KEY }}
+
       - name: Release Please
         uses: googleapis/release-please-action@v5
+        id: release-please
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           skip-github-release: true
+      
+      - name: Enable auto-merge for Release PR
+        if: steps.release-please.outputs.pr != ''
+        run: |
+          gh pr merge --auto --merge "${{ steps.release-please.outputs.pr }}"
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
