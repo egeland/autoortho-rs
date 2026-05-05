@@ -39,10 +39,16 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           skip-github-release: true
-      
+
+      - name: Save PR number
+        if: steps.release-please.outputs.pr != ''
+        run: |
+          echo "${{ steps.release-please.outputs.pr }}" > pr_number.txt
+
       - name: Enable auto-merge for Release PR
         if: steps.release-please.outputs.pr != ''
         run: |
-          gh pr merge --auto --merge ${{ steps.release-please.outputs.pr }}
+          PR_NUM=$(cat pr_number.txt)
+          gh pr merge --auto --merge "$PR_NUM"
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
