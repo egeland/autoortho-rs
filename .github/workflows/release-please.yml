@@ -49,4 +49,4 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
-          gh pr merge --auto --merge "${PR_NUMBER}"
+          gh pr merge --auto --squash "${PR_NUMBER}"
