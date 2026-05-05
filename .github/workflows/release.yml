@@ -24,15 +24,40 @@ jobs:
       github.event_name == 'workflow_dispatch'
     outputs:
       val: ${{ steps.plan.outputs.manifest }}
-      tag: ${{ (inputs.tag != 'dry-run' && inputs.tag) || (github.ref_type == 'tag' && github.ref_name) || '' }}
-      tag-flag: ${{ (inputs.tag && inputs.tag != 'dry-run' && format('--tag={0}', inputs.tag)) || (github.ref_type == 'tag' && format('--tag={0}', github.ref_name)) || '' }}
-      publishing: ${{ (inputs.tag && inputs.tag != 'dry-run') || github.ref_type == 'tag' }}
+      tag: ${{ steps.determine_tag.outputs.tag }}
+      tag-flag: ${{ steps.determine_tag.outputs.tag-flag }}
+      publishing: ${{ steps.determine_tag.outputs.publishing }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v6
         with:
           submodules: recursive
+
+      - name: Determine tag
+        id: determine_tag
+        shell: bash
+        run: |
+          if [[ "${{ inputs.tag }}" != "dry-run" && -n "${{ inputs.tag }}" ]]; then
+            # Manual dispatch with a specific tag (not dry-run)
+            TAG="${{ inputs.tag }}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            # Triggered by a tag push
+            TAG="${{ github.ref_name }}"
+          else
+            # For dry-run or other cases, extract version from Cargo.toml
+            VERSION=$(grep '^version' Cargo.toml | head -1 | cut -d'"' -f2)
+            TAG="v${VERSION}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          if [[ -n "${TAG}" && "${TAG}" != "dry-run" ]]; then
+            echo "tag-flag=--tag=${TAG}" >> "$GITHUB_OUTPUT"
+            echo "publishing=true" >> "$GITHUB_OUTPUT"
+          else
+            # For dry-run, we still need a tag-flag for build step, use the version from Cargo.toml
+            echo "tag-flag=--tag=${TAG}" >> "$GITHUB_OUTPUT"
+            echo "publishing=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Install dist
         shell: bash
