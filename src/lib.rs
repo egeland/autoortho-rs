@@ -21,3 +21,6 @@ pub mod time_exclusion;
 pub mod ui;
 pub mod webui;
 pub mod xplane;
+
+/// Library version, kept in sync with Cargo.toml
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");

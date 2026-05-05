@@ -1,3 +1,6 @@
+[![crates.io](https://img.shields.io/crates/v/autoortho_lib.svg)](https://crates.io/crates/autoortho_lib)
+[![crates.io](https://img.shields.io/crates/d/autoortho_lib.svg)](https://crates.io/crates/autoortho_lib)
+
 # AutoOrtho Rust
 
 A pure Rust reimplementation of AutoOrtho for X-Plane satellite scenery, providing high-performance tile-based imagery with cross-platform support.
