@@ -15,7 +15,7 @@ jobs:
   audit:
     name: Audit
     runs-on: ubuntu-latest
-    if: startsWith(github.head_ref, 'release-plz-') == false # no need to redo on releases
+    if: startsWith(github.head_ref, 'release-please') == false # no need to redo on release-please PRs
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
