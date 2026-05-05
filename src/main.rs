@@ -30,7 +30,7 @@ fn init_logger(config: &AutoOrthoConfig) {
 #[derive(Parser)]
 #[command(name = "autoortho")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
-#[command(about = "AutoOrtho - X-Plane satellite scenery", long_about = None)]
+#[command(about = "AutoOrtho - X-Plane satellite scenery manager", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
