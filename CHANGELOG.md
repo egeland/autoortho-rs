@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.1](https://github.com/egeland/autoortho-rs/compare/v0.8.0...v0.8.1) (2026-05-05)
+
+
+### Bug Fixes
+
+* add bootstrap-sha to release-please config to limit commit history parsing ([#300](https://github.com/egeland/autoortho-rs/issues/300)) ([c0c0f8f](https://github.com/egeland/autoortho-rs/commit/c0c0f8f20f3185fb8855c1e11a27a57930612729))
+* handle tag determination in release workflow for manual dispatch ([#297](https://github.com/egeland/autoortho-rs/issues/297)) ([6be08e9](https://github.com/egeland/autoortho-rs/commit/6be08e95bd6b48127f3eeca9811dcc5c8c4a7846))
+* remove redundant comment ([#299](https://github.com/egeland/autoortho-rs/issues/299)) ([44e5bd6](https://github.com/egeland/autoortho-rs/commit/44e5bd6a947a518b00b8272839eed9e091d6f462))
+* simplify release-please workflow to avoid shell parsing errors ([#302](https://github.com/egeland/autoortho-rs/issues/302)) ([4883939](https://github.com/egeland/autoortho-rs/commit/4883939974566462f83771ec70082f84539ed758))
+
+
+### Miscellaneous
+
+* remove redundant comments in config.rs ([#298](https://github.com/egeland/autoortho-rs/issues/298)) ([6f0e4d4](https://github.com/egeland/autoortho-rs/commit/6f0e4d4c6efe67c48c6ce35a29c077574e2e2220))
+
 ## [0.8.0](https://github.com/egeland/autoortho-rs/compare/v0.7.1...v0.8.0) (2026-05-05)
 
 
