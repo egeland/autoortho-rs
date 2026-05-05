@@ -4,7 +4,7 @@ permissions:
 
 on:
   push:
-    # Trigger only on version tags, which release-plz will push once a version is ready.
+    # Trigger only on version tags, which release-please will push once a version is ready.
     tags:
       - "**[0-9]+.[0-9]+.[0-9]+*"
   workflow_dispatch:
