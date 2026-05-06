@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.8.2](https://github.com/egeland/autoortho-rs/compare/v0.8.1...v0.8.2) (2026-05-06)
+
+
+### Bug Fixes
+
+* clarify VERSION constant documentation ([769741e](https://github.com/egeland/autoortho-rs/commit/769741e75dd2eb37dacef86881cf2a4f65fb0a1b))
+* correct tag filter pattern in release workflow to trigger on version tags ([#308](https://github.com/egeland/autoortho-rs/issues/308)) ([7b56bf0](https://github.com/egeland/autoortho-rs/commit/7b56bf062c15f0a9f4ab10ced7a22b3225ae91b3))
+* download Dokan DLL directly from GitHub releases ([#312](https://github.com/egeland/autoortho-rs/issues/312)) ([ab3b824](https://github.com/egeland/autoortho-rs/commit/ab3b8246b447816ad121ad018da1b70e41cbb7f1))
+* download Dokan DLL directly from GitHub releases ([#313](https://github.com/egeland/autoortho-rs/issues/313)) ([20a27f7](https://github.com/egeland/autoortho-rs/commit/20a27f7933996040a752c947b81a1eeab8b1e16a))
+* set DOKAN_DIR in Windows install step to resolve DLL injection failure ([#309](https://github.com/egeland/autoortho-rs/issues/309)) ([d83a68b](https://github.com/egeland/autoortho-rs/commit/d83a68bfa90e19d9d0af21c23fc85c3ce6cf3c1c))
+* streamline VERSION constant documentation ([#314](https://github.com/egeland/autoortho-rs/issues/314)) ([f1e82a9](https://github.com/egeland/autoortho-rs/commit/f1e82a9f339f34a870489083ce0a9de8731c52c8))
+* update to trigger workflow ([#315](https://github.com/egeland/autoortho-rs/issues/315)) ([fa20570](https://github.com/egeland/autoortho-rs/commit/fa205705842347f3a2690762eba2f16b1d243d89))
+* use lib path for Dokan DLL and correct DLL name ([#311](https://github.com/egeland/autoortho-rs/issues/311)) ([0b3d63b](https://github.com/egeland/autoortho-rs/commit/0b3d63bc025e3b28f2a61b8d0a907966aa9f0b1d))
+
 ## [0.8.1](https://github.com/egeland/autoortho-rs/compare/v0.8.0...v0.8.1) (2026-05-05)
 
 
