@@ -224,15 +224,15 @@ jobs:
         run: |
           dist host ${{ needs.plan.outputs.tag-flag }} --steps=upload --steps=release --output-format=json > dist-manifest.json
           echo "manifest=$(jq -c "." dist-manifest.json)" >> "$GITHUB_OUTPUT"
-      - name: Create GitHub Release
+      - name: Complete GitHub Release
         env:
           ANNOUNCEMENT_TITLE: "${{ fromJson(steps.host.outputs.manifest).announcement_title }}"
           ANNOUNCEMENT_BODY: "${{
             fromJson(steps.host.outputs.manifest).announcement_github_body }}"
         run: |
           echo "$ANNOUNCEMENT_BODY" > release_notes.txt
-          gh release create "${{ needs.plan.outputs.tag }}" \
+          gh release edit "${{ needs.plan.outputs.tag }}" \
             --title "$ANNOUNCEMENT_TITLE" \
             --notes-file release_notes.txt \
+            --latest \
             artifacts/*
-

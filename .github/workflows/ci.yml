@@ -19,6 +19,7 @@ jobs:
     name: Format & Lint
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    if: ! startsWith(${{ github.ref_name }}, 'release-please-')
     steps:
       - uses: actions/checkout@v6
 
@@ -52,6 +53,7 @@ jobs:
     needs: check
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
+    if: ! startsWith(${{ github.ref_name }}, 'release-please-')
     strategy:
       fail-fast: false
       matrix:
