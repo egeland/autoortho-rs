@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.6](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.5...autoortho-v0.8.6) (2026-05-06)
+
+
+### Bug Fixes
+
+* split update and edit, make minor edit to trigger release ([#327](https://github.com/egeland/autoortho-rs/issues/327)) ([00ded71](https://github.com/egeland/autoortho-rs/commit/00ded71e6a07623127000c98ca6f3fb2b87fe586))
+
 ## [0.8.5](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.4...autoortho-v0.8.5) (2026-05-06)
 
 
