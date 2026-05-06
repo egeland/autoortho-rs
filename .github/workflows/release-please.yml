@@ -34,14 +34,12 @@ jobs:
       - uses: actions/checkout@v6
 
       - name: Release Please
-        uses: googleapis/release-please-action@v5
+        uses: googleapis/release-please-action@v4
         id: release-please
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
-          skip-github-release: true
-          skip-labeling: true
 
       - name: Enable auto-merge for Release PR
         if: steps.release-please.outputs.pr != ''
