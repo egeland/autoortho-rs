@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.4](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.3...autoortho-v0.8.4) (2026-05-06)
+
+
+### Bug Fixes
+
+* correct tag for workflow trigger ([#323](https://github.com/egeland/autoortho-rs/issues/323)) ([522e4b2](https://github.com/egeland/autoortho-rs/commit/522e4b2c9d2b24820f4e2bb2532de8532d4fe9cb))
+
 ## [0.8.3](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.2...autoortho-v0.8.3) (2026-05-06)
 
 
