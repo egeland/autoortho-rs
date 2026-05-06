@@ -41,6 +41,7 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           skip-github-release: true
+          skip-labeling: true
 
       - name: Enable auto-merge for Release PR
         if: steps.release-please.outputs.pr != ''
