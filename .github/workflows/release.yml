@@ -117,10 +117,20 @@ jobs:
             $chocoPath = "C:\ProgramData\chocolatey\lib\dokany2\tools"
             if (Test-Path $chocoPath) {
               "LIB=$chocoPath\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-              "DOKAN_DIR=$chocoPath\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
               "$chocoPath\lib" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
             }
           }
+
+      - name: Download Dokany DLL for distribution (Windows)
+        if: contains(matrix.targets, 'x86_64-pc-windows-msvc')
+        run: |
+          # Download Dokan DLL directly from GitHub releases (more reliable than chocolatey paths)
+          Invoke-WebRequest -Uri "https://github.com/dokan-dev/dokany/releases/download/v2.3.1.1000/dokan.zip" -OutFile dokan.zip
+          # Extract the x64 Release DLL
+          Expand-Archive -Path dokan.zip -DestinationPath . -Force
+          Copy-Item "x64\Release\dokan2.dll" .
+          Remove-Item dokan.zip -Force -Recurse
+          Write-Host "Downloaded dokan2.dll"
 
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
@@ -136,7 +146,7 @@ jobs:
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $zip = [System.IO.Compression.ZipFile]::Open($zipFile, 'Update')
           $prefix = ($zip.Entries | Where-Object { $_.Name -eq 'autoortho.exe' }).FullName -replace 'autoortho\.exe$', ''
-          [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, "$env:DOKAN_DIR\dokan2.dll", "${prefix}dokan2.dll")
+          [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, "dokan2.dll", "${prefix}dokan2.dll")
           $zip.Dispose()
 
       - id: cargo-dist
