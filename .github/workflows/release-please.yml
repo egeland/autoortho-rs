@@ -3,10 +3,9 @@ name: Release Please
 # Release Please automates releases based on Conventional Commits
 # - Creates/updates a Release PR with version bump + CHANGELOG.md updates
 # - On merge, pushes a vX.Y.Z tag
-# - Tag triggers cargo-dist workflows (release-linux, release-macos, etc.)
+# - Tag triggers cargo-dist workflows (release.yml)
 #
-# Unlike release-plz, Release Please NEVER invokes cargo,
-# so it sidesteps the cargo package issue with Windows dokan dependency.
+# Uses GITHUB_TOKEN (simpler than GitHub App)
 
 on:
   push:
@@ -16,7 +15,6 @@ on:
 
 permissions:
   contents: write
-  issues: write
   pull-requests: write
 
 jobs:
@@ -24,13 +22,6 @@ jobs:
     runs-on: ubuntu-latest
     if: github.repository_owner == 'egeland'
     steps:
-      - name: Generate GitHub App Token
-        id: app-token
-        uses: tibdex/github-app-token@v2
-        with:
-          app_id: ${{ secrets.APP_ID }}
-          private_key: ${{ secrets.APP_PRIVATE_KEY }}
-
       - uses: actions/checkout@v6
 
       - name: Release Please
@@ -45,7 +36,7 @@ jobs:
         if: steps.release-please.outputs.pr != ''
         env:
           PR_JSON: ${{ steps.release-please.outputs.pr }}
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
           gh pr merge --auto --squash "${PR_NUMBER}"
