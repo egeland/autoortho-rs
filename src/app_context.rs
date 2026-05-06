@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
-// Copyright (c) 2024 the AutoOrtho contributors
+// Copyright (c) 2024-2026 the AutoOrtho contributors
 
 use parking_lot::{Mutex, RwLock};
 use std::error::Error;
