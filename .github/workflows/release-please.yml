@@ -28,7 +28,7 @@ jobs:
         uses: googleapis/release-please-action@v4
         id: release-please
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.RELEASE_TOKEN }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
@@ -36,7 +36,7 @@ jobs:
         if: steps.release-please.outputs.pr != ''
         env:
           PR_JSON: ${{ steps.release-please.outputs.pr }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
           PR_NUMBER=$(printf '%s' "$PR_JSON" | jq -r '.number')
           gh pr merge --auto --squash "${PR_NUMBER}"
