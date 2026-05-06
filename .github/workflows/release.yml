@@ -6,7 +6,7 @@ on:
   push:
     # Trigger only on version tags, which release-please will push once a version is ready.
     tags:
-      - "v[0-9]*.[0-9]*.[0-9]*"
+      - "autoortho-v[0-9]*.[0-9]*.[0-9]*"
   workflow_dispatch:
     inputs:
       tag:
@@ -61,7 +61,9 @@ jobs:
 
       - name: Install dist
         shell: bash
-        run: "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/axodotdev/cargo-dist/releases/download/v0.31.0/cargo-dist-installer.sh | sh"
+        run: "curl --proto '=https' --tlsv1.2 -LsSf
+          https://github.com/axodotdev/cargo-dist/releases/download/v0.31.0/car\
+          go-dist-installer.sh | sh"
 
       - name: Cache dist
         uses: actions/upload-artifact@v7
@@ -83,7 +85,8 @@ jobs:
   build-local-artifacts:
     name: build-local-artifacts (${{ join(matrix.targets, ', ') }})
     needs: plan
-    if: ${{ fromJson(needs.plan.outputs.val).ci.github.artifacts_matrix.include != null }}
+    if: ${{ fromJson(needs.plan.outputs.val).ci.github.artifacts_matrix.include !=
+      null }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.plan.outputs.val).ci.github.artifacts_matrix }}
@@ -198,7 +201,8 @@ jobs:
 
   host:
     needs: [plan, build-local-artifacts, build-global-artifacts]
-    if: ${{ always() && needs.plan.result == 'success' && needs.plan.outputs.publishing == 'true' }}
+    if: ${{ always() && needs.plan.result == 'success' &&
+      needs.plan.outputs.publishing == 'true' }}
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -223,10 +227,12 @@ jobs:
       - name: Create GitHub Release
         env:
           ANNOUNCEMENT_TITLE: "${{ fromJson(steps.host.outputs.manifest).announcement_title }}"
-          ANNOUNCEMENT_BODY: "${{ fromJson(steps.host.outputs.manifest).announcement_github_body }}"
+          ANNOUNCEMENT_BODY: "${{
+            fromJson(steps.host.outputs.manifest).announcement_github_body }}"
         run: |
           echo "$ANNOUNCEMENT_BODY" > release_notes.txt
           gh release create "${{ needs.plan.outputs.tag }}" \
             --title "$ANNOUNCEMENT_TITLE" \
             --notes-file release_notes.txt \
             artifacts/*
+
