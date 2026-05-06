@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.5](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.4...autoortho-v0.8.5) (2026-05-06)
+
+
+### Bug Fixes
+
+* only run checks and tests on branches, not tags ([#325](https://github.com/egeland/autoortho-rs/issues/325)) ([020479b](https://github.com/egeland/autoortho-rs/commit/020479b4674d8c28e11cec7c22822f5860b0f6fa))
+
 ## [0.8.4](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.3...autoortho-v0.8.4) (2026-05-06)
 
 
