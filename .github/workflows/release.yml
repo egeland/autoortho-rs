@@ -117,8 +117,8 @@ jobs:
             $chocoPath = "C:\ProgramData\chocolatey\lib\dokany2\tools"
             if (Test-Path $chocoPath) {
               "LIB=$chocoPath\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-              "DOKAN_DIR=$chocoPath\bin" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-              "$chocoPath\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+              "DOKAN_DIR=$chocoPath\lib" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+              "$chocoPath\lib" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
             }
           }
 
@@ -136,7 +136,7 @@ jobs:
           Add-Type -AssemblyName System.IO.Compression.FileSystem
           $zip = [System.IO.Compression.ZipFile]::Open($zipFile, 'Update')
           $prefix = ($zip.Entries | Where-Object { $_.Name -eq 'autoortho.exe' }).FullName -replace 'autoortho\.exe$', ''
-          [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, "$env:DOKAN_DIR\Dokan.dll", "${prefix}Dokan.dll")
+          [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, "$env:DOKAN_DIR\dokan2.dll", "${prefix}dokan2.dll")
           $zip.Dispose()
 
       - id: cargo-dist
