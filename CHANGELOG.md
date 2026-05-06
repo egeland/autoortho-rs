@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.8.3](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.2...autoortho-v0.8.3) (2026-05-06)
+
+
+### Bug Fixes
+
+* add last-release-sha to resolve release-please abort issue ([cecbbd8](https://github.com/egeland/autoortho-rs/commit/cecbbd84287131442eefec6cd2a4f3d691baa5ea))
+* release-please and CI workflow fixes ([#320](https://github.com/egeland/autoortho-rs/issues/320)) ([7c42c49](https://github.com/egeland/autoortho-rs/commit/7c42c49f2491dc06700a5ee6e6ea959213c295b6))
+* test release-please trigger with trivial change ([#319](https://github.com/egeland/autoortho-rs/issues/319)) ([c019355](https://github.com/egeland/autoortho-rs/commit/c019355e8a33b19888cdf960bb6f39921f84458b))
+* trigger a build ([#317](https://github.com/egeland/autoortho-rs/issues/317)) ([009f80e](https://github.com/egeland/autoortho-rs/commit/009f80e2f6e201226e2ca1ffb6e660d146d34471))
+* update copyright year in altitude_predictor.rs ([#318](https://github.com/egeland/autoortho-rs/issues/318)) ([e41fc20](https://github.com/egeland/autoortho-rs/commit/e41fc20faa270ac8a5d55cadecbfe6112fb53065))
+* use RELEASE_TOKEN ([#321](https://github.com/egeland/autoortho-rs/issues/321)) ([f838301](https://github.com/egeland/autoortho-rs/commit/f8383017127a70719c51ce044e407d0849c72c83))
+
+
+### Miscellaneous
+
+* add skip-labeling to release-please to reduce confusion ([68ab803](https://github.com/egeland/autoortho-rs/commit/68ab803e47586903424dbb47697a99ba142b4637))
+* test release-please after tag re-creation ([4d0eca7](https://github.com/egeland/autoortho-rs/commit/4d0eca7b32f4d28d9376e4d4e6a1c4f8560e4aca))
+* test release-please after tag recreation ([1f9fd40](https://github.com/egeland/autoortho-rs/commit/1f9fd4053f184bce86c9a0e74c25e441c7fedca8))
+* update copyright year in config.rs ([e940eb0](https://github.com/egeland/autoortho-rs/commit/e940eb082006f20c7cc4cca76787b8df598f02fa))
+* update copyright year range in config.rs ([1938c93](https://github.com/egeland/autoortho-rs/commit/1938c934f262e0a74440540a34d4681bc8b76ae9))
+* use separate-pull-requests to avoid conflict with old pr ([6bc86f4](https://github.com/egeland/autoortho-rs/commit/6bc86f48e2508994b4b809ca78fd42353ed5cba8))
+
 ## [0.8.2](https://github.com/egeland/autoortho-rs/compare/v0.8.1...v0.8.2) (2026-05-06)
 
 
