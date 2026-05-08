@@ -212,8 +212,10 @@ mod dokan_impl {
             let is_textures = dir_path_str.ends_with("/textures");
             let is_terrain = dir_path_str.ends_with("/terrain");
 
-            debug!("dokan find_files: path={} is_root={} is_textures={} is_terrain={}",
-                   dir_path_str, is_root, is_textures, is_terrain);
+            debug!(
+                "dokan find_files: path={} is_root={} is_textures={} is_terrain={}",
+                dir_path_str, is_root, is_textures, is_terrain
+            );
 
             let now = SystemTime::now();
 
@@ -256,7 +258,10 @@ mod dokan_impl {
                         file_name: U16CString::from_str(dir).unwrap(),
                     };
                     if fill_find_data(&data).is_err() {
-                        debug!("dokan find_files: failed to add virtual directory '{}'", dir);
+                        debug!(
+                            "dokan find_files: failed to add virtual directory '{}'",
+                            dir
+                        );
                         return Err(STATUS_UNSUCCESSFUL);
                     }
                 }
@@ -271,14 +276,23 @@ mod dokan_impl {
                     file_name: U16CString::from_str(MARKER_FILE).unwrap(),
                 };
                 if fill_find_data(&data).is_err() {
-                    debug!("dokan find_files: failed to add marker file '{}'", MARKER_FILE);
+                    debug!(
+                        "dokan find_files: failed to add marker file '{}'",
+                        MARKER_FILE
+                    );
                     return Err(STATUS_UNSUCCESSFUL);
                 }
             } else {
-                debug!("dokan find_files: not root or virtual directory, dir_path={}", dir_path_str);
+                debug!(
+                    "dokan find_files: not root or virtual directory, dir_path={}",
+                    dir_path_str
+                );
             }
 
-            debug!("dokan find_files: completed successfully for path={}", dir_path_str);
+            debug!(
+                "dokan find_files: completed successfully for path={}",
+                dir_path_str
+            );
             Ok(())
         }
 
