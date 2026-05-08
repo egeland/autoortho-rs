@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
 // Copyright (c) 2026 the AutoOrtho-RS contributors
 
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use autoortho_lib::app_context::AppContext;
 use autoortho_lib::config::{AutoOrthoConfig, ConfigSnapshot};
 use autoortho_lib::dynamic_zoom::DynamicZoom;
@@ -8,23 +10,60 @@ use autoortho_lib::tiles::fetcher::TileFetcher;
 use autoortho_lib::tiles::prefetch::{RoutePrefetchConfig, SpatialPrefetcher};
 use autoortho_lib::tiles::provider::ProviderFactory;
 use clap::{Parser, Subcommand};
-use log::{info, warn};
 use parking_lot::RwLock;
 use std::error::Error;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::broadcast;
+use tracing::{info, warn};
+use tracing_appender::rolling;
+use tracing_subscriber::{
+    fmt,
+    layer::{Layer, SubscriberExt},
+};
 
-/// Initialize logger: RUST_LOG env var overrides config setting
-fn init_logger(config: &AutoOrthoConfig) {
-    let env = env_logger::Env::default();
+/// Get platform-appropriate log directory
+fn get_log_dir() -> PathBuf {
+    dirs::data_local_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("autoortho")
+}
 
-    // If RUST_LOG is set, it overrides config
-    if std::env::var("RUST_LOG").is_ok() {
-        env_logger::Builder::from_env(env).init();
+/// Initialize logger with file output using tracing
+fn init_logger(
+    config: &AutoOrthoConfig,
+) -> Result<tracing_appender::non_blocking::WorkerGuard, Box<dyn std::error::Error>> {
+    // Bridge log macros to tracing
+    tracing_log::LogTracer::init().map_err(|e| e.to_string())?;
+
+    let log_dir = get_log_dir();
+    std::fs::create_dir_all(&log_dir)?;
+
+    let file_appender: tracing_appender::rolling::RollingFileAppender =
+        match config.log_rotation.as_str() {
+            "hourly" => rolling::hourly(log_dir, "autoortho"),
+            "never" => rolling::never(log_dir, "autoortho"),
+            _ => rolling::daily(log_dir, "autoortho"),
+        };
+
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+
+    let level = if config.debug_mode {
+        tracing::Level::DEBUG
     } else {
-        let default_filter = if config.debug_mode { "debug" } else { "info" };
-        env_logger::Builder::from_env(env.default_filter_or(default_filter)).init();
-    }
+        tracing::Level::INFO
+    };
+
+    let fmt_layer = fmt::layer()
+        .with_writer(non_blocking)
+        .with_filter(tracing_subscriber::filter::LevelFilter::from_level(level));
+
+    let subscriber = tracing_subscriber::registry().with(fmt_layer);
+
+    tracing::subscriber::set_global_default(subscriber)?;
+
+    tracing::info!("Logger initialized, log_rotation={}", config.log_rotation);
+    Ok(guard)
 }
 
 #[derive(Parser)]
@@ -60,7 +99,7 @@ enum Commands {
 fn main() -> Result<(), Box<dyn Error>> {
     // Initialize logger: RUST_LOG env var overrides config setting
     let config = AutoOrthoConfig::load();
-    init_logger(&config);
+    let _log_guard = init_logger(&config)?;
 
     let cli = Cli::parse();
 
