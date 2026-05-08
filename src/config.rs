@@ -137,6 +137,17 @@ fn validate_f32_range(value: f32, min: f32, max: f32, field: &str) -> Result<(),
     Ok(())
 }
 
+/// Validate log_rotation is a valid value.
+fn validate_log_rotation(rotation: &str) -> Result<(), ConfigError> {
+    match rotation {
+        "daily" | "hourly" | "never" => Ok(()),
+        _ => Err(ConfigError::FieldInvalid {
+            field: "log_rotation".to_string(),
+            message: "must be 'daily', 'hourly', or 'never'".to_string(),
+        }),
+    }
+}
+
 /// A zoom rule: at or above this AGL altitude, use this zoom level.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct ZoomRule {
@@ -229,6 +240,8 @@ pub struct AutoOrthoConfig {
     pub rate_limit: RateLimitConfig,
     #[serde(default)]
     pub debug_mode: bool,
+    #[serde(default = "default_log_rotation")]
+    pub log_rotation: String, // "daily", "hourly", "never"
 }
 
 fn default_ui_scale() -> f64 {
@@ -297,6 +310,10 @@ fn default_dds_memory_cache_mb() -> u64 {
 
 fn default_chunk_memory_cache_mb() -> u64 {
     512
+}
+
+fn default_log_rotation() -> String {
+    "daily".to_string()
 }
 
 fn default_xplane_path() -> String {
@@ -430,6 +447,9 @@ impl AutoOrthoConfig {
         // Rate limit config
         self.rate_limit.validate()?;
 
+        // Log rotation
+        validate_log_rotation(&self.log_rotation)?;
+
         // Zoom rules
         for (i, rule) in self.zoom_rules.iter().enumerate() {
             if rule.zoom_level > 21 {
@@ -498,6 +518,7 @@ impl Default for AutoOrthoConfig {
             fallback: FallbackConfig::default(),
             rate_limit: RateLimitConfig::default(),
             debug_mode: default_debug_mode(),
+            log_rotation: default_log_rotation(),
         }
     }
 }
@@ -735,6 +756,29 @@ mod tests {
     fn test_config_validate_invalid_zoom() {
         let mut config = AutoOrthoConfig::default();
         config.min_zoom = 25;
+        assert!(config.validate().is_err());
+    }
+
+    #[test]
+    fn test_config_validate_log_rotation_valid() {
+        let mut config = AutoOrthoConfig::default();
+        config.log_rotation = "daily".to_string();
+        assert!(config.validate().is_ok());
+
+        config.log_rotation = "hourly".to_string();
+        assert!(config.validate().is_ok());
+
+        config.log_rotation = "never".to_string();
+        assert!(config.validate().is_ok());
+    }
+
+    #[test]
+    fn test_config_validate_log_rotation_invalid() {
+        let mut config = AutoOrthoConfig::default();
+        config.log_rotation = "invalid".to_string();
+        assert!(config.validate().is_err());
+
+        config.log_rotation = "weekly".to_string();
         assert!(config.validate().is_err());
     }
 
