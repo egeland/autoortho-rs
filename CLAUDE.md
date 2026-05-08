@@ -1,7 +1,69 @@
+# Global Claude Agent Instructions
+
+## Coding Conventions
+
+- Prefer Rust
+- Format: `cargo fmt` pre-commit
+- Lint: `cargo clippy` pre-commit
+- TDD: 1 test → run → implement → pass → repeat
+- No batching: 1 test/code change at a time
+- Deep functions, clear interfaces, unit-testable
+- Tests pass before commit
+
+## Safety Rules
+
+- Confirm destructive ops: `rm`, overwrites
+
+## Response Preferences
+
+- Code/config: accurate. Non-code: terse.
+- Ultra-terse: fragments > sentences.
+- Honest, direct.
+- Challenge user if wrong.
+- No chatter. Accuracy first.
+
+## Tool Preferences
+
+- Prefer `fd` > `find`, `rg` > `grep -r`
+
+## Git Preferences
+
+- No clone unless requested; use local repos.
+- GitHub: SSH, YubiKey SSH keys require user unlock.
+- Main branch start: branch/worktree via `wt switch --create` (not `git worktree`).
+- Non-git GitHub ops: `gh` CLI.
+- Post-merge: `gh poi` clean branches.
+
+## Planning
+
+- User plans: interview per aspect, walk design tree, resolve deps sequentially.
+- One question at a time, give recommended answer + evidence.
+- Check codebase first for answers.
+- Research options to ≥95% certainty, cite evidence.
+- In git repos: maintain PLAN.md; otherwise ask if needed.
+
+## Project-Specific Details
+
+### Logging
+
+- **Stack**: We use the `tracing` ecosystem (`tracing`, `tracing-subscriber`, `tracing-appender`, `tracing-log`).
+- `env_logger` has been removed.
+- **File Logging**: Logs go to a file (not stdout/stderr) via `tracing-appender`.
+  - Configured in `src/main.rs` via `init_logger()`.
+  - Log rotation is set in `config.toml` via `log_rotation` ("daily", "hourly", "never").
+- **Windows Behavior**: Release builds use `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`.
+  - No console window appears in release GUI mode.
+  - Debug builds retain the console for development.
+
+### Lessons Learned
+
+- **Release Completion**: A release isn't complete when the GitHub Release tag is created. It's only done when the `release.yml` workflow (which compiles binaries for Linux/macOS/Windows and uploads them) completes successfully.
+- **Windows Subsystem**: `cfg_attr` is compile-time only. Runtime console toggle needs `hide_console` crate or WinAPI `FreeConsole`.
+
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoortho-rs** (2438 symbols, 4914 relationships, 158 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoortho-rs** (2452 symbols, 4968 relationships, 170 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 

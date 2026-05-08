@@ -91,6 +91,9 @@ cache_dir = "~/.cache/autoortho"
 enable_night_exclusion = true
 season = "Disabled"
 
+[logging]
+log_rotation = "daily"  # Options: "daily", "hourly", "never"
+
 [fallback]
 level = "Cache"
 max_zoom_gap = 4
@@ -147,8 +150,18 @@ Runs without GUI, using configuration from config file.
 
 ### Environment Variables
 
-- `RUST_LOG`: Set log level (e.g., `RUST_LOG=debug`)
+- `RUST_LOG`: Set log level via tracing EnvFilter (e.g., `RUST_LOG=debug`)
 - `RUST_BACKTRACE`: Enable backtraces (set to `1`)
+
+### Log Files
+
+Logs are written to a file by default (not stdout/stderr):
+
+- **Linux**: `~/.local/share/autoortho/autoortho.log`
+- **macOS**: `~/Library/Application Support/autoortho/autoortho.log`
+- **Windows**: `%LOCALAPPDATA%\autoortho\autoortho.log`
+
+Rotation is configured via `log_rotation` in `config.toml`.
 
 ## Test Coverage
 
@@ -177,6 +190,7 @@ Runs without GUI, using configuration from config file.
 | Date/time | chrono |
 | Filesystem | unifuse, dokan |
 | Platform detection | sysinfo |
+| Logging | tracing, tracing-subscriber, tracing-appender |
 
 ## Platform Support
 
@@ -185,6 +199,8 @@ Runs without GUI, using configuration from config file.
 | macOS | macFUSE | ✅ Tested |
 | Linux | libfuse | ✅ Tested |
 | Windows | Dokan2 | ✅ Tested |
+
+**Windows GUI Note**: Release builds (`--release`) use `windows_subsystem = "windows"` and will not show a console window. Debug builds retain the console for development. Logs are written to `%LOCALAPPDATA%\autoortho\autoortho.log`.
 
 ## Architecture Decisions
 
