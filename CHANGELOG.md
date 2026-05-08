@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.8](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.7...autoortho-v0.8.8) (2026-05-08)
+
+
+### Features
+
+* use tracing for file-based logging with configurable rotation ([#331](https://github.com/egeland/autoortho-rs/issues/331)) ([16fa273](https://github.com/egeland/autoortho-rs/commit/16fa2737b341b37eda70dcb30ea950afa0ac6462))
+
 ## [0.8.7](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.6...autoortho-v0.8.7) (2026-05-08)
 
 
