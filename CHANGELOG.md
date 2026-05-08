@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.7](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.6...autoortho-v0.8.7) (2026-05-08)
+
+
+### Bug Fixes
+
+* add debug logging to dokan find_files for troubleshooting ([#329](https://github.com/egeland/autoortho-rs/issues/329)) ([d574fea](https://github.com/egeland/autoortho-rs/commit/d574feac5777e4abec7d1d4d9fa7b681d7d8bc19))
+
 ## [0.8.6](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.5...autoortho-v0.8.6) (2026-05-06)
 
 
