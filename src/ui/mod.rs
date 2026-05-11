@@ -1734,6 +1734,9 @@ pub fn run(runtime: tokio::runtime::Runtime) -> iced::Result {
 fn boot() -> (AutoOrthoApp, Task<Message>) {
     let mut app = AutoOrthoApp::new();
 
+    // Run one-time migration of scenery files from old location
+    app.state.run_startup_migration();
+
     // Auto-refresh scenery list on startup
     app.state.scenery_refreshing = true;
     app.state.scenery_status = Some("Loading available scenery packs...".to_string());

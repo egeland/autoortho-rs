@@ -224,10 +224,16 @@ mod tests {
         let mut state = AppState::new();
         let old_data_dir = state.scenery_data_dir.clone();
 
-        handle_set_xplane_path(&mut state, "/test/path".to_string());
+        let xplane_path = "/test/path";
+        let expected_install = std::path::Path::new(xplane_path).join("Custom Scenery");
 
-        assert_eq!(state.config.xplane_path, "/test/path");
-        assert_eq!(state.scenery_install_dir, "/test/path/Custom Scenery");
+        handle_set_xplane_path(&mut state, xplane_path.to_string());
+
+        assert_eq!(state.config.xplane_path, xplane_path);
+        assert_eq!(
+            state.scenery_install_dir,
+            expected_install.to_string_lossy()
+        );
         // scenery_data_dir is based on cache_dir, not xplane_path
         assert_eq!(state.scenery_data_dir, old_data_dir);
     }

@@ -82,14 +82,18 @@ fn find_dokanctl() -> Option<std::path::PathBuf> {
         }
     }
 
-    // Try to find via PATH
+    // Try to find via PATH; take first line in case of multiple matches
     if let Ok(output) = std::process::Command::new("where")
         .arg("dokanctl.exe")
         .output()
     {
         if output.status.success() {
-            let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !path_str.is_empty() {
+            let first_line = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty());
+            if let Some(path_str) = first_line {
                 return Some(std::path::PathBuf::from(path_str));
             }
         }
@@ -123,7 +127,7 @@ pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::er
         }
 
         // Fallback: try dokanctl.exe /u (Dokan's command-line tool)
-        if let Ok(path) = find_dokanctl() {
+        if let Some(path) = find_dokanctl() {
             if std::process::Command::new(&path)
                 .args(["/u", &mount_str])
                 .status()

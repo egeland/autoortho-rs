@@ -11,7 +11,7 @@ mod dokan_impl {
     use dokan::{
         CreateFileInfo, DiskSpaceInfo, FileInfo, FileSystemHandler, FileSystemMountError,
         FileSystemMounter, FindData, MountFlags, MountOptions, OperationInfo, OperationResult,
-        VolumeInfo, init, shutdown, unmount,
+        VolumeInfo, init, shutdown,
     };
     use log::{debug, error, info, warn};
     use std::collections::HashMap;
