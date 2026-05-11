@@ -56,32 +56,19 @@ impl AppContext {
             None
         };
 
-        let fs = if let Some(dc) = dds_cache.clone() {
+        let fs = {
             #[cfg(feature = "fuse")]
             {
-                Arc::new(DdsFileSystem::with_disk_cache_and_custom_map(
-                    fetcher.clone(),
-                    dc,
-                    custom_map.clone(),
-                    &config.tile_provider,
-                    dds_cache_entries,
-                ))
-            }
-            #[cfg(not(feature = "fuse"))]
-            {
-                // Dummy value when fuse is not enabled
-                // We need to return something that compiles
-                panic!("DdsFileSystem requires fuse feature");
-            }
-        } else {
-            #[cfg(feature = "fuse")]
-            {
-                Arc::new(DdsFileSystem::new_with_custom_map(
-                    fetcher.clone(),
-                    custom_map.clone(),
-                    &config.tile_provider,
-                    dds_cache_entries,
-                ))
+                let mut builder = DdsFileSystem::builder(fetcher.clone(), &config.tile_provider)
+                    .cache_entries(dds_cache_entries)
+                    .custom_map(custom_map.clone())
+                    .root(config.scenery_data_dir());
+
+                if let Some(dc) = dds_cache.clone() {
+                    builder = builder.disk_cache(dc);
+                }
+
+                Arc::new(builder.build())
             }
             #[cfg(not(feature = "fuse"))]
             {

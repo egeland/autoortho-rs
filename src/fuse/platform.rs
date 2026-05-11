@@ -65,6 +65,43 @@ pub fn platform_name() -> &'static str {
     }
 }
 
+/// Find the dokanctl.exe utility, which is typically installed alongside the Dokan library.
+#[cfg(windows)]
+fn find_dokanctl() -> Option<std::path::PathBuf> {
+    // Common Dokan installation paths
+    let candidates = vec![
+        std::path::PathBuf::from(r"C:\Program Files\Dokan\DokanLibrary\dokanctl.exe"),
+        std::path::PathBuf::from(r"C:\Program Files (x86)\Dokan\DokanLibrary\dokanctl.exe"),
+        std::path::PathBuf::from(r"C:\Program Files\Dokan2\dokanctl.exe"),
+        std::path::PathBuf::from(r"C:\Program Files (x86)\Dokan2\dokanctl.exe"),
+    ];
+
+    for path in &candidates {
+        if path.exists() {
+            return Some(path.clone());
+        }
+    }
+
+    // Try to find via PATH; take first line in case of multiple matches
+    if let Ok(output) = std::process::Command::new("where")
+        .arg("dokanctl.exe")
+        .output()
+    {
+        if output.status.success() {
+            let first_line = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .next()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty());
+            if let Some(path_str) = first_line {
+                return Some(std::path::PathBuf::from(path_str));
+            }
+        }
+    }
+
+    None
+}
+
 /// Check if the platform requires a kernel extension or driver for FUSE.
 pub fn requires_driver_install() -> bool {
     // macOS requires macFUSE kext, Windows requires Dokan driver
@@ -80,19 +117,24 @@ pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::er
 
     #[cfg(windows)]
     {
-        // Dokan uses 'dokan unmount' or we can let the mount handle cleanup
-        // Try to remove stale Dokan mount point via command line
-        if std::process::Command::new("dokan")
-            .args(["unmount", &mount_str])
-            .status()
-            .is_ok_and(|s| s.success())
-        {
-            log::info!(
-                "Successfully removed stale Dokan mount point: {}",
-                mount_str
-            );
-        } else {
-            log::debug!("Dokan unmount failed or not mounted");
+        // Try Dokan library's unmount function first
+        if let Ok(mount_wide) = widestring::U16CString::from_str(&mount_str) {
+            if dokan::unmount(&mount_wide) {
+                log::info!("Successfully unmounted stale Dokan mount: {}", mount_str);
+            } else {
+                log::debug!("Dokan unmount failed or not mounted");
+            }
+        }
+
+        // Fallback: try dokanctl.exe /u (Dokan's command-line tool)
+        if let Some(path) = find_dokanctl() {
+            if std::process::Command::new(&path)
+                .args(["/u", &mount_str])
+                .status()
+                .is_ok_and(|s| s.success())
+            {
+                log::info!("dokanctl removed stale mount point: {}", mount_str);
+            }
         }
     }
 

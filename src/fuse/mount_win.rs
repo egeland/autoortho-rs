@@ -9,8 +9,9 @@ mod dokan_impl {
     use crate::fuse::filesystem::DdsFileSystem;
     use crate::fuse::{MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
     use dokan::{
-        CreateFileInfo, DiskSpaceInfo, FileInfo, FileSystemHandler, FileSystemMounter, FindData,
-        MountFlags, MountOptions, OperationInfo, OperationResult, VolumeInfo, init, shutdown,
+        CreateFileInfo, DiskSpaceInfo, FileInfo, FileSystemHandler, FileSystemMountError,
+        FileSystemMounter, FindData, MountFlags, MountOptions, OperationInfo, OperationResult,
+        VolumeInfo, init, shutdown,
     };
     use log::{debug, error, info, warn};
     use std::collections::HashMap;
@@ -246,47 +247,46 @@ mod dokan_impl {
                 return Err(STATUS_UNSUCCESSFUL);
             }
 
-            if is_root {
-                debug!("dokan find_files: processing root directory");
-                for dir in VIRTUAL_DIRS {
-                    let data = FindData {
-                        attributes: winnt::FILE_ATTRIBUTE_DIRECTORY,
-                        creation_time: now,
-                        last_access_time: now,
-                        last_write_time: now,
-                        file_size: 0,
-                        file_name: U16CString::from_str(dir).unwrap(),
-                    };
-                    if fill_find_data(&data).is_err() {
-                        debug!(
-                            "dokan find_files: failed to add virtual directory '{}'",
-                            dir
-                        );
-                        return Err(STATUS_UNSUCCESSFUL);
+            // Use DdsFileSystem.list_dir() for all directory listings
+            // This gives us virtual dirs + pass-through entries from root
+            match self.fs.list_dir(&dir_path_str) {
+                Ok(entries) => {
+                    for entry_name in entries {
+                        // Skip . and .. (we already added them above)
+                        if entry_name == "." || entry_name == ".." {
+                            continue;
+                        }
+
+                        // Determine if entry is a directory
+                        let is_dir = VIRTUAL_DIRS.contains(&entry_name.as_str())
+                            || self.fs.is_dir_in_root(&dir_path_str, &entry_name);
+
+                        let data = FindData {
+                            attributes: if is_dir {
+                                winnt::FILE_ATTRIBUTE_DIRECTORY
+                            } else {
+                                winnt::FILE_ATTRIBUTE_NORMAL
+                            },
+                            creation_time: now,
+                            last_access_time: now,
+                            last_write_time: now,
+                            file_size: 0,
+                            file_name: U16CString::from_str(&entry_name).unwrap(),
+                        };
+                        if fill_find_data(&data).is_err() {
+                            debug!("dokan find_files: failed to add entry '{}'", entry_name);
+                            return Err(STATUS_UNSUCCESSFUL);
+                        }
                     }
                 }
-            } else if is_textures || is_terrain {
-                debug!("dokan find_files: processing virtual directory, adding marker file");
-                let data = FindData {
-                    attributes: winnt::FILE_ATTRIBUTE_NORMAL,
-                    creation_time: now,
-                    last_access_time: now,
-                    last_write_time: now,
-                    file_size: 0,
-                    file_name: U16CString::from_str(MARKER_FILE).unwrap(),
-                };
-                if fill_find_data(&data).is_err() {
+                Err(e) => {
                     debug!(
-                        "dokan find_files: failed to add marker file '{}'",
-                        MARKER_FILE
+                        "dokan find_files: list_dir failed for {}: {:?}",
+                        dir_path_str, e
                     );
-                    return Err(STATUS_UNSUCCESSFUL);
+                    // Path doesn't exist or is not a directory
+                    return Err(STATUS_OBJECT_NAME_NOT_FOUND);
                 }
-            } else {
-                debug!(
-                    "dokan find_files: not root or virtual directory, dir_path={}",
-                    dir_path_str
-                );
             }
 
             debug!(
@@ -370,13 +370,34 @@ mod dokan_impl {
         std::thread::sleep(std::time::Duration::from_secs(1));
 
         let options = MountOptions {
-            flags: MountFlags::empty(),
+            // CURRENT_SESSION: only visible to the current user session
+            // FILELOCK_USER_MODE: use user-mode locking instead of kernel
+            flags: MountFlags::CURRENT_SESSION | MountFlags::FILELOCK_USER_MODE,
             ..Default::default()
         };
 
         // Create an owned copy for the mounter
         let mount_point: &U16CStr = mount_cstr.as_ucstr();
         let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
+
+        /// Map Dokan mount errors to user-friendly messages
+        fn describe_mount_error(err: &FileSystemMountError) -> &'static str {
+            match err {
+                FileSystemMountError::General => "General Dokan error",
+                FileSystemMountError::DriveLetter => "Invalid drive letter",
+                FileSystemMountError::DriverInstall => {
+                    "Dokan driver not installed or failed to install"
+                }
+                FileSystemMountError::Start => "Dokan driver failed to start",
+                FileSystemMountError::Mount => {
+                    "Mount point already in use — collision with existing mount"
+                }
+                FileSystemMountError::MountPoint => {
+                    "Mount point is invalid (path doesn't exist or is not a directory)"
+                }
+                FileSystemMountError::Version => "Dokan library version mismatch",
+            }
+        }
 
         // This blocks until unmounted
         match mounter.mount() {
@@ -386,13 +407,18 @@ mod dokan_impl {
                 Ok(())
             }
             Err(e) => {
-                error!("Failed to mount: {:?}", e);
-                // Check for mount collision
-                if format!("{:?}", e).contains("mount") {
-                    warn!("Mount collision, retrying...");
+                let desc = describe_mount_error(&e);
+                error!("Failed to mount at {}: {} ({:?})", mount_str, desc, e);
+
+                // Mount collision — clean up stale mount and retry
+                if matches!(e, FileSystemMountError::Mount) {
+                    warn!(
+                        "Mount collision at {}, attempting cleanup and retry...",
+                        mount_str
+                    );
                     let _ = crate::fuse::platform::cleanup_mount(mountpoint);
                     std::thread::sleep(std::time::Duration::from_secs(2));
-                    // Try again
+
                     let mount_point: &U16CStr = mount_cstr.as_ucstr();
                     let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
                     match mounter.mount() {
@@ -402,6 +428,8 @@ mod dokan_impl {
                             Ok(())
                         }
                         Err(e) => {
+                            let desc = describe_mount_error(&e);
+                            error!("Retry failed at {}: {} ({:?})", mount_str, desc, e);
                             shutdown();
                             Err(Box::new(e))
                         }

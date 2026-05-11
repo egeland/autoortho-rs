@@ -393,19 +393,17 @@ async fn custommap_maptypes() -> Json<Vec<&'static str>> {
 
 async fn custommap_tiles(State(state): State<Arc<WebState>>) -> Json<Vec<String>> {
     // Scan installed scenery for DSF files and extract lat/lon cell keys
-    let install_dir = state.config.read().scenery_install_dir();
-    let install_dir = install_dir.to_string_lossy().into_owned();
-    let tiles = scan_dsf_tiles(&install_dir);
+    let data_dir = state.config.read().scenery_data_dir();
+    let data_dir = data_dir.to_string_lossy().into_owned();
+    let tiles = scan_dsf_tiles(&data_dir);
     Json(tiles)
 }
 
 /// Scan scenery directory for DSF files and return cell keys ("lat,lon").
-fn scan_dsf_tiles(install_dir: &str) -> Vec<String> {
+fn scan_dsf_tiles(data_dir: &str) -> Vec<String> {
     use std::collections::HashSet;
 
-    let base = std::path::Path::new(install_dir)
-        .join("z_autoortho")
-        .join("scenery");
+    let base = std::path::Path::new(data_dir).join("scenery");
     if !base.exists() {
         return vec![];
     }
@@ -740,6 +738,25 @@ mod tests {
         assert_eq!(format_bytes(2048), "2.0 KB");
         assert_eq!(format_bytes(5 * 1024 * 1024), "5.0 MB");
         assert_eq!(format_bytes(2 * 1024 * 1024 * 1024), "2.00 GB");
+    }
+
+    #[test]
+    fn test_scan_dsf_tiles() {
+        use tempfile::TempDir;
+        let tmp = TempDir::new().unwrap();
+        let data_dir = tmp.path().join("z_autoortho");
+
+        // Create a fake DSF file in the expected location
+        let dsf_dir = data_dir
+            .join("scenery")
+            .join("z_ao_na")
+            .join("Earth nav data");
+        std::fs::create_dir_all(&dsf_dir).unwrap();
+        std::fs::write(dsf_dir.join("+46+152.dsf"), b"fake dsf").unwrap();
+
+        // It should find the tile and return its coords
+        let tiles = scan_dsf_tiles(data_dir.to_str().unwrap());
+        assert_eq!(tiles, vec!["46,152"]);
     }
 
     #[test]

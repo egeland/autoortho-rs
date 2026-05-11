@@ -584,10 +584,17 @@ impl AutoOrthoConfig {
     }
 
     /// FUSE mount point, derived from `xplane_path`.
+    /// This is the scenery pack root directory that X-Plane accesses.
     pub fn mount_dir(&self) -> PathBuf {
-        self.custom_scenery_path()
+        self.custom_scenery_path().join("z_autoortho")
+    }
+
+    /// Scenery data directory for real files (DSF, metadata, etc.).
+    /// Lives outside the mount point to avoid filesystem recursion.
+    pub fn scenery_data_dir(&self) -> PathBuf {
+        PathBuf::from(&self.cache_dir)
+            .join("scenery")
             .join("z_autoortho")
-            .join("textures")
     }
 
     /// Scenery install directory (Custom Scenery), derived from `xplane_path`.
@@ -738,11 +745,18 @@ mod tests {
         );
         assert_eq!(
             config.mount_dir(),
-            PathBuf::from("/home/user/X-Plane 12/Custom Scenery/z_autoortho/textures")
+            PathBuf::from("/home/user/X-Plane 12/Custom Scenery/z_autoortho")
         );
         assert_eq!(
             config.scenery_install_dir(),
             PathBuf::from("/home/user/X-Plane 12/Custom Scenery")
+        );
+
+        // scenery_data_dir needs cache_dir set
+        config.cache_dir = "/home/user/.cache/autoortho".to_string();
+        assert_eq!(
+            config.scenery_data_dir(),
+            PathBuf::from("/home/user/.cache/autoortho/scenery/z_autoortho")
         );
     }
 

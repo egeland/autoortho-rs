@@ -123,6 +123,7 @@ pub struct AppState {
     // Scenery management
     pub scenery_download_dir: String,
     pub scenery_install_dir: String,
+    pub scenery_data_dir: String,
     pub available_regions: Vec<SceneryRegionInfo>,
     pub installed_packs: Vec<InstalledPackInfo>,
     pub scenery_status: Option<String>,
@@ -186,6 +187,7 @@ impl AppState {
         };
 
         let scenery_install_dir = config.scenery_install_dir().to_string_lossy().into_owned();
+        let scenery_data_dir = config.scenery_data_dir().to_string_lossy().into_owned();
 
         Self {
             current_screen: if is_configured {
@@ -198,6 +200,7 @@ impl AppState {
             error_message: None,
             scenery_download_dir,
             scenery_install_dir,
+            scenery_data_dir,
             available_regions: Vec::new(),
             installed_packs: Vec::new(),
             scenery_status: None,
@@ -227,6 +230,29 @@ impl AppState {
             prefetch_status: None,
             prefetch_completed: 0,
             prefetch_total: 0,
+        }
+    }
+
+    /// Run one-time migration of scenery files from the old location
+    /// (`{xplane}/Custom Scenery/z_autoortho/`) to the new data directory.
+    /// This is called during app startup, not in `new()`, to avoid side
+    /// effects in unit tests.
+    pub fn run_startup_migration(&self) {
+        let config = crate::config::AutoOrthoConfig::load();
+        let old_dir = config.custom_scenery_path().join("z_autoortho");
+        let new_dir = std::path::Path::new(&self.scenery_data_dir);
+        match crate::scenery::installer::migrate_scenery(&old_dir, new_dir) {
+            Ok(count) if count > 0 => {
+                log::info!(
+                    "Migrated {} items from old scenery location to {}",
+                    count,
+                    self.scenery_data_dir
+                );
+            }
+            Ok(_) => {}
+            Err(e) => {
+                log::warn!("Failed to migrate scenery files: {}", e);
+            }
         }
     }
 

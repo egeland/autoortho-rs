@@ -696,13 +696,13 @@ impl AutoOrthoApp {
                 self.state.scenery_refreshing = true;
                 self.state.scenery_status = Some("Fetching available regions...".to_string());
 
-                let install_dir = self.state.scenery_install_dir.clone();
+                let data_dir = self.state.scenery_data_dir.clone();
                 let download_dir = self.state.scenery_download_dir.clone();
                 let (tx, rx) = oneshot::channel();
                 let rt = self.runtime.clone();
 
                 rt.spawn(async move {
-                    let result = fetch_regions_and_installed(&install_dir, &download_dir).await;
+                    let result = fetch_regions_and_installed(&data_dir, &download_dir).await;
                     let _ = tx.send(result);
                 });
 
@@ -723,7 +723,7 @@ impl AutoOrthoApp {
                 ));
                 // Also refresh installed packs
                 let packs = crate::scenery::installer::list_installed_packs(std::path::Path::new(
-                    &self.state.scenery_install_dir,
+                    &self.state.scenery_data_dir,
                 ));
                 self.state.installed_packs = packs
                     .into_iter()
@@ -770,7 +770,7 @@ impl AutoOrthoApp {
                 self.state.scenery_status = Some(format!("Downloading {}...", region_id));
 
                 let download_dir = self.state.scenery_download_dir.clone();
-                let install_dir = self.state.scenery_install_dir.clone();
+                let data_dir = self.state.scenery_data_dir.clone();
                 let rid = region_id.clone();
                 let progress_bytes = dl_state.bytes_downloaded.clone();
                 let progress_file = dl_state.current_file.clone();
@@ -782,7 +782,7 @@ impl AutoOrthoApp {
                     let result = download_and_install_region(
                         &rid,
                         &download_dir,
-                        &install_dir,
+                        &data_dir,
                         &cancel,
                         &progress_bytes,
                         &progress_file,
@@ -836,12 +836,12 @@ impl AutoOrthoApp {
                 }
             }
             Message::UninstallRegion(region_id) => {
-                let install_dir = std::path::Path::new(&self.state.scenery_install_dir);
-                match crate::scenery::installer::uninstall_region(&region_id, install_dir) {
+                let data_dir = std::path::Path::new(&self.state.scenery_data_dir);
+                match crate::scenery::installer::uninstall_region(&region_id, data_dir) {
                     Ok(()) => {
                         self.state.scenery_status = Some(format!("Uninstalled {}", region_id));
                         // Refresh installed list
-                        let packs = crate::scenery::installer::list_installed_packs(install_dir);
+                        let packs = crate::scenery::installer::list_installed_packs(data_dir);
                         self.state.installed_packs = packs
                             .into_iter()
                             .map(|p| state::InstalledPackInfo {
@@ -860,7 +860,7 @@ impl AutoOrthoApp {
                 self.state.downloading_regions.remove(&region_id);
                 self.state.scenery_status = Some(msg);
                 let packs = crate::scenery::installer::list_installed_packs(std::path::Path::new(
-                    &self.state.scenery_install_dir,
+                    &self.state.scenery_data_dir,
                 ));
                 self.state.installed_packs = packs
                     .into_iter()
@@ -1005,15 +1005,11 @@ impl AutoOrthoApp {
             }
             Message::FolderPicked(field, path) => match field.as_str() {
                 "xplane_path" => {
-                    self.state.config.xplane_path = path;
-                    self.state.scenery_install_dir = self
-                        .state
-                        .config
-                        .scenery_install_dir()
-                        .to_string_lossy()
-                        .into_owned();
+                    handlers::handle_set_xplane_path(&mut self.state, path);
                 }
-                "cache_dir" => self.state.config.cache_dir = path,
+                "cache_dir" => {
+                    handlers::handle_set_cache_dir(&mut self.state, path);
+                }
                 "scenery_download_dir" => self.state.scenery_download_dir = path,
                 _ => {}
             },
@@ -1549,7 +1545,7 @@ fn browse_folder(field_name: &str, current_path: &str) -> Task<Message> {
 
 /// Fetch available regions from GitHub and list installed packs.
 async fn fetch_regions_and_installed(
-    install_dir: &str,
+    data_dir: &str,
     download_dir: &str,
 ) -> Result<(Vec<state::SceneryRegionInfo>, Vec<state::InstalledPackInfo>), String> {
     let regions = crate::scenery::discovery::discover_regions()
@@ -1569,7 +1565,7 @@ async fn fetch_regions_and_installed(
         })
         .collect();
 
-    let packs = crate::scenery::installer::list_installed_packs(std::path::Path::new(install_dir));
+    let packs = crate::scenery::installer::list_installed_packs(std::path::Path::new(data_dir));
     let ui_packs: Vec<state::InstalledPackInfo> = packs
         .into_iter()
         .map(|p| state::InstalledPackInfo {
@@ -1586,7 +1582,7 @@ async fn fetch_regions_and_installed(
 async fn download_and_install_region(
     region_id: &str,
     download_dir: &str,
-    install_dir: &str,
+    data_dir: &str,
     cancel: &tokio_util::sync::CancellationToken,
     progress_bytes: &std::sync::Arc<std::sync::atomic::AtomicU64>,
     progress_file: &Arc<Mutex<String>>,
@@ -1606,7 +1602,7 @@ async fn download_and_install_region(
         .ok_or_else(|| format!("Region '{}' not found", region_id))?;
 
     let download_path = std::path::Path::new(download_dir);
-    let install_path = std::path::Path::new(install_dir);
+    let data_path = std::path::Path::new(data_dir);
     let mut downloaded_files = Vec::new();
 
     // Download all packages in the region
@@ -1647,8 +1643,7 @@ async fn download_and_install_region(
     // Extract ZIP files
     for path in &downloaded_files {
         if path.to_string_lossy().ends_with(".zip") {
-            let target = install_path
-                .join("z_autoortho")
+            let target = data_path
                 .join("scenery")
                 .join(format!("z_ao_{}", region_id));
             installer::extract_zip(path, &target).map_err(|e| format!("Extract failed: {}", e))?;
@@ -1665,7 +1660,7 @@ async fn download_and_install_region(
         ortho_dirs: vec![],
         info_ver: "v1".to_string(),
     };
-    installer::save_pack_info(&info, install_path)
+    installer::save_pack_info(&info, data_path)
         .map_err(|e| format!("Failed to save metadata: {}", e))?;
 
     let verify_msg = if verified > 0 && unverified == 0 {
@@ -1739,17 +1734,20 @@ pub fn run(runtime: tokio::runtime::Runtime) -> iced::Result {
 fn boot() -> (AutoOrthoApp, Task<Message>) {
     let mut app = AutoOrthoApp::new();
 
+    // Run one-time migration of scenery files from old location
+    app.state.run_startup_migration();
+
     // Auto-refresh scenery list on startup
     app.state.scenery_refreshing = true;
     app.state.scenery_status = Some("Loading available scenery packs...".to_string());
 
-    let install_dir = app.state.scenery_install_dir.clone();
+    let data_dir = app.state.scenery_data_dir.clone();
     let download_dir = app.state.scenery_download_dir.clone();
     let (tx, rx) = oneshot::channel();
     let rt = app.runtime.clone();
 
     rt.spawn(async move {
-        let result = fetch_regions_and_installed(&install_dir, &download_dir).await;
+        let result = fetch_regions_and_installed(&data_dir, &download_dir).await;
         let _ = tx.send(result);
     });
 
