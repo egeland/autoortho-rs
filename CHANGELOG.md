@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.10](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.9...autoortho-v0.8.10) (2026-05-11)
+
+
+### Bug Fixes
+
+* Dokan mount point and pass-through filesystem ([#341](https://github.com/egeland/autoortho-rs/issues/341)) ([#342](https://github.com/egeland/autoortho-rs/issues/342)) ([baf6ef4](https://github.com/egeland/autoortho-rs/commit/baf6ef42f068b5fe566c0e1a01f5495e3ef5589e))
+
 ## [0.8.9](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.8...autoortho-v0.8.9) (2026-05-08)
 
 
