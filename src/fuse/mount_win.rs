@@ -10,7 +10,8 @@ mod dokan_impl {
     use crate::fuse::{MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
     use dokan::{
         CreateFileInfo, DiskSpaceInfo, FileInfo, FileSystemHandler, FileSystemMounter, FindData,
-        MountFlags, MountOptions, OperationInfo, OperationResult, VolumeInfo, init, shutdown,
+        FileSystemMountError, MountFlags, MountOptions, OperationInfo, OperationResult, VolumeInfo,
+        init, shutdown, unmount,
     };
     use log::{debug, error, info, warn};
     use std::collections::HashMap;
@@ -369,13 +370,28 @@ mod dokan_impl {
         std::thread::sleep(std::time::Duration::from_secs(1));
 
         let options = MountOptions {
-            flags: MountFlags::empty(),
+            // CURRENT_SESSION: only visible to the current user session
+            // FILELOCK_USER_MODE: use user-mode locking instead of kernel
+            flags: MountFlags::CURRENT_SESSION | MountFlags::FILELOCK_USER_MODE,
             ..Default::default()
         };
 
         // Create an owned copy for the mounter
         let mount_point: &U16CStr = mount_cstr.as_ucstr();
         let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
+
+        /// Map Dokan mount errors to user-friendly messages
+        fn describe_mount_error(err: &FileSystemMountError) -> &'static str {
+            match err {
+                FileSystemMountError::General => "General Dokan error",
+                FileSystemMountError::DriveLetter => "Invalid drive letter",
+                FileSystemMountError::DriverInstall => "Dokan driver not installed or failed to install",
+                FileSystemMountError::Start => "Dokan driver failed to start",
+                FileSystemMountError::Mount => "Mount point already in use — collision with existing mount",
+                FileSystemMountError::MountPoint => "Mount point is invalid (path doesn't exist or is not a directory)",
+                FileSystemMountError::Version => "Dokan library version mismatch",
+            }
+        }
 
         // This blocks until unmounted
         match mounter.mount() {
@@ -385,13 +401,15 @@ mod dokan_impl {
                 Ok(())
             }
             Err(e) => {
-                error!("Failed to mount: {:?}", e);
-                // Check for mount collision
-                if format!("{:?}", e).contains("mount") {
-                    warn!("Mount collision, retrying...");
+                let desc = describe_mount_error(&e);
+                error!("Failed to mount at {}: {} ({:?})", mount_str, desc, e);
+
+                // Mount collision — clean up stale mount and retry
+                if matches!(e, FileSystemMountError::Mount) {
+                    warn!("Mount collision at {}, attempting cleanup and retry...", mount_str);
                     let _ = crate::fuse::platform::cleanup_mount(mountpoint);
                     std::thread::sleep(std::time::Duration::from_secs(2));
-                    // Try again
+
                     let mount_point: &U16CStr = mount_cstr.as_ucstr();
                     let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
                     match mounter.mount() {
@@ -401,6 +419,8 @@ mod dokan_impl {
                             Ok(())
                         }
                         Err(e) => {
+                            let desc = describe_mount_error(&e);
+                            error!("Retry failed at {}: {} ({:?})", mount_str, desc, e);
                             shutdown();
                             Err(Box::new(e))
                         }
