@@ -406,6 +406,74 @@ pub fn list_installed_packs(data_dir: &Path) -> Vec<PackInfo> {
     packs
 }
 
+/// Migrate scenery files from old location (`{xplane}/Custom Scenery/z_autoortho/`)
+/// to the new data directory (`{cache_dir}/scenery/z_autoortho/`).
+///
+/// Skips `textures/` (was the old mount point — now we mount at the parent).
+/// Returns the number of items migrated.
+pub fn migrate_scenery(old_dir: &Path, new_dir: &Path) -> Result<u32, InstallError> {
+    let mut count = 0;
+
+    if !old_dir.exists() {
+        return Ok(0);
+    }
+
+    std::fs::create_dir_all(new_dir)?;
+
+    if let Ok(entries) = std::fs::read_dir(old_dir) {
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            // Skip textures dir (was the old mount point)
+            if name == "textures" {
+                continue;
+            }
+            let source = entry.path();
+            let dest = new_dir.join(&name);
+            // Don't overwrite existing files in new location
+            if dest.exists() {
+                info!(
+                    "Skipping migration of {} — already exists at new location",
+                    name
+                );
+                continue;
+            }
+            info!("Migrating {} to {}", source.display(), dest.display());
+            if entry.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+                // Try rename first (fast if same filesystem), fall back to copy
+                if std::fs::rename(&source, &dest).is_err() {
+                    info!("rename failed for {}, trying copy", source.display());
+                    copy_dir(&source, &dest)?;
+                    std::fs::remove_dir_all(&source)?;
+                }
+            } else {
+                std::fs::rename(&source, &dest).or_else(|_| {
+                    std::fs::copy(&source, &dest)?;
+                    std::fs::remove_file(&source)
+                })?;
+            }
+            count += 1;
+        }
+    }
+
+    Ok(count)
+}
+
+/// Recursively copy a directory.
+fn copy_dir(src: &Path, dst: &Path) -> Result<(), InstallError> {
+    std::fs::create_dir_all(dst)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let dest = dst.join(entry.file_name());
+        if file_type.is_dir() {
+            copy_dir(&entry.path(), &dest)?;
+        } else {
+            std::fs::copy(entry.path(), &dest)?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -686,5 +754,56 @@ mod tests {
         let result =
             archive.extract_unwrapped_root_dir(tmp.path(), zip::read::root_dir_common_filter);
         assert!(result.is_err(), "Path traversal should be blocked");
+    }
+
+    #[test]
+    fn test_migrate_scenery_empty_old() {
+        let tmp = TempDir::new().unwrap();
+        let old = tmp.path().join("old");
+        let new = tmp.path().join("new");
+        // old doesn't exist yet
+        let count = migrate_scenery(&old, &new).unwrap();
+        assert_eq!(count, 0);
+        assert!(
+            !new.exists(),
+            "new dir should not be created when nothing to migrate"
+        );
+    }
+
+    #[test]
+    fn test_migrate_scenery_moves_files() {
+        let tmp = TempDir::new().unwrap();
+        let old = tmp.path().join("old");
+        let new = tmp.path().join("new");
+
+        // Create old structure: scenery dir, info.json, and textures dir (skip)
+        std::fs::create_dir_all(old.join("scenery").join("z_ao_na")).unwrap();
+        std::fs::write(
+            old.join("scenery").join("z_ao_na").join("+40-070.dsf"),
+            b"dsf",
+        )
+        .unwrap();
+        std::fs::write(old.join("na_info.json"), b"info").unwrap();
+        // This should be skipped
+        std::fs::create_dir_all(old.join("textures")).unwrap();
+
+        let count = migrate_scenery(&old, &new).unwrap();
+        assert_eq!(count, 2, "should migrate scenery + info, skip textures");
+
+        // Verify moved to new location
+        assert!(
+            new.join("scenery")
+                .join("z_ao_na")
+                .join("+40-070.dsf")
+                .exists()
+        );
+        assert!(new.join("na_info.json").exists());
+        // textures should NOT be in new location
+        assert!(!new.join("textures").exists());
+        // Old files should be gone
+        assert!(!old.join("scenery").exists());
+        assert!(!old.join("na_info.json").exists());
+        // textures dir should still exist in old
+        assert!(old.join("textures").exists());
     }
 }

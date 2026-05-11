@@ -189,6 +189,23 @@ impl AppState {
         let scenery_install_dir = config.scenery_install_dir().to_string_lossy().into_owned();
         let scenery_data_dir = config.scenery_data_dir().to_string_lossy().into_owned();
 
+        // Migrate scenery files from old location (Custom Scenery/z_autoortho) to new data dir
+        let old_dir = config.custom_scenery_path().join("z_autoortho");
+        let new_dir = std::path::Path::new(&scenery_data_dir);
+        match crate::scenery::installer::migrate_scenery(&old_dir, new_dir) {
+            Ok(count) if count > 0 => {
+                log::info!(
+                    "Migrated {} items from old scenery location to {}",
+                    count,
+                    scenery_data_dir
+                );
+            }
+            Ok(_) => {}
+            Err(e) => {
+                log::warn!("Failed to migrate scenery files: {}", e);
+            }
+        }
+
         Self {
             current_screen: if is_configured {
                 Screen::Dashboard
