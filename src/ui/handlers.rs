@@ -16,10 +16,20 @@ pub fn handle_set_xplane_path(state: &mut AppState, path: String) {
         .scenery_install_dir()
         .to_string_lossy()
         .into_owned();
+    state.scenery_data_dir = state
+        .config
+        .scenery_data_dir()
+        .to_string_lossy()
+        .into_owned();
 }
 
 pub fn handle_set_cache_dir(state: &mut AppState, dir: String) {
     state.config.cache_dir = dir;
+    state.scenery_data_dir = state
+        .config
+        .scenery_data_dir()
+        .to_string_lossy()
+        .into_owned();
 }
 
 pub fn set_xplane_host(state: &mut AppState, host: String) {
@@ -212,8 +222,28 @@ mod tests {
     #[test]
     fn test_set_xplane_path() {
         let mut state = AppState::new();
+        let old_data_dir = state.scenery_data_dir.clone();
+
         handle_set_xplane_path(&mut state, "/test/path".to_string());
+
         assert_eq!(state.config.xplane_path, "/test/path");
+        assert_eq!(state.scenery_install_dir, "/test/path/Custom Scenery");
+        // scenery_data_dir is based on cache_dir, not xplane_path
+        assert_eq!(state.scenery_data_dir, old_data_dir);
+    }
+
+    #[test]
+    fn test_set_cache_dir_updates_scenery_data_dir() {
+        let mut state = AppState::new();
+        let orig = state.scenery_data_dir.clone();
+        handle_set_cache_dir(&mut state, "/custom/cache".to_string());
+        // scenery_data_dir should reflect new cache dir
+        assert!(
+            state.scenery_data_dir.contains("/custom/cache"),
+            "scenery_data_dir should contain new cache dir, got: {}",
+            state.scenery_data_dir
+        );
+        assert_ne!(state.scenery_data_dir, orig);
     }
 
     #[test]

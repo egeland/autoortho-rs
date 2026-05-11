@@ -123,6 +123,7 @@ pub struct AppState {
     // Scenery management
     pub scenery_download_dir: String,
     pub scenery_install_dir: String,
+    pub scenery_data_dir: String,
     pub available_regions: Vec<SceneryRegionInfo>,
     pub installed_packs: Vec<InstalledPackInfo>,
     pub scenery_status: Option<String>,
@@ -186,6 +187,7 @@ impl AppState {
         };
 
         let scenery_install_dir = config.scenery_install_dir().to_string_lossy().into_owned();
+        let scenery_data_dir = config.scenery_data_dir().to_string_lossy().into_owned();
 
         Self {
             current_screen: if is_configured {
@@ -198,6 +200,7 @@ impl AppState {
             error_message: None,
             scenery_download_dir,
             scenery_install_dir,
+            scenery_data_dir,
             available_regions: Vec::new(),
             installed_packs: Vec::new(),
             scenery_status: None,

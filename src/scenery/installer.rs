@@ -321,9 +321,9 @@ pub fn extract_zip(zip_path: &Path, target_dir: &Path) -> Result<(), InstallErro
 }
 
 /// Save pack metadata to *_info.json.
-pub fn save_pack_info(info: &PackInfo, scenery_dir: &Path) -> Result<(), InstallError> {
+pub fn save_pack_info(info: &PackInfo, data_dir: &Path) -> Result<(), InstallError> {
     let filename = format!("{}_info.json", info.id);
-    let path = scenery_dir.join("z_autoortho").join(filename);
+    let path = data_dir.join(filename);
 
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -338,9 +338,9 @@ pub fn save_pack_info(info: &PackInfo, scenery_dir: &Path) -> Result<(), Install
 }
 
 /// Load pack metadata from *_info.json.
-pub fn load_pack_info(region_id: &str, scenery_dir: &Path) -> Result<PackInfo, InstallError> {
+pub fn load_pack_info(region_id: &str, data_dir: &Path) -> Result<PackInfo, InstallError> {
     let filename = format!("{}_info.json", region_id);
-    let path = scenery_dir.join("z_autoortho").join(filename);
+    let path = data_dir.join(filename);
 
     let json = std::fs::read_to_string(&path)?;
     let info: PackInfo =
@@ -350,19 +350,14 @@ pub fn load_pack_info(region_id: &str, scenery_dir: &Path) -> Result<PackInfo, I
 }
 
 /// Uninstall a scenery region: remove installed files and metadata.
-pub fn uninstall_region(region_id: &str, scenery_dir: &Path) -> Result<(), InstallError> {
-    let scenery_path = scenery_dir
-        .join("z_autoortho")
-        .join("scenery")
-        .join(format!("z_ao_{}", region_id));
+pub fn uninstall_region(region_id: &str, data_dir: &Path) -> Result<(), InstallError> {
+    let scenery_path = data_dir.join("scenery").join(format!("z_ao_{}", region_id));
     if scenery_path.exists() {
         info!("Removing scenery directory: {}", scenery_path.display());
         std::fs::remove_dir_all(&scenery_path)?;
     }
 
-    let info_path = scenery_dir
-        .join("z_autoortho")
-        .join(format!("{}_info.json", region_id));
+    let info_path = data_dir.join(format!("{}_info.json", region_id));
     if info_path.exists() {
         info!("Removing metadata: {}", info_path.display());
         std::fs::remove_file(&info_path)?;
@@ -392,11 +387,10 @@ pub fn has_partial_downloads(download_dir: &Path, region_id: &str) -> bool {
 }
 
 /// List installed scenery packs by scanning for *_info.json files.
-pub fn list_installed_packs(scenery_dir: &Path) -> Vec<PackInfo> {
-    let ao_dir = scenery_dir.join("z_autoortho");
+pub fn list_installed_packs(data_dir: &Path) -> Vec<PackInfo> {
     let mut packs = Vec::new();
 
-    if let Ok(entries) = std::fs::read_dir(&ao_dir) {
+    if let Ok(entries) = std::fs::read_dir(data_dir) {
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
             if name.ends_with("_info.json")
@@ -493,18 +487,14 @@ mod tests {
         save_pack_info(&sample_info(), tmp.path()).unwrap();
 
         // Create fake scenery dir
-        let scenery_dir = tmp
-            .path()
-            .join("z_autoortho")
-            .join("scenery")
-            .join("z_ao_sa");
+        let scenery_dir = tmp.path().join("scenery").join("z_ao_sa");
         std::fs::create_dir_all(&scenery_dir).unwrap();
         std::fs::write(scenery_dir.join("test.dsf"), b"data").unwrap();
 
         uninstall_region("sa", tmp.path()).unwrap();
 
         assert!(!scenery_dir.exists());
-        assert!(!tmp.path().join("z_autoortho").join("sa_info.json").exists());
+        assert!(!tmp.path().join("sa_info.json").exists());
     }
 
     #[test]
