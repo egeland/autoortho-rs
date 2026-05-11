@@ -9,9 +9,9 @@ mod dokan_impl {
     use crate::fuse::filesystem::DdsFileSystem;
     use crate::fuse::{MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
     use dokan::{
-        CreateFileInfo, DiskSpaceInfo, FileInfo, FileSystemHandler, FileSystemMounter, FindData,
-        FileSystemMountError, MountFlags, MountOptions, OperationInfo, OperationResult, VolumeInfo,
-        init, shutdown, unmount,
+        CreateFileInfo, DiskSpaceInfo, FileInfo, FileSystemHandler, FileSystemMountError,
+        FileSystemMounter, FindData, MountFlags, MountOptions, OperationInfo, OperationResult,
+        VolumeInfo, init, shutdown, unmount,
     };
     use log::{debug, error, info, warn};
     use std::collections::HashMap;
@@ -385,10 +385,16 @@ mod dokan_impl {
             match err {
                 FileSystemMountError::General => "General Dokan error",
                 FileSystemMountError::DriveLetter => "Invalid drive letter",
-                FileSystemMountError::DriverInstall => "Dokan driver not installed or failed to install",
+                FileSystemMountError::DriverInstall => {
+                    "Dokan driver not installed or failed to install"
+                }
                 FileSystemMountError::Start => "Dokan driver failed to start",
-                FileSystemMountError::Mount => "Mount point already in use — collision with existing mount",
-                FileSystemMountError::MountPoint => "Mount point is invalid (path doesn't exist or is not a directory)",
+                FileSystemMountError::Mount => {
+                    "Mount point already in use — collision with existing mount"
+                }
+                FileSystemMountError::MountPoint => {
+                    "Mount point is invalid (path doesn't exist or is not a directory)"
+                }
                 FileSystemMountError::Version => "Dokan library version mismatch",
             }
         }
@@ -406,7 +412,10 @@ mod dokan_impl {
 
                 // Mount collision — clean up stale mount and retry
                 if matches!(e, FileSystemMountError::Mount) {
-                    warn!("Mount collision at {}, attempting cleanup and retry...", mount_str);
+                    warn!(
+                        "Mount collision at {}, attempting cleanup and retry...",
+                        mount_str
+                    );
                     let _ = crate::fuse::platform::cleanup_mount(mountpoint);
                     std::thread::sleep(std::time::Duration::from_secs(2));
 

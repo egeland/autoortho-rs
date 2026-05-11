@@ -865,6 +865,104 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    async fn test_list_dir_replicated_install_structure() {
+        let tmp = tempfile::TempDir::new().unwrap();
+
+        // Replicate a real installation structure in the pass-through root:
+        // {cache_dir}/scenery/z_autoortho/
+        //   na_info.json
+        //   sa_info.json
+        //   scenery/
+        //     z_ao_na/
+        //       Earth nav data/
+        //         +40-070.dsf
+        let root = tmp.path();
+        std::fs::write(root.join("na_info.json"), b"na metadata").unwrap();
+        std::fs::write(root.join("sa_info.json"), b"sa metadata").unwrap();
+        std::fs::create_dir_all(root.join("scenery").join("z_ao_na").join("Earth nav data"))
+            .unwrap();
+        std::fs::write(
+            root.join("scenery")
+                .join("z_ao_na")
+                .join("Earth nav data")
+                .join("+40-070.dsf"),
+            b"fake dsf",
+        )
+        .unwrap();
+
+        let provider = Arc::new(MockProvider);
+        let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
+        let fs = DdsFileSystem::with_root(Arc::new(fetcher), root.to_path_buf(), "ARC");
+
+        // list_dir("/") should return virtual dirs + pass-through entries
+        let root_entries = fs.list_dir("/").unwrap();
+        assert!(
+            root_entries.contains(&"textures".to_string()),
+            "virtual textures dir"
+        );
+        assert!(
+            root_entries.contains(&"terrain".to_string()),
+            "virtual terrain dir"
+        );
+        assert!(
+            root_entries.contains(&"scenery".to_string()),
+            "pass-through scenery dir"
+        );
+        assert!(
+            root_entries.contains(&"na_info.json".to_string()),
+            "pass-through na_info"
+        );
+        assert!(
+            root_entries.contains(&"sa_info.json".to_string()),
+            "pass-through sa_info"
+        );
+
+        // list_dir("/textures") returns marker file
+        let tex_entries = fs.list_dir("/textures").unwrap();
+        assert!(tex_entries.contains(&MARKER_FILE.to_string()));
+
+        // list_dir("/scenery") returns pack directories via pass-through
+        let scenery_entries = fs.list_dir("/scenery").unwrap();
+        assert!(
+            scenery_entries.contains(&"z_ao_na".to_string()),
+            "scenery should list pack dirs"
+        );
+
+        // list_dir("/scenery/z_ao_na/Earth nav data") returns DSF files
+        let nav_entries = fs.list_dir("/scenery/z_ao_na/Earth nav data").unwrap();
+        assert!(
+            nav_entries.contains(&"+40-070.dsf".to_string()),
+            "should see DSF files"
+        );
+
+        // get_attr for virtual directories
+        assert!(fs.get_attr("/textures").await.unwrap().is_dir);
+        assert!(fs.get_attr("/terrain").await.unwrap().is_dir);
+
+        // get_attr for pass-through files
+        let attr = fs.get_attr("/na_info.json").await.unwrap();
+        assert!(!attr.is_dir);
+        assert_eq!(attr.size, b"na metadata".len() as u64);
+
+        // get_attr for pass-through directories
+        assert!(fs.get_attr("/scenery").await.unwrap().is_dir);
+        assert!(fs.get_attr("/scenery/z_ao_na").await.unwrap().is_dir);
+
+        // get_attr for pass-through nested files
+        let dsf_attr = fs
+            .get_attr("/scenery/z_ao_na/Earth nav data/+40-070.dsf")
+            .await
+            .unwrap();
+        assert!(!dsf_attr.is_dir);
+        assert_eq!(dsf_attr.size, b"fake dsf".len() as u64);
+
+        // get_attr for DDS tile (virtual, generated on demand)
+        let dds_attr = fs.get_attr("/100_200_BI16.dds").await.unwrap();
+        assert!(!dds_attr.is_dir);
+        assert!(dds_attr.size > 1_000_000);
+    }
+
     #[test]
     fn test_list_dir_textures() {
         let fs = make_fs();

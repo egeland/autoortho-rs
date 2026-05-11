@@ -83,7 +83,10 @@ fn find_dokanctl() -> Option<std::path::PathBuf> {
     }
 
     // Try to find via PATH
-    if let Ok(output) = std::process::Command::new("where").arg("dokanctl.exe").output() {
+    if let Ok(output) = std::process::Command::new("where")
+        .arg("dokanctl.exe")
+        .output()
+    {
         if output.status.success() {
             let path_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !path_str.is_empty() {
@@ -113,10 +116,7 @@ pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::er
         // Try Dokan library's unmount function first
         if let Ok(mount_wide) = widestring::U16CString::from_str(&mount_str) {
             if dokan::unmount(&mount_wide) {
-                log::info!(
-                    "Successfully unmounted stale Dokan mount: {}",
-                    mount_str
-                );
+                log::info!("Successfully unmounted stale Dokan mount: {}", mount_str);
             } else {
                 log::debug!("Dokan unmount failed or not mounted");
             }
@@ -129,10 +129,7 @@ pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::er
                 .status()
                 .is_ok_and(|s| s.success())
             {
-                log::info!(
-                    "dokanctl removed stale mount point: {}",
-                    mount_str
-                );
+                log::info!("dokanctl removed stale mount point: {}", mount_str);
             }
         }
     }
