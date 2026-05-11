@@ -599,6 +599,21 @@ impl DdsFileSystem {
             .unwrap_or(0)
     }
 
+    /// Check if an entry in a directory path exists as a real directory in the pass-through root.
+    pub fn is_dir_in_root(&self, dir_path: &str, entry_name: &str) -> bool {
+        if let Some(ref root) = self.root {
+            let trimmed = dir_path.trim_start_matches('/');
+            let full_path = if trimmed.is_empty() {
+                root.join(entry_name)
+            } else {
+                root.join(trimmed).join(entry_name)
+            };
+            full_path.is_dir()
+        } else {
+            false
+        }
+    }
+
     /// List directory contents.
     pub fn list_dir(&self, path: &str) -> Result<Vec<String>, FuseError> {
         let trimmed = path.trim_start_matches('/');
@@ -818,6 +833,36 @@ mod tests {
         assert!(entries.contains(&"textures".to_string()));
         assert!(entries.contains(&"terrain".to_string()));
         assert!(entries.contains(&".".to_string()));
+    }
+
+    #[test]
+    fn test_list_dir_root_with_pass_through() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        // Create a real file in the pass-through root
+        std::fs::write(tmp.path().join("sa_info.json"), b"test").unwrap();
+        std::fs::create_dir_all(tmp.path().join("scenery")).unwrap();
+
+        let provider = Arc::new(MockProvider);
+        let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
+        let fs = DdsFileSystem::with_root(Arc::new(fetcher), tmp.path().to_path_buf(), "ARC");
+
+        let entries = fs.list_dir("/").unwrap();
+        assert!(
+            entries.contains(&"textures".to_string()),
+            "should contain virtual textures dir"
+        );
+        assert!(
+            entries.contains(&"terrain".to_string()),
+            "should contain virtual terrain dir"
+        );
+        assert!(
+            entries.contains(&"sa_info.json".to_string()),
+            "should contain pass-through file"
+        );
+        assert!(
+            entries.contains(&"scenery".to_string()),
+            "should contain pass-through dir"
+        );
     }
 
     #[test]

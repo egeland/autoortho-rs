@@ -225,7 +225,7 @@ mod unifuse_impl {
         async fn readdir(&self, path: &Path) -> Result<Vec<DirEntry>, FsError> {
             debug!("readdir: {:?}", path);
 
-            let _path_str = path.to_string_lossy();
+            let path_str = path.to_string_lossy();
             let mut entries = Vec::new();
 
             entries.push(DirEntry {
@@ -238,11 +238,27 @@ mod unifuse_impl {
                 kind: FileType::Directory,
             });
 
-            for dir in VIRTUAL_DIRS {
-                entries.push(DirEntry {
-                    name: (*dir).to_string(),
-                    kind: FileType::Directory,
-                });
+            // Use DdsFileSystem.list_dir() for all directory listings
+            // This gives us virtual dirs + pass-through entries from root
+            match self.fs.list_dir(&path_str) {
+                Ok(fs_entries) => {
+                    for entry_name in fs_entries {
+                        if entry_name == "." || entry_name == ".." {
+                            continue;
+                        }
+                        let is_dir = VIRTUAL_DIRS.contains(&entry_name.as_str())
+                            || self.fs.is_dir_in_root(&path_str, &entry_name);
+                        entries.push(DirEntry {
+                            name: entry_name,
+                            kind: if is_dir {
+                                FileType::Directory
+                            } else {
+                                FileType::RegularFile
+                            },
+                        });
+                    }
+                }
+                Err(_) => return Err(FsError::NotFound),
             }
 
             Ok(entries)

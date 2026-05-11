@@ -246,47 +246,46 @@ mod dokan_impl {
                 return Err(STATUS_UNSUCCESSFUL);
             }
 
-            if is_root {
-                debug!("dokan find_files: processing root directory");
-                for dir in VIRTUAL_DIRS {
-                    let data = FindData {
-                        attributes: winnt::FILE_ATTRIBUTE_DIRECTORY,
-                        creation_time: now,
-                        last_access_time: now,
-                        last_write_time: now,
-                        file_size: 0,
-                        file_name: U16CString::from_str(dir).unwrap(),
-                    };
-                    if fill_find_data(&data).is_err() {
-                        debug!(
-                            "dokan find_files: failed to add virtual directory '{}'",
-                            dir
-                        );
-                        return Err(STATUS_UNSUCCESSFUL);
+            // Use DdsFileSystem.list_dir() for all directory listings
+            // This gives us virtual dirs + pass-through entries from root
+            match self.fs.list_dir(&dir_path_str) {
+                Ok(entries) => {
+                    for entry_name in entries {
+                        // Skip . and .. (we already added them above)
+                        if entry_name == "." || entry_name == ".." {
+                            continue;
+                        }
+
+                        // Determine if entry is a directory
+                        let is_dir = VIRTUAL_DIRS.contains(&entry_name.as_str())
+                            || self.fs.is_dir_in_root(&dir_path_str, &entry_name);
+
+                        let data = FindData {
+                            attributes: if is_dir {
+                                winnt::FILE_ATTRIBUTE_DIRECTORY
+                            } else {
+                                winnt::FILE_ATTRIBUTE_NORMAL
+                            },
+                            creation_time: now,
+                            last_access_time: now,
+                            last_write_time: now,
+                            file_size: 0,
+                            file_name: U16CString::from_str(&entry_name).unwrap(),
+                        };
+                        if fill_find_data(&data).is_err() {
+                            debug!("dokan find_files: failed to add entry '{}'", entry_name);
+                            return Err(STATUS_UNSUCCESSFUL);
+                        }
                     }
                 }
-            } else if is_textures || is_terrain {
-                debug!("dokan find_files: processing virtual directory, adding marker file");
-                let data = FindData {
-                    attributes: winnt::FILE_ATTRIBUTE_NORMAL,
-                    creation_time: now,
-                    last_access_time: now,
-                    last_write_time: now,
-                    file_size: 0,
-                    file_name: U16CString::from_str(MARKER_FILE).unwrap(),
-                };
-                if fill_find_data(&data).is_err() {
+                Err(e) => {
                     debug!(
-                        "dokan find_files: failed to add marker file '{}'",
-                        MARKER_FILE
+                        "dokan find_files: list_dir failed for {}: {:?}",
+                        dir_path_str, e
                     );
-                    return Err(STATUS_UNSUCCESSFUL);
+                    // Path doesn't exist or is not a directory
+                    return Err(STATUS_OBJECT_NAME_NOT_FOUND);
                 }
-            } else {
-                debug!(
-                    "dokan find_files: not root or virtual directory, dir_path={}",
-                    dir_path_str
-                );
             }
 
             debug!(
