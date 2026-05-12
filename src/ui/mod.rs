@@ -1311,35 +1311,43 @@ async fn start_all_services(
             && crate::fuse::platform::is_fuse_available();
 
         if should_mount {
-            // Create mount point if it doesn't exist
+            // Ensure mount point directory exists — warn but continue on failure
             if let Err(e) = std::fs::create_dir_all(&mount_dir) {
-                log::warn!("Failed to create mount directory: {}", e);
-            } else {
-                // Clean up any stale mount before mounting
-                if let Err(e) = crate::fuse::platform::cleanup_mount(&mount_dir) {
-                    log::debug!("Stale mount cleanup failed (ignored): {}", e);
-                }
-
-                // Start FUSE mount in background
-                let fs_clone = context.fs.clone();
-                let mount_path = mount_dir.to_path_buf();
-                let runtime_handle = tokio::runtime::Handle::current();
-
-                tokio::task::spawn_blocking(move || {
-                    #[cfg(not(windows))]
-                    use crate::fuse::mount::mount;
-                    #[cfg(windows)]
-                    use crate::fuse::mount_win::mount;
-
-                    match mount(fs_clone, &mount_path, runtime_handle) {
-                        Ok(()) => Ok::<(), String>(()),
-                        Err(e) => {
-                            log::warn!("FUSE mount failed (non-fatal): {}", e);
-                            Ok::<(), String>(()) // Don't fail service startup if FUSE fails
-                        }
-                    }
-                });
+                log::warn!(
+                    "Failed to create mount directory: {} — continuing anyway",
+                    e
+                );
             }
+
+            // Clean up any stale mount before mounting
+            // Also clean up old mount point (z_autoortho/textures) from v0.8.9
+            let old_mount = mount_dir.join("textures");
+            if let Err(e) = crate::fuse::platform::cleanup_mount(&mount_dir) {
+                log::debug!("Stale mount cleanup failed (ignored): {}", e);
+            }
+            if let Err(e) = crate::fuse::platform::cleanup_mount(&old_mount) {
+                log::debug!("Old mount cleanup failed (ignored): {}", e);
+            }
+
+            // Start FUSE mount in background
+            let fs_clone = context.fs.clone();
+            let mount_path = mount_dir.to_path_buf();
+            let runtime_handle = tokio::runtime::Handle::current();
+
+            tokio::task::spawn_blocking(move || {
+                #[cfg(not(windows))]
+                use crate::fuse::mount::mount;
+                #[cfg(windows)]
+                use crate::fuse::mount_win::mount;
+
+                match mount(fs_clone, &mount_path, runtime_handle) {
+                    Ok(()) => Ok::<(), String>(()),
+                    Err(e) => {
+                        log::warn!("FUSE mount failed (non-fatal): {}", e);
+                        Ok::<(), String>(()) // Don't fail service startup if FUSE fails
+                    }
+                }
+            });
         } else {
             log::info!("FUSE mount skipped: xplane_path not configured or FUSE unavailable");
         }
