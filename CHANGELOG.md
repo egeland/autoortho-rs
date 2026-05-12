@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.11](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.10...autoortho-v0.8.11) (2026-05-12)
+
+
+### Bug Fixes
+
+* Dokan mount blocked by create_dir_all failure; backslash path normalization ([#344](https://github.com/egeland/autoortho-rs/issues/344)) ([d29c80c](https://github.com/egeland/autoortho-rs/commit/d29c80cdb19061491ae4b85840b5114247bb2836))
+
 ## [0.8.10](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.9...autoortho-v0.8.10) (2026-05-11)
 
 
