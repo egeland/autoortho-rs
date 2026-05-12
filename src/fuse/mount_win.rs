@@ -118,7 +118,7 @@ mod dokan_impl {
             }
 
             let ino = self.path_to_inode(clean_path);
-            let attr = self.runtime.block_on(self.fs.get_attr(&path_str));
+            let attr = self.runtime.block_on(self.fs.get_attr(&path_str_converted));
 
             match attr {
                 Ok(file_attr) => {
