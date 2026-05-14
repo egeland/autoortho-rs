@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
-// Copyright (c) 2026 the AutoOrtho-RS contributors
+// Copyright (c) 2026 the AutoOrtho contributors
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
