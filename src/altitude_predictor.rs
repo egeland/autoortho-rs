@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
-// Copyright (c) 2024-2026 the AutoOrtho contributors
+// Copyright (c) 2026 the AutoOrtho contributors
 
 /// Predict altitude at closest point of approach
 pub struct AltitudePredictor;

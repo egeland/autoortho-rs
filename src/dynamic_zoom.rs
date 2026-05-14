@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
-// Copyright (c) 2024 the AutoOrtho contributors
+// Copyright (c) 2026 the AutoOrtho contributors
 
 use crate::config::ZoomRule;
 use crate::tiles::provider::PROVIDER_INFO;
