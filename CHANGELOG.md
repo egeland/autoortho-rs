@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.12](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.11...autoortho-v0.8.12) (2026-05-14)
+
+
+### Bug Fixes
+
+* update copyright year to 2026 in all src files ([#346](https://github.com/egeland/autoortho-rs/issues/346)) ([cd9b0f3](https://github.com/egeland/autoortho-rs/commit/cd9b0f392739b3d54d25424ec1ef7eec6dbbcf15))
+
 ## [0.8.11](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.10...autoortho-v0.8.11) (2026-05-12)
 
 
