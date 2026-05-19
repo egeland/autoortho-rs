@@ -408,7 +408,7 @@ mod dokan_impl {
 
         // This blocks until unmounted
         match mounter.mount() {
-            Ok((fs)) => {
+            Ok(fs) => {
                 info!("AutoOrtho mounted at {}", mount_str);
                 app_context.set_dokan_filesystem(fs);
                 Ok(())
@@ -429,7 +429,7 @@ mod dokan_impl {
                     let mount_point: &U16CStr = mount_cstr.as_ucstr();
                     let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
                     match mounter.mount() {
-                        Ok((fs)) => {
+                        Ok(fs) => {
                             info!("AutoOrtho mounted at {} (retry)", mount_str);
                             app_context.set_dokan_filesystem(fs);
                             Ok(())
@@ -437,7 +437,7 @@ mod dokan_impl {
                         Err(e) => {
                             let desc = describe_mount_error(&e);
                             error!("Retry failed at {}: {} ({:?})", mount_str, desc, e);
-                            shutdown();
+                            // Do NOT call shutdown() - cleanup_mount handles unmount
                             Err(Box::new(e))
                         }
                     }

@@ -29,7 +29,7 @@ pub struct AppContext {
     pub fs: Arc<DdsFileSystem>,
     #[cfg(all(target_os = "windows", feature = "fuse"))]
     /// Dokan filesystem handle - keep alive after mount
-    dokan_filesystem: Option<FileSystem>,
+    dokan_filesystem: Option<FileSystem<'_>>,
     pub custom_map: Arc<CustomMapStore>,
 }
 
