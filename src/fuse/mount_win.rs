@@ -6,6 +6,7 @@
 pub use self::dokan_impl::mount;
 
 mod dokan_impl {
+    use crate::app_context::AppContext;
     use crate::fuse::filesystem::DdsFileSystem;
     use crate::fuse::{MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
     use dokan::{
@@ -45,10 +46,15 @@ mod dokan_impl {
     }
 
     impl AutoOrthoHandler {
-        pub fn new(fs: Arc<DdsFileSystem>, runtime: tokio::runtime::Handle) -> Self {
+        pub fn new(
+            fs: Arc<DdsFileSystem>,
+            runtime: tokio::runtime::Handle,
+            app_context: Arc<AppContext>,
+        ) -> Self {
             Self {
                 fs,
                 runtime,
+                app_context,
                 path_to_inode: RwLock::new(HashMap::new()),
                 next_inode: Mutex::new(DYNAMIC_INO_START),
                 open_files: RwLock::new(HashMap::new()),
@@ -355,11 +361,12 @@ mod dokan_impl {
         fs: Arc<DdsFileSystem>,
         mountpoint: &Path,
         runtime: tokio::runtime::Handle,
+        app_context: Arc<AppContext>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Initialize Dokan library
         init();
 
-        let handler = AutoOrthoHandler::new(fs, runtime);
+        let handler = AutoOrthoHandler::new(fs, runtime, app_context);
         let mount_str = mountpoint.to_string_lossy().to_string();
         let mount_cstr = U16CString::from_str(&mount_str)?;
 
@@ -401,9 +408,9 @@ mod dokan_impl {
 
         // This blocks until unmounted
         match mounter.mount() {
-            Ok(_filesystem) => {
+            Ok((fs)) => {
                 info!("AutoOrtho mounted at {}", mount_str);
-                shutdown();
+                app_context.set_dokan_filesystem(fs);
                 Ok(())
             }
             Err(e) => {
@@ -422,9 +429,9 @@ mod dokan_impl {
                     let mount_point: &U16CStr = mount_cstr.as_ucstr();
                     let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
                     match mounter.mount() {
-                        Ok(_filesystem) => {
+                        Ok((fs)) => {
                             info!("AutoOrtho mounted at {} (retry)", mount_str);
-                            shutdown();
+                            app_context.set_dokan_filesystem(fs);
                             Ok(())
                         }
                         Err(e) => {
@@ -435,7 +442,7 @@ mod dokan_impl {
                         }
                     }
                 } else {
-                    shutdown();
+                    // Do NOT call shutdown() - cleanup_mount handles unmount
                     Err(Box::new(e))
                 }
             }

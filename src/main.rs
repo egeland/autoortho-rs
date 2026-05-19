@@ -475,7 +475,12 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
         use autoortho_lib::fuse::mount::mount;
         #[cfg(windows)]
         use autoortho_lib::fuse::mount_win::mount;
-        mount(fs_clone, &mount_path, runtime_handle).map_err(|e| e.to_string())
+        #[cfg(not(windows))]
+        let result = mount(fs_clone, &mount_path, runtime_handle);
+        #[cfg(windows)]
+        let result = mount(fs_clone, &mount_path, runtime_handle, context.clone());
+
+        result.map_err(|e| e.to_string())
     })
     .await?
     .map_err(|e| format!("FUSE mount error: {}", e))?;

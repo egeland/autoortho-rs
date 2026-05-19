@@ -15,7 +15,10 @@ use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::provider::ProviderFactory;
 use crate::webui::custommap::CustomMapStore;
 use crate::xplane::dataref::DatarefTracker;
+#[cfg(all(target_os = "windows", feature = "fuse"))]
+use dokan::FileSystem;
 
+#[derive(Clone)]
 pub struct AppContext {
     pub config: Arc<RwLock<AutoOrthoConfig>>,
     pub stats: Arc<StatsStore>,
@@ -24,6 +27,9 @@ pub struct AppContext {
     pub dds_cache: Option<Arc<Mutex<DdsCache>>>,
     #[cfg(feature = "fuse")]
     pub fs: Arc<DdsFileSystem>,
+    #[cfg(all(target_os = "windows", feature = "fuse"))]
+    /// Dokan filesystem handle - keep alive after mount
+    dokan_filesystem: Option<FileSystem>,
     pub custom_map: Arc<CustomMapStore>,
 }
 
@@ -87,8 +93,16 @@ impl AppContext {
             dds_cache,
             #[cfg(feature = "fuse")]
             fs,
+            #[cfg(all(target_os = "windows", feature = "fuse"))]
+            dokan_filesystem: None,
             custom_map,
         })
+    }
+
+    /// Set the Dokan filesystem handle after successful mount (Windows)
+    #[cfg(all(target_os = "windows", feature = "fuse"))]
+    pub fn set_dokan_filesystem(&mut self, fs: FileSystem) {
+        self.dokan_filesystem = Some(fs);
     }
 }
 
