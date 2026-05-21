@@ -7261,9 +7261,9 @@ checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 
 [[package]]
 name = "unifuse"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26c2eada529f203c0726ba0de5e90f843c7ea6f2200745bf33cfaa1d072c7e83"
+checksum = "b702e49c80ffdf8d176b43284c0611e039b2e6bc6edaa25dfff12b54817b77bc"
 dependencies = [
  "dashmap",
  "futures-util",

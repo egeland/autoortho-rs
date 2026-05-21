@@ -79,7 +79,7 @@ futures-lite = "2.6"
 # On Windows, use Dokan (user-mode file system)
 # Note: on Windows, unifuse has compatibility issues, so we use Dokan directly instead
 [target.'cfg(not(windows))'.dependencies]
-unifuse = { version = "0.1", optional = true }
+unifuse = { version = "0.2", optional = true }
 libc = { version = "0.2", optional = true }
 
 # Windows: use Dokan (user-mode file system)
