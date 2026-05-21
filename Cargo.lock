@@ -475,7 +475,7 @@ dependencies = [
  "tracing-subscriber",
  "unifuse",
  "uuid",
- "widestring 0.4.3",
+ "widestring 1.2.1",
  "winapi",
  "zip",
  "zstd",
