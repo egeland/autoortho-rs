@@ -19,7 +19,7 @@ mod dokan_impl {
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex, RwLock};
     use std::time::SystemTime;
-    use widestring::{ucstr::UCStr, UCString};
+    use widestring::{UCString, ucstr::UCStr};
     use winapi::shared::ntstatus::*;
     use winapi::um::winnt;
 
