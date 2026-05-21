@@ -118,8 +118,8 @@ pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::er
     #[cfg(windows)]
     {
         // Try Dokan library's unmount function first
-        if let Ok(mount_wide) = widestring::U16CString::from_str(&mount_str) {
-            if dokan::unmount(&mount_wide) {
+        if let Ok(mount_wide) = widestring::UCString::from_str(&mount_str) {
+            if dokan::unmount(mount_wide.as_ref()) {
                 log::info!("Successfully unmounted stale Dokan mount: {}", mount_str);
             } else {
                 log::debug!("Dokan unmount failed or not mounted");

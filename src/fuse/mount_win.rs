@@ -19,7 +19,7 @@ mod dokan_impl {
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex, RwLock};
     use std::time::SystemTime;
-    use widestring::{U16CStr, U16CString};
+    use widestring::{ucstr::UCStr, UCString};
     use winapi::shared::ntstatus::*;
     use winapi::um::winnt;
 
@@ -101,7 +101,7 @@ mod dokan_impl {
 
         fn create_file(
             &'h self,
-            file_name: &U16CStr,
+            file_name: &UCStr<u16>,
             _security_context: &dokan_sys::DOKAN_IO_SECURITY_CONTEXT,
             _desired_access: u32,
             _file_attributes: u32,
@@ -154,7 +154,7 @@ mod dokan_impl {
 
         fn cleanup(
             &self,
-            _file_name: &U16CStr,
+            _file_name: &UCStr<u16>,
             _info: &OperationInfo<'c, 'h, Self>,
             _context: &'c Self::Context,
         ) {
@@ -163,7 +163,7 @@ mod dokan_impl {
 
         fn close_file(
             &self,
-            _file_name: &U16CStr,
+            _file_name: &UCStr<u16>,
             _info: &OperationInfo<'c, 'h, Self>,
             context: &'c Self::Context,
         ) {
@@ -173,7 +173,7 @@ mod dokan_impl {
 
         fn read_file(
             &self,
-            _file_name: &U16CStr,
+            _file_name: &UCStr<u16>,
             offset: i64,
             buffer: &mut [u8],
             _info: &OperationInfo<'c, 'h, Self>,
@@ -208,7 +208,7 @@ mod dokan_impl {
 
         fn find_files(
             &self,
-            _file_name: &U16CStr,
+            _file_name: &UCStr<u16>,
             mut fill_find_data: impl FnMut(&FindData) -> dokan::FillDataResult,
             _info: &OperationInfo<'c, 'h, Self>,
             context: &'c Self::Context,
@@ -233,7 +233,7 @@ mod dokan_impl {
                 last_access_time: now,
                 last_write_time: now,
                 file_size: 0,
-                file_name: U16CString::from_str(".").unwrap(),
+                file_name: UCString::from_str(".").unwrap(),
             };
             if fill_find_data(&dot).is_err() {
                 debug!("dokan find_files: failed to add '.' entry");
@@ -246,7 +246,7 @@ mod dokan_impl {
                 last_access_time: now,
                 last_write_time: now,
                 file_size: 0,
-                file_name: U16CString::from_str("..").unwrap(),
+                file_name: UCString::from_str("..").unwrap(),
             };
             if fill_find_data(&dotdot).is_err() {
                 debug!("dokan find_files: failed to add '..' entry");
@@ -277,7 +277,7 @@ mod dokan_impl {
                             last_access_time: now,
                             last_write_time: now,
                             file_size: 0,
-                            file_name: U16CString::from_str(&entry_name).unwrap(),
+                            file_name: UCString::from_str(&entry_name).unwrap(),
                         };
                         if fill_find_data(&data).is_err() {
                             debug!("dokan find_files: failed to add entry '{}'", entry_name);
@@ -304,7 +304,7 @@ mod dokan_impl {
 
         fn get_file_information(
             &self,
-            _file_name: &U16CStr,
+            _file_name: &UCStr<u16>,
             _info: &OperationInfo<'c, 'h, Self>,
             context: &'c Self::Context,
         ) -> OperationResult<FileInfo> {
@@ -337,11 +337,11 @@ mod dokan_impl {
         ) -> OperationResult<VolumeInfo> {
             // Use U16CString for owned string since both widestring 0.4 and 1.x support this
             Ok(VolumeInfo {
-                name: U16CString::from_str("AutoOrtho").unwrap(),
+                name: UCString::from_str("AutoOrtho").unwrap(),
                 serial_number: 0x12345678,
                 max_component_length: 256,
                 fs_flags: 0,
-                fs_name: U16CString::from_str("Dokan").unwrap(),
+                fs_name: UCString::from_str("Dokan").unwrap(),
             })
         }
 
@@ -384,7 +384,7 @@ mod dokan_impl {
         };
 
         // Create an owned copy for the mounter
-        let mount_point: &U16CStr = mount_cstr.as_ucstr();
+        let mount_point: &UCStr<u16> = mount_cstr.as_ref();
         let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
 
         /// Map Dokan mount errors to user-friendly messages
@@ -426,7 +426,7 @@ mod dokan_impl {
                     let _ = crate::fuse::platform::cleanup_mount(mountpoint);
                     std::thread::sleep(std::time::Duration::from_secs(2));
 
-                    let mount_point: &U16CStr = mount_cstr.as_ucstr();
+                    let mount_point: &UCStr<u16> = mount_cstr.as_ref();
                     let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
                     match mounter.mount() {
                         Ok(fs) => {
