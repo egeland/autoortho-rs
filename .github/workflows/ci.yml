@@ -36,8 +36,6 @@ jobs:
         run: rustup component add rustfmt clippy
 
       - uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
 
       - name: Check formatting
         run: cargo fmt --check

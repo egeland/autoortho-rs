@@ -19,7 +19,10 @@ use crate::xplane::dataref::DatarefTracker;
 use dokan::FileSystem;
 
 #[derive(Clone)]
-pub struct AppContext {
+pub struct AppContext<'c, 'h, FSH: Send + Sync + Clone = ()> {
+    // Consume unused lifetime/type parameters on non-Windows targets
+    #[cfg(not(all(target_os = "windows", feature = "fuse")))]
+    _marker: std::marker::PhantomData<(&'c (), &'h (), FSH)>,
     pub config: Arc<RwLock<AutoOrthoConfig>>,
     pub stats: Arc<StatsStore>,
     pub tracker: Arc<DatarefTracker>,
@@ -29,11 +32,11 @@ pub struct AppContext {
     pub fs: Arc<DdsFileSystem>,
     #[cfg(all(target_os = "windows", feature = "fuse"))]
     /// Dokan filesystem handle - keep alive after mount
-    dokan_filesystem: Option<FileSystem<'_>>,
+    dokan_filesystem: Option<FSH>,
     pub custom_map: Arc<CustomMapStore>,
 }
 
-impl AppContext {
+impl<'c, 'h, FSH: Send + Sync + Clone> AppContext<'c, 'h, FSH> {
     pub async fn init(config: AutoOrthoConfig) -> Result<Self, Box<dyn Error>> {
         let _provider = ProviderFactory::create(&config.tile_provider)
             .ok_or_else(|| format!("Unknown tile provider: {}", config.tile_provider))?;
@@ -86,6 +89,8 @@ impl AppContext {
         let tracker = Arc::new(DatarefTracker::new());
 
         Ok(Self {
+            #[cfg(not(all(target_os = "windows", feature = "fuse")))]
+            _marker: std::marker::PhantomData,
             config: Arc::new(RwLock::new(config)),
             stats,
             tracker,
@@ -101,7 +106,7 @@ impl AppContext {
 
     /// Set the Dokan filesystem handle after successful mount (Windows)
     #[cfg(all(target_os = "windows", feature = "fuse"))]
-    pub fn set_dokan_filesystem(&mut self, fs: FileSystem) {
+    pub fn set_dokan_filesystem(&mut self, fs: FSH) {
         self.dokan_filesystem = Some(fs);
     }
 }
@@ -118,7 +123,7 @@ mod tests {
         let mut config = AutoOrthoConfig::default();
         config.cache_dir = tmp.path().to_string_lossy().to_string();
 
-        let context = AppContext::init(config)
+        let context: AppContext<'_, '_, ()> = AppContext::init(config)
             .await
             .expect("Failed to init context");
         assert_eq!(context.config.read().tile_provider, "ARC");

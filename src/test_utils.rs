@@ -29,7 +29,10 @@ pub fn test_config_in_temp() -> (crate::config::AutoOrthoConfig, TempDir) {
 /// Create a test AppContext with default config in a temp directory.
 /// Returns the AppContext and temp directory (must be kept alive for async context).
 #[cfg(test)]
-pub async fn test_app_context() -> (crate::app_context::AppContext, TempDir) {
+pub async fn test_app_context() -> (
+    crate::app_context::AppContext<'static, 'static, ()>,
+    TempDir,
+) {
     let (config, tmp) = test_config_in_temp();
     let context = crate::app_context::AppContext::init(config)
         .await

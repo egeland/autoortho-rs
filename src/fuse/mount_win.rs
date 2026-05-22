@@ -19,7 +19,7 @@ mod dokan_impl {
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex, RwLock};
     use std::time::SystemTime;
-    use widestring::{UCString, ucstr::UCStr};
+    use widestring::{U16CStr, U16CString};
     use winapi::shared::ntstatus::*;
     use winapi::um::winnt;
 
@@ -46,15 +46,10 @@ mod dokan_impl {
     }
 
     impl AutoOrthoHandler {
-        pub fn new(
-            fs: Arc<DdsFileSystem>,
-            runtime: tokio::runtime::Handle,
-            app_context: Arc<AppContext>,
-        ) -> Self {
+        pub fn new(fs: Arc<DdsFileSystem>, runtime: tokio::runtime::Handle) -> Self {
             Self {
                 fs,
                 runtime,
-                app_context,
                 path_to_inode: RwLock::new(HashMap::new()),
                 next_inode: Mutex::new(DYNAMIC_INO_START),
                 open_files: RwLock::new(HashMap::new()),
@@ -366,7 +361,7 @@ mod dokan_impl {
         // Initialize Dokan library
         init();
 
-        let handler = AutoOrthoHandler::new(fs, runtime, app_context);
+        let handler = AutoOrthoHandler::new(fs, runtime);
         let mount_str = mountpoint.to_string_lossy().to_string();
         let mount_cstr = widestring::U16CString::from_str(&mount_str)?;
 

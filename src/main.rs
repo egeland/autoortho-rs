@@ -357,7 +357,7 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     );
 
     let config = AutoOrthoConfig::default();
-    let context = AppContext::init(config).await?;
+    let context: AppContext<'_, '_, ()> = AppContext::init(config).await?;
 
     let config_snapshot: ConfigSnapshot = (&*context.config.read()).into();
 
