@@ -233,7 +233,7 @@ mod dokan_impl {
                 last_access_time: now,
                 last_write_time: now,
                 file_size: 0,
-                file_name: UCString::from_str(".").unwrap(),
+                file_name: widestring::U16CString::from_str(".").unwrap(),
             };
             if fill_find_data(&dot).is_err() {
                 debug!("dokan find_files: failed to add '.' entry");
@@ -246,7 +246,7 @@ mod dokan_impl {
                 last_access_time: now,
                 last_write_time: now,
                 file_size: 0,
-                file_name: UCString::from_str("..").unwrap(),
+                file_name: widestring::U16CString::from_str("..").unwrap(),
             };
             if fill_find_data(&dotdot).is_err() {
                 debug!("dokan find_files: failed to add '..' entry");
@@ -277,7 +277,7 @@ mod dokan_impl {
                             last_access_time: now,
                             last_write_time: now,
                             file_size: 0,
-                            file_name: UCString::from_str(&entry_name).unwrap(),
+                            file_name: widestring::U16CString::from_str(&entry_name).unwrap(),
                         };
                         if fill_find_data(&data).is_err() {
                             debug!("dokan find_files: failed to add entry '{}'", entry_name);
@@ -337,11 +337,11 @@ mod dokan_impl {
         ) -> OperationResult<VolumeInfo> {
             // Use U16CString for owned string since both widestring 0.4 and 1.x support this
             Ok(VolumeInfo {
-                name: UCString::from_str("AutoOrtho").unwrap(),
+                name: widestring::U16CString::from_str("AutoOrtho").unwrap(),
                 serial_number: 0x12345678,
                 max_component_length: 256,
                 fs_flags: 0,
-                fs_name: UCString::from_str("Dokan").unwrap(),
+                fs_name: widestring::U16CString::from_str("Dokan").unwrap(),
             })
         }
 
@@ -368,7 +368,7 @@ mod dokan_impl {
 
         let handler = AutoOrthoHandler::new(fs, runtime, app_context);
         let mount_str = mountpoint.to_string_lossy().to_string();
-        let mount_cstr = U16CString::from_str(&mount_str)?;
+        let mount_cstr = widestring::U16CString::from_str(&mount_str)?;
 
         info!("Mounting AutoOrtho at {} using Dokan", mount_str);
 
@@ -384,7 +384,7 @@ mod dokan_impl {
         };
 
         // Create an owned copy for the mounter
-        let mount_point: &UCStr<u16> = mount_cstr.as_ref();
+        let mount_point: &widestring::U16CStr = mount_cstr.as_ucstr();
         let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
 
         /// Map Dokan mount errors to user-friendly messages
@@ -426,7 +426,7 @@ mod dokan_impl {
                     let _ = crate::fuse::platform::cleanup_mount(mountpoint);
                     std::thread::sleep(std::time::Duration::from_secs(2));
 
-                    let mount_point: &UCStr<u16> = mount_cstr.as_ref();
+                    let mount_point: &widestring::U16CStr = mount_cstr.as_ucstr();
                     let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
                     match mounter.mount() {
                         Ok(fs) => {
