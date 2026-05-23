@@ -13,13 +13,14 @@ mod dokan_impl {
     use dokan::{
         CreateFileInfo, DiskSpaceInfo, FileInfo, FileSystemHandler, FileSystemMountError,
         FileSystemMounter, FindData, MountFlags, MountOptions, OperationInfo, OperationResult,
-        U16CStr, U16CString, VolumeInfo, init,
+        VolumeInfo, init,
     };
     use log::{debug, error, info, warn};
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex, RwLock};
     use std::time::SystemTime;
+    use widestring::{U16CStr, U16CString};
     use winapi::shared::ntstatus::*;
     use winapi::um::winnt;
 
@@ -330,7 +331,7 @@ mod dokan_impl {
             &self,
             _info: &OperationInfo<'c, 'h, Self>,
         ) -> OperationResult<VolumeInfo> {
-            // Use U16CString from dokan's widestring 0.4
+            // Use U16CString from widestring 1.2 (same version dokan uses)
             Ok(VolumeInfo {
                 name: U16CString::from_str("AutoOrtho").unwrap(),
                 serial_number: 0x12345678,
