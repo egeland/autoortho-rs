@@ -357,7 +357,7 @@ mod dokan_impl {
         fs: Arc<DdsFileSystem>,
         mountpoint: &Path,
         runtime: tokio::runtime::Handle,
-        app_context: Arc<AppContext>,
+        _app_context: Arc<AppContext>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Initialize Dokan library
         init();
@@ -403,10 +403,11 @@ mod dokan_impl {
         }
 
         // This blocks until unmounted
+        // Note: The returned FileSystem is kept alive on the stack for the duration of mount().
+        // When mount() returns (on unmount), the FileSystem is dropped and cleanup occurs.
         match mounter.mount() {
-            Ok(fs) => {
+            Ok(_fs) => {
                 info!("AutoOrtho mounted at {}", mount_str);
-                app_context.set_dokan_mount(fs);
                 Ok(())
             }
             Err(e) => {
@@ -425,9 +426,8 @@ mod dokan_impl {
                     let mount_point: &widestring::U16CStr = mount_cstr.as_ucstr();
                     let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
                     match mounter.mount() {
-                        Ok(fs) => {
+                        Ok(_fs) => {
                             info!("AutoOrtho mounted at {} (retry)", mount_str);
-                            app_context.set_dokan_mount(fs);
                             Ok(())
                         }
                         Err(e) => {

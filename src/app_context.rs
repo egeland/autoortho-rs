@@ -5,26 +5,16 @@ use parking_lot::{Mutex as ParkMutex, RwLock};
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
-#[cfg(all(target_os = "windows", feature = "fuse"))]
-use std::sync::Mutex;
 
 use crate::config::AutoOrthoConfig;
 #[cfg(feature = "fuse")]
 use crate::fuse::filesystem::DdsFileSystem;
-#[cfg(all(target_os = "windows", feature = "fuse"))]
-use crate::fuse::mount_win::AutoOrthoHandler;
 use crate::pipeline::cache::DdsCache;
 use crate::stats::StatsStore;
 use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::provider::ProviderFactory;
 use crate::webui::custommap::CustomMapStore;
 use crate::xplane::dataref::DatarefTracker;
-
-/// Opaque handle type for storing Dokan filesystem on Windows
-/// This prevents generic parameter pollution while keeping the mount alive
-#[cfg(all(target_os = "windows", feature = "fuse"))]
-pub type DokanMountHandle =
-    Arc<Mutex<Option<dokan::FileSystem<'static, 'static, AutoOrthoHandler>>>>;
 
 #[derive(Clone)]
 pub struct AppContext {
@@ -35,9 +25,6 @@ pub struct AppContext {
     pub dds_cache: Option<Arc<ParkMutex<DdsCache>>>,
     #[cfg(feature = "fuse")]
     pub fs: Arc<DdsFileSystem>,
-    #[cfg(all(target_os = "windows", feature = "fuse"))]
-    /// Dokan filesystem handle - must be kept alive to maintain mount
-    pub dokan_mount: DokanMountHandle,
     pub custom_map: Arc<CustomMapStore>,
 }
 
@@ -101,19 +88,8 @@ impl AppContext {
             dds_cache,
             #[cfg(feature = "fuse")]
             fs,
-            #[cfg(all(target_os = "windows", feature = "fuse"))]
-            dokan_mount: Arc::new(Mutex::new(None)),
             custom_map,
         })
-    }
-
-    /// Set the Dokan filesystem handle after successful mount (Windows only)
-    /// This keeps the mount alive for the duration of the application
-    #[cfg(all(target_os = "windows", feature = "fuse"))]
-    pub fn set_dokan_mount(&self, fs: dokan::FileSystem<'static, 'static, AutoOrthoHandler>) {
-        if let Some(handle) = self.dokan_mount.lock().ok() {
-            *handle = Some(fs);
-        }
     }
 }
 
