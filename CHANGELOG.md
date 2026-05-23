@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.16](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.15...autoortho-v0.8.16) (2026-05-23)
+
+
+### Features
+
+* move path derivations to scenery::paths module ([#355](https://github.com/egeland/autoortho-rs/issues/355)) ([f0d67f5](https://github.com/egeland/autoortho-rs/commit/f0d67f5b9b662d65bc142af7b4562ee2c9b8466b))
+
 ## [0.8.15](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.14...autoortho-v0.8.15) (2026-05-23)
 
 
