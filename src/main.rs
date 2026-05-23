@@ -472,13 +472,18 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     // Run FUSE mount in a blocking thread (it blocks until unmounted)
     tokio::task::spawn_blocking::<_, Result<(), String>>(move || {
         #[cfg(not(windows))]
-        use autoortho_lib::fuse::mount::mount;
+        use autoortho_lib::fuse::mount::mount as generic_mount;
         #[cfg(windows)]
         use autoortho_lib::fuse::mount_win::mount;
         #[cfg(not(windows))]
-        let result = mount(fs_clone, &mount_path, runtime_handle);
+        let result = generic_mount(fs_clone, &mount_path, runtime_handle);
         #[cfg(windows)]
-        let result = mount(fs_clone, &mount_path, runtime_handle, context.clone());
+        let result = mount(
+            fs_clone,
+            &mount_path,
+            runtime_handle,
+            Arc::new(context.clone()),
+        );
 
         result.map_err(|e| e.to_string())
     })
