@@ -97,7 +97,7 @@ mod dokan_impl {
 
         fn create_file(
             &'h self,
-            file_name: &widestring::ucstr::UCStr<u16>,
+            file_name: &widestring::U16CStr,
             _security_context: &dokan_sys::DOKAN_IO_SECURITY_CONTEXT,
             _desired_access: u32,
             _file_attributes: u32,
