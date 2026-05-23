@@ -12,14 +12,14 @@ mod dokan_impl {
     use dokan::{
         CreateFileInfo, DiskSpaceInfo, FileInfo, FileSystemHandler, FileSystemMountError,
         FileSystemMounter, FindData, MountFlags, MountOptions, OperationInfo, OperationResult,
-        VolumeInfo, init, shutdown,
+        VolumeInfo, init,
     };
     use log::{debug, error, info, warn};
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex, RwLock};
     use std::time::SystemTime;
-    use widestring::{U16CStr, U16CString};
+    use widestring::U16CStr;
     use winapi::shared::ntstatus::*;
     use winapi::um::winnt;
 
@@ -96,7 +96,7 @@ mod dokan_impl {
 
         fn create_file(
             &'h self,
-            file_name: &UCStr<u16>,
+            file_name: &U16CStr,
             _security_context: &dokan_sys::DOKAN_IO_SECURITY_CONTEXT,
             _desired_access: u32,
             _file_attributes: u32,
@@ -149,7 +149,7 @@ mod dokan_impl {
 
         fn cleanup(
             &self,
-            _file_name: &UCStr<u16>,
+            _file_name: &U16CStr,
             _info: &OperationInfo<'c, 'h, Self>,
             _context: &'c Self::Context,
         ) {
@@ -158,7 +158,7 @@ mod dokan_impl {
 
         fn close_file(
             &self,
-            _file_name: &UCStr<u16>,
+            _file_name: &U16CStr,
             _info: &OperationInfo<'c, 'h, Self>,
             context: &'c Self::Context,
         ) {
@@ -168,7 +168,7 @@ mod dokan_impl {
 
         fn read_file(
             &self,
-            _file_name: &UCStr<u16>,
+            _file_name: &U16CStr,
             offset: i64,
             buffer: &mut [u8],
             _info: &OperationInfo<'c, 'h, Self>,
@@ -203,7 +203,7 @@ mod dokan_impl {
 
         fn find_files(
             &self,
-            _file_name: &UCStr<u16>,
+            _file_name: &U16CStr,
             mut fill_find_data: impl FnMut(&FindData) -> dokan::FillDataResult,
             _info: &OperationInfo<'c, 'h, Self>,
             context: &'c Self::Context,
@@ -299,7 +299,7 @@ mod dokan_impl {
 
         fn get_file_information(
             &self,
-            _file_name: &UCStr<u16>,
+            _file_name: &U16CStr,
             _info: &OperationInfo<'c, 'h, Self>,
             context: &'c Self::Context,
         ) -> OperationResult<FileInfo> {
@@ -405,7 +405,7 @@ mod dokan_impl {
         match mounter.mount() {
             Ok(fs) => {
                 info!("AutoOrtho mounted at {}", mount_str);
-                app_context.set_dokan_filesystem(fs);
+                app_context.set_dokan_mount(fs);
                 Ok(())
             }
             Err(e) => {
@@ -426,7 +426,7 @@ mod dokan_impl {
                     match mounter.mount() {
                         Ok(fs) => {
                             info!("AutoOrtho mounted at {} (retry)", mount_str);
-                            app_context.set_dokan_filesystem(fs);
+                            app_context.set_dokan_mount(fs);
                             Ok(())
                         }
                         Err(e) => {

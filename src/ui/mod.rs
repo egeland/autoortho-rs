@@ -1277,7 +1277,7 @@ async fn start_all_services(
     use crate::xplane::dataref::{self};
 
     // Initialize the application context
-    let context: AppContext<'_, '_, ()> = AppContext::init(config.clone())
+    let context: AppContext = AppContext::init(config.clone())
         .await
         .map_err(|e| format!("Failed to initialize app context: {}", e))?;
 
@@ -1347,7 +1347,7 @@ async fn start_all_services(
                     fs_clone,
                     &mount_path,
                     runtime_handle,
-                    context.clone().into(),
+                    std::sync::Arc::new(context.clone()),
                 );
 
                 match result {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
 // Copyright (c) 2026 the AutoOrtho contributors
 
-use parking_lot::{Mutex, RwLock};
+use parking_lot::{Mutex as ParkMutex, RwLock};
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -9,34 +9,37 @@ use std::sync::Arc;
 use crate::config::AutoOrthoConfig;
 #[cfg(feature = "fuse")]
 use crate::fuse::filesystem::DdsFileSystem;
+#[cfg(all(target_os = "windows", feature = "fuse"))]
+use crate::fuse::mount_win::dokan_impl::AutoOrthoHandler;
 use crate::pipeline::cache::DdsCache;
 use crate::stats::StatsStore;
 use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::provider::ProviderFactory;
 use crate::webui::custommap::CustomMapStore;
 use crate::xplane::dataref::DatarefTracker;
+
+/// Opaque handle type for storing Dokan filesystem on Windows
+/// This prevents generic parameter pollution while keeping the mount alive
 #[cfg(all(target_os = "windows", feature = "fuse"))]
-use dokan::FileSystem;
+pub type DokanMountHandle =
+    Arc<Mutex<Option<dokan::FileSystem<'static, 'static, AutoOrthoHandler>>>>;
 
 #[derive(Clone)]
-pub struct AppContext<'c, 'h, FSH: Send + Sync + Clone = ()> {
-    // Consume unused lifetime/type parameters on non-Windows targets
-    #[cfg(not(all(target_os = "windows", feature = "fuse")))]
-    _marker: std::marker::PhantomData<(&'c (), &'h (), FSH)>,
+pub struct AppContext {
     pub config: Arc<RwLock<AutoOrthoConfig>>,
     pub stats: Arc<StatsStore>,
     pub tracker: Arc<DatarefTracker>,
     pub fetcher: Arc<TileFetcher>,
-    pub dds_cache: Option<Arc<Mutex<DdsCache>>>,
+    pub dds_cache: Option<Arc<ParkMutex<DdsCache>>>,
     #[cfg(feature = "fuse")]
     pub fs: Arc<DdsFileSystem>,
     #[cfg(all(target_os = "windows", feature = "fuse"))]
-    /// Dokan filesystem handle - keep alive after mount
-    dokan_filesystem: Option<FSH>,
+    /// Dokan filesystem handle - must be kept alive to maintain mount
+    pub dokan_mount: DokanMountHandle,
     pub custom_map: Arc<CustomMapStore>,
 }
 
-impl<'c, 'h, FSH: Send + Sync + Clone> AppContext<'c, 'h, FSH> {
+impl AppContext {
     pub async fn init(config: AutoOrthoConfig) -> Result<Self, Box<dyn Error>> {
         let _provider = ProviderFactory::create(&config.tile_provider)
             .ok_or_else(|| format!("Unknown tile provider: {}", config.tile_provider))?;
@@ -58,7 +61,7 @@ impl<'c, 'h, FSH: Send + Sync + Clone> AppContext<'c, 'h, FSH> {
         let dds_cache = if config.enable_dds_cache {
             let cache_dir = PathBuf::from(&config.cache_dir).join("dds");
             match DdsCache::open(cache_dir, config.dds_cache_size_mb * 1024 * 1024) {
-                Ok(cache) => Some(Arc::new(Mutex::new(cache))),
+                Ok(cache) => Some(Arc::new(ParkMutex::new(cache))),
                 Err(_) => None,
             }
         } else {
@@ -89,8 +92,6 @@ impl<'c, 'h, FSH: Send + Sync + Clone> AppContext<'c, 'h, FSH> {
         let tracker = Arc::new(DatarefTracker::new());
 
         Ok(Self {
-            #[cfg(not(all(target_os = "windows", feature = "fuse")))]
-            _marker: std::marker::PhantomData,
             config: Arc::new(RwLock::new(config)),
             stats,
             tracker,
@@ -99,15 +100,18 @@ impl<'c, 'h, FSH: Send + Sync + Clone> AppContext<'c, 'h, FSH> {
             #[cfg(feature = "fuse")]
             fs,
             #[cfg(all(target_os = "windows", feature = "fuse"))]
-            dokan_filesystem: None,
+            dokan_mount: Arc::new(StdMutex::new(None)),
             custom_map,
         })
     }
 
-    /// Set the Dokan filesystem handle after successful mount (Windows)
+    /// Set the Dokan filesystem handle after successful mount (Windows only)
+    /// This keeps the mount alive for the duration of the application
     #[cfg(all(target_os = "windows", feature = "fuse"))]
-    pub fn set_dokan_filesystem(&mut self, fs: FSH) {
-        self.dokan_filesystem = Some(fs);
+    pub fn set_dokan_mount(&self, fs: dokan::FileSystem<'static, 'static, AutoOrthoHandler>) {
+        if let Some(handle) = self.dokan_mount.lock().ok() {
+            *handle = Some(fs);
+        }
     }
 }
 
@@ -123,7 +127,7 @@ mod tests {
         let mut config = AutoOrthoConfig::default();
         config.cache_dir = tmp.path().to_string_lossy().to_string();
 
-        let context: AppContext<'_, '_, ()> = AppContext::init(config)
+        let context = AppContext::init(config)
             .await
             .expect("Failed to init context");
         assert_eq!(context.config.read().tile_provider, "ARC");
