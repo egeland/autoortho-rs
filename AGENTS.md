@@ -15,6 +15,7 @@
 
 - **Release Completion**: A release isn't complete when the GitHub Release tag is created. It's only done when the `release.yml` workflow (which compiles binaries for Linux/macOS/Windows and uploads them) completes successfully.
 - **Windows Subsystem**: `cfg_attr` is compile-time only. Runtime console toggle needs `hide_console` crate or WinAPI `FreeConsole`.
+- **Dokan + widestring version mismatch (May 2026)**: The crates.io `dokan` 0.3.x depends on `widestring 0.4.x` (generic `UCStr<C>` type), while a direct dep on `widestring 1.x` (concrete `U16CStr` type) caused two incompatible versions to coexist. Fix: use the GitHub dokan (`dokan230`) which uses `widestring 1.2`, add `widestring = "1.2"` as a direct dep (enabled by `fuse` feature), and import `U16CStr`/`U16CString` directly from `widestring` (not from `dokan`, which doesn't pub-re-export them).
 
 ## Project Identity
 
@@ -43,7 +44,7 @@
 
 ## Platform-Specific Notes
 
-- **Windows**: Dokan2 required, `Dokan.dll` must be distributed
+- **Windows**: Dokan2 required, `Dokan.dll` must be distributed. Use the GitHub dokan (dokan230) in `Cargo.toml`, not crates.io version (dokan206) — the crates.io version depends on incompatible `widestring 0.4.x`.
 - **macOS**: macFUSE required for FUSE mounting
 - **Linux**: libfuse-dev required for building
 - **Cross-Compilation**: Cross-compile via `cargo-dist`: x86_64 Linux (gnu/musl), macOS (x86_64/aarch64), Windows (x86_64 msvc)
