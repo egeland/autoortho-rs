@@ -1277,7 +1277,7 @@ async fn start_all_services(
     use crate::xplane::dataref::{self};
 
     // Initialize the application context
-    let context = AppContext::init(config.clone())
+    let context: AppContext = AppContext::init(config.clone())
         .await
         .map_err(|e| format!("Failed to initialize app context: {}", e))?;
 
@@ -1340,7 +1340,17 @@ async fn start_all_services(
                 #[cfg(windows)]
                 use crate::fuse::mount_win::mount;
 
-                match mount(fs_clone, &mount_path, runtime_handle) {
+                #[cfg(not(windows))]
+                let result = mount(fs_clone, &mount_path, runtime_handle);
+                #[cfg(windows)]
+                let result = mount(
+                    fs_clone,
+                    &mount_path,
+                    runtime_handle,
+                    std::sync::Arc::new(context.clone()),
+                );
+
+                match result {
                     Ok(()) => Ok::<(), String>(()),
                     Err(e) => {
                         log::warn!("FUSE mount failed (non-fatal): {}", e);

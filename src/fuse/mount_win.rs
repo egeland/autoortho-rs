@@ -3,15 +3,17 @@
 //! Dokan provides Windows user-mode file system functionality, similar to FUSE on Unix.
 //! This implementation uses the updated dokan-rust API (GitHub version).
 
+pub use self::dokan_impl::AutoOrthoHandler;
 pub use self::dokan_impl::mount;
 
 mod dokan_impl {
+    use crate::app_context::AppContext;
     use crate::fuse::filesystem::DdsFileSystem;
     use crate::fuse::{MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
     use dokan::{
         CreateFileInfo, DiskSpaceInfo, FileInfo, FileSystemHandler, FileSystemMountError,
         FileSystemMounter, FindData, MountFlags, MountOptions, OperationInfo, OperationResult,
-        VolumeInfo, init, shutdown,
+        VolumeInfo, init,
     };
     use log::{debug, error, info, warn};
     use std::collections::HashMap;
@@ -329,7 +331,7 @@ mod dokan_impl {
             &self,
             _info: &OperationInfo<'c, 'h, Self>,
         ) -> OperationResult<VolumeInfo> {
-            // Use U16CString for owned string since both widestring 0.4 and 1.x support this
+            // Use U16CString from widestring 1.2 (same version dokan uses)
             Ok(VolumeInfo {
                 name: U16CString::from_str("AutoOrtho").unwrap(),
                 serial_number: 0x12345678,
@@ -355,6 +357,7 @@ mod dokan_impl {
         fs: Arc<DdsFileSystem>,
         mountpoint: &Path,
         runtime: tokio::runtime::Handle,
+        _app_context: Arc<AppContext>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Initialize Dokan library
         init();
@@ -400,10 +403,11 @@ mod dokan_impl {
         }
 
         // This blocks until unmounted
+        // Note: The returned FileSystem is kept alive on the stack for the duration of mount().
+        // When mount() returns (on unmount), the FileSystem is dropped and cleanup occurs.
         match mounter.mount() {
-            Ok(_filesystem) => {
+            Ok(_fs) => {
                 info!("AutoOrtho mounted at {}", mount_str);
-                shutdown();
                 Ok(())
             }
             Err(e) => {
@@ -422,20 +426,19 @@ mod dokan_impl {
                     let mount_point: &U16CStr = mount_cstr.as_ucstr();
                     let mut mounter = FileSystemMounter::new(&handler, mount_point, &options);
                     match mounter.mount() {
-                        Ok(_filesystem) => {
+                        Ok(_fs) => {
                             info!("AutoOrtho mounted at {} (retry)", mount_str);
-                            shutdown();
                             Ok(())
                         }
                         Err(e) => {
                             let desc = describe_mount_error(&e);
                             error!("Retry failed at {}: {} ({:?})", mount_str, desc, e);
-                            shutdown();
+                            // Do NOT call shutdown() - cleanup_mount handles unmount
                             Err(Box::new(e))
                         }
                     }
                 } else {
-                    shutdown();
+                    // Do NOT call shutdown() - cleanup_mount handles unmount
                     Err(Box::new(e))
                 }
             }

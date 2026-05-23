@@ -23,7 +23,7 @@
 - **Repository**: <https://github.com/egeland/autoortho-rs>
 - **License**: Apache-2.0 OR GPL-3.0-or-later
 - **Author**: Frode Egeland
-- **Rust Edition**: 2024 (stable ≥1.85; no toolchain pinning, check upgrades)
+- **Rust Edition**: 2024 (stable ≥1.95; no toolchain pinning, check upgrades)
 
 ## Codebase Structure
 
@@ -48,6 +48,8 @@
 - **Linux**: libfuse-dev required for building
 - **Cross-Compilation**: Cross-compile via `cargo-dist`: x86_64 Linux (gnu/musl), macOS (x86_64/aarch64), Windows (x86_64 msvc)
 
+NOTE: local development happens on a MacOS machine, and some features for other platforms are gated, and won't run on Mac. Do not assume that a clean `clippy build` on Mac means Windows will also build. This needs CI testing to confirm.
+
 ## Common Commands
 
 | Task | Command |
@@ -63,6 +65,8 @@
 | Integration tests | `cargo test --test integration_test` |
 
 ## Workflow Specifics
+
+- NEVER change the `origin` git remote from `ssh` to `https`.
 
 1. **Branch**: Use `wt` (worktrunk tool) for tasks; see `wt --help`.
 

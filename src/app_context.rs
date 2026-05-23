@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
 // Copyright (c) 2026 the AutoOrtho contributors
 
-use parking_lot::{Mutex, RwLock};
+use parking_lot::{Mutex as ParkMutex, RwLock};
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -16,12 +16,13 @@ use crate::tiles::provider::ProviderFactory;
 use crate::webui::custommap::CustomMapStore;
 use crate::xplane::dataref::DatarefTracker;
 
+#[derive(Clone)]
 pub struct AppContext {
     pub config: Arc<RwLock<AutoOrthoConfig>>,
     pub stats: Arc<StatsStore>,
     pub tracker: Arc<DatarefTracker>,
     pub fetcher: Arc<TileFetcher>,
-    pub dds_cache: Option<Arc<Mutex<DdsCache>>>,
+    pub dds_cache: Option<Arc<ParkMutex<DdsCache>>>,
     #[cfg(feature = "fuse")]
     pub fs: Arc<DdsFileSystem>,
     pub custom_map: Arc<CustomMapStore>,
@@ -49,7 +50,7 @@ impl AppContext {
         let dds_cache = if config.enable_dds_cache {
             let cache_dir = PathBuf::from(&config.cache_dir).join("dds");
             match DdsCache::open(cache_dir, config.dds_cache_size_mb * 1024 * 1024) {
-                Ok(cache) => Some(Arc::new(Mutex::new(cache))),
+                Ok(cache) => Some(Arc::new(ParkMutex::new(cache))),
                 Err(_) => None,
             }
         } else {
