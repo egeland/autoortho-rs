@@ -6,6 +6,7 @@
 use autoortho_lib::app_context::AppContext;
 use autoortho_lib::config::{AutoOrthoConfig, ConfigSnapshot};
 use autoortho_lib::dynamic_zoom::DynamicZoom;
+use autoortho_lib::scenery::paths::mount_dir;
 use autoortho_lib::tiles::fetcher::TileFetcher;
 use autoortho_lib::tiles::prefetch::{RoutePrefetchConfig, SpatialPrefetcher};
 use autoortho_lib::tiles::provider::ProviderFactory;
@@ -129,7 +130,9 @@ fn main() -> Result<(), Box<dyn Error>> {
         #[cfg(feature = "fuse")]
         Commands::Mount { mountpoint } => {
             let config = AutoOrthoConfig::load();
-            let config_mount_dir = config.mount_dir().to_string_lossy().into_owned();
+            let config_mount_dir = mount_dir(&config.xplane_path)
+                .to_string_lossy()
+                .into_owned();
             let mount = mountpoint.unwrap_or(config_mount_dir);
             let rt = tokio::runtime::Runtime::new()?;
             return rt.block_on(run_with_mount(&mount));

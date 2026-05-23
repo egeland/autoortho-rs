@@ -1,5 +1,6 @@
 //! Axum route definitions for the web UI.
 
+use crate::scenery::paths::scenery_data_dir;
 use crate::webui::{PositionUpdate, WebState};
 use axum::extract::{Query, State, ws};
 use axum::response::{Html, IntoResponse, Json};
@@ -393,7 +394,7 @@ async fn custommap_maptypes() -> Json<Vec<&'static str>> {
 
 async fn custommap_tiles(State(state): State<Arc<WebState>>) -> Json<Vec<String>> {
     // Scan installed scenery for DSF files and extract lat/lon cell keys
-    let data_dir = state.config.read().scenery_data_dir();
+    let data_dir = scenery_data_dir(&state.config.read().cache_dir);
     let data_dir = data_dir.to_string_lossy().into_owned();
     let tiles = scan_dsf_tiles(&data_dir);
     Json(tiles)

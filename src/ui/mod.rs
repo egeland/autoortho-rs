@@ -12,6 +12,7 @@ use tempfile::TempDir;
 use tokio::sync::{oneshot, watch};
 
 pub mod handlers;
+use crate::scenery::paths::mount_dir;
 use crate::tiles::provider;
 use crate::webui::custommap::CustomMapStore;
 use crate::xplane::simbrief::{FlightFix, FlightPlan};
@@ -1305,7 +1306,7 @@ async fn start_all_services(
     // Mount the FUSE filesystem (only if configured and available)
     #[cfg(feature = "fuse")]
     {
-        let mount_dir = config.mount_dir();
+        let mount_dir = mount_dir(&config.xplane_path);
         let should_mount = !config.xplane_path.is_empty()
             && !mount_dir.to_string_lossy().is_empty()
             && crate::fuse::platform::is_fuse_available();
@@ -2121,7 +2122,7 @@ mod tests {
             c
         };
 
-        let mount_dir = config_empty.mount_dir();
+        let mount_dir = mount_dir(&config_empty.xplane_path);
         let mount_str = mount_dir.to_string_lossy();
         // When xplane_path is empty, the mount decision must evaluate to false.
         let should_mount = !config_empty.xplane_path.is_empty() && mount_dir.exists();
