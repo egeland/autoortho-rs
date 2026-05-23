@@ -48,6 +48,8 @@
 - **Linux**: libfuse-dev required for building
 - **Cross-Compilation**: Cross-compile via `cargo-dist`: x86_64 Linux (gnu/musl), macOS (x86_64/aarch64), Windows (x86_64 msvc)
 
+NOTE: local development happens on a MacOS machine, and some features for other platforms are gated, and won't run on Mac. Do not assume that a clean `clippy build` on Mac means Windows will also build. This needs CI testing to confirm.
+
 ## Common Commands
 
 | Task | Command |
