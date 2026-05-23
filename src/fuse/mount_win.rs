@@ -3,6 +3,7 @@
 //! Dokan provides Windows user-mode file system functionality, similar to FUSE on Unix.
 //! This implementation uses the updated dokan-rust API (GitHub version).
 
+pub use self::dokan_impl::AutoOrthoHandler;
 pub use self::dokan_impl::mount;
 
 mod dokan_impl {

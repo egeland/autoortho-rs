@@ -5,12 +5,14 @@ use parking_lot::{Mutex as ParkMutex, RwLock};
 use std::error::Error;
 use std::path::PathBuf;
 use std::sync::Arc;
+#[cfg(all(target_os = "windows", feature = "fuse"))]
+use std::sync::Mutex;
 
 use crate::config::AutoOrthoConfig;
 #[cfg(feature = "fuse")]
 use crate::fuse::filesystem::DdsFileSystem;
 #[cfg(all(target_os = "windows", feature = "fuse"))]
-use crate::fuse::mount_win::dokan_impl::AutoOrthoHandler;
+use crate::fuse::mount_win::AutoOrthoHandler;
 use crate::pipeline::cache::DdsCache;
 use crate::stats::StatsStore;
 use crate::tiles::fetcher::TileFetcher;
@@ -100,7 +102,7 @@ impl AppContext {
             #[cfg(feature = "fuse")]
             fs,
             #[cfg(all(target_os = "windows", feature = "fuse"))]
-            dokan_mount: Arc::new(StdMutex::new(None)),
+            dokan_mount: Arc::new(Mutex::new(None)),
             custom_map,
         })
     }
