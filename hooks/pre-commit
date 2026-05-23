@@ -1,0 +1,19 @@
+#!/bin/sh
+# Pre-commit hook: run cargo fmt and clippy before allowing commits
+
+echo "Running cargo fmt..."
+cargo fmt -- --check
+if [ $? -ne 0 ]; then
+    echo "FAILED: Run 'cargo fmt' to fix formatting"
+    exit 1
+fi
+
+echo "Running cargo clippy..."
+cargo clippy --all-features -- -D warnings
+if [ $? -ne 0 ]; then
+    echo "FAILED: Fix clippy warnings before committing"
+    exit 1
+fi
+
+echo "Pre-commit checks passed!"
+exit 0
