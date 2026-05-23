@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.15](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.14...autoortho-v0.8.15) (2026-05-23)
+
+
+### Features
+
+* move Season to seasons module, FallbackLevel/FallbackConfig to tiles::fallback ([#353](https://github.com/egeland/autoortho-rs/issues/353)) ([3d3f515](https://github.com/egeland/autoortho-rs/commit/3d3f515534aead7715ce5c496d00600f8e6e6914))
+
 ## [0.8.14](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.13...autoortho-v0.8.14) (2026-05-23)
 
 
