@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.14](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.13...autoortho-v0.8.14) (2026-05-23)
+
+
+### Miscellaneous
+
+* update agents file ([#351](https://github.com/egeland/autoortho-rs/issues/351)) ([ddd3379](https://github.com/egeland/autoortho-rs/commit/ddd33797cd508863955b317c52512f471cdb7127))
+
 ## [0.8.13](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.12...autoortho-v0.8.13) (2026-05-23)
 
 
