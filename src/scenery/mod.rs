@@ -11,4 +11,5 @@
 pub mod discovery;
 pub mod installer;
 pub mod packs_ini;
+pub mod paths;
 pub mod simheaven;

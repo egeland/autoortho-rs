@@ -1,4 +1,7 @@
 use crate::config::AutoOrthoConfig;
+use crate::scenery::paths::{
+    custom_scenery_path, mount_dir, scenery_data_dir, scenery_install_dir,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
@@ -186,8 +189,12 @@ impl AppState {
             config.scenery_download_dir.clone()
         };
 
-        let scenery_install_dir = config.scenery_install_dir().to_string_lossy().into_owned();
-        let scenery_data_dir = config.scenery_data_dir().to_string_lossy().into_owned();
+        let scenery_install_dir = scenery_install_dir(&config.xplane_path)
+            .to_string_lossy()
+            .into_owned();
+        let scenery_data_dir = scenery_data_dir(&config.cache_dir)
+            .to_string_lossy()
+            .into_owned();
 
         Self {
             current_screen: if is_configured {
@@ -239,7 +246,7 @@ impl AppState {
     /// effects in unit tests.
     pub fn run_startup_migration(&self) {
         let config = crate::config::AutoOrthoConfig::load();
-        let old_dir = config.custom_scenery_path().join("z_autoortho");
+        let old_dir = mount_dir(&config.xplane_path);
         let new_dir = std::path::Path::new(&self.scenery_data_dir);
         match crate::scenery::installer::migrate_scenery(&old_dir, new_dir) {
             Ok(count) if count > 0 => {
@@ -266,8 +273,7 @@ impl AppState {
         if self.config.xplane_path.is_empty() {
             return false;
         }
-        self.config
-            .custom_scenery_path()
+        custom_scenery_path(&self.config.xplane_path)
             .join("scenery_packs.ini")
             .exists()
     }
@@ -292,9 +298,7 @@ impl AppState {
     pub fn load_config(&mut self) {
         self.config = AutoOrthoConfig::load();
         self.scenery_download_dir = self.config.scenery_download_dir.clone();
-        self.scenery_install_dir = self
-            .config
-            .scenery_install_dir()
+        self.scenery_install_dir = scenery_install_dir(&self.config.xplane_path)
             .to_string_lossy()
             .into_owned();
         self.is_configured = true;

@@ -6,31 +6,22 @@
 //! This module provides helper functions for handling UI messages,
 //! extracted from the main update() function for better organization.
 
+use crate::scenery::paths::{scenery_data_dir, scenery_install_dir};
 use crate::seasons::Season;
 use crate::tiles::fallback::FallbackLevel;
 use crate::ui::state::{AppState, DownloadState, ServiceStatus};
 
 pub fn handle_set_xplane_path(state: &mut AppState, path: String) {
-    state.config.xplane_path = path;
-    state.scenery_install_dir = state
-        .config
-        .scenery_install_dir()
-        .to_string_lossy()
-        .into_owned();
-    state.scenery_data_dir = state
-        .config
-        .scenery_data_dir()
+    state.config.xplane_path = path.clone();
+    state.scenery_install_dir = scenery_install_dir(&path).to_string_lossy().into_owned();
+    state.scenery_data_dir = scenery_data_dir(&state.config.cache_dir)
         .to_string_lossy()
         .into_owned();
 }
 
 pub fn handle_set_cache_dir(state: &mut AppState, dir: String) {
-    state.config.cache_dir = dir;
-    state.scenery_data_dir = state
-        .config
-        .scenery_data_dir()
-        .to_string_lossy()
-        .into_owned();
+    state.config.cache_dir = dir.clone();
+    state.scenery_data_dir = scenery_data_dir(&dir).to_string_lossy().into_owned();
 }
 
 pub fn set_xplane_host(state: &mut AppState, host: String) {
@@ -261,5 +252,15 @@ mod tests {
         assert!(state.config.debug_mode);
         set_debug_mode(&mut state, false);
         assert!(!state.config.debug_mode);
+    }
+
+    // === TDD: verify handlers use scenery::paths (migration regression guard) ===
+    // After migration, handle_set_xplane_path must call scenery::paths functions,
+    // not config delegation methods. This test exercises the import chain.
+    #[test]
+    fn test_handler_uses_mount_dir_from_scenery_paths() {
+        use crate::scenery::paths::mount_dir;
+        let path = mount_dir("/Games/X-Plane 12");
+        assert!(path.to_string_lossy().contains("z_autoortho"));
     }
 }

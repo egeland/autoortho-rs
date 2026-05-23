@@ -10,6 +10,7 @@ use crate::config::AutoOrthoConfig;
 #[cfg(feature = "fuse")]
 use crate::fuse::filesystem::DdsFileSystem;
 use crate::pipeline::cache::DdsCache;
+use crate::scenery::paths::scenery_data_dir;
 use crate::stats::StatsStore;
 use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::provider::ProviderFactory;
@@ -63,7 +64,7 @@ impl AppContext {
                 let mut builder = DdsFileSystem::builder(fetcher.clone(), &config.tile_provider)
                     .cache_entries(dds_cache_entries)
                     .custom_map(custom_map.clone())
-                    .root(config.scenery_data_dir());
+                    .root(scenery_data_dir(&config.cache_dir));
 
                 if let Some(dc) = dds_cache.clone() {
                     builder = builder.disk_cache(dc);

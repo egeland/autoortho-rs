@@ -1,4 +1,5 @@
 use crate::dynamic_zoom::DynamicZoom;
+use crate::scenery::paths::custom_scenery_path;
 use crate::seasons::Season;
 use crate::tiles::fallback::FallbackLevel;
 use crate::tiles::provider::{PROVIDER_IDS, PROVIDER_INFO};
@@ -32,9 +33,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     // -- Paths section --
     let ini_warning: Element<'_, Message> = if !state.config.xplane_path.is_empty()
-        && !state
-            .config
-            .custom_scenery_path()
+        && !custom_scenery_path(&state.config.xplane_path)
             .join("scenery_packs.ini")
             .exists()
     {
