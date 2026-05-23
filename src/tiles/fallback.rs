@@ -1,9 +1,55 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
 // Copyright (c) 2026 the AutoOrtho contributors
 
-use crate::config::{FallbackConfig, FallbackLevel};
 use crate::pipeline::cache::{DdsCache, DdsCacheMetadata};
 use std::path::PathBuf;
+
+// === FallbackLevel — moved from config.rs ===
+
+/// Fallback level for missing tiles
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum FallbackLevel {
+    #[default]
+    Cache, // Check disk cache for lower-zoom tiles
+    Downserve, // Scale from lower-resolution tile
+    Network,   // Download on-demand
+    Solid,     // Solid color fallback
+}
+
+// === FallbackConfig — moved from config.rs ===
+
+/// Fallback configuration for missing tiles
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FallbackConfig {
+    pub level: FallbackLevel,
+    pub max_zoom_gap: u32,
+    pub solid_color: [u8; 3],
+    pub cache_fallback: bool,
+}
+
+impl Default for FallbackConfig {
+    fn default() -> Self {
+        Self {
+            level: FallbackLevel::Cache,
+            max_zoom_gap: 4,
+            solid_color: [20, 25, 15],
+            cache_fallback: true,
+        }
+    }
+}
+
+impl FallbackConfig {
+    /// Validate fallback configuration.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.max_zoom_gap < 1 || self.max_zoom_gap > 10 {
+            return Err(format!(
+                "fallback.max_zoom_gap out of range (1-10), got {}",
+                self.max_zoom_gap
+            ));
+        }
+        Ok(())
+    }
+}
 use thiserror::Error;
 
 #[derive(Debug, Error)]

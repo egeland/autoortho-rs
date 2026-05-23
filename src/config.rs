@@ -5,54 +5,12 @@ use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-/// Season selection for seasonal adjustment
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub enum Season {
-    #[default]
-    Disabled,
-    Spring,
-    Summer,
-    Autumn,
-    Winter,
-}
+/// Season — owned by `seasons` module. Re-exported here for compat.
+pub use crate::seasons::Season;
 
-/// Fallback level for missing tiles
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub enum FallbackLevel {
-    #[default]
-    Cache, // Check disk cache for lower-zoom tiles
-    Downserve, // Scale from lower-resolution tile
-    Network,   // Download on-demand
-    Solid,     // Solid color fallback
-}
-
-/// Fallback configuration for missing tiles
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FallbackConfig {
-    pub level: FallbackLevel,
-    pub max_zoom_gap: u32,
-    pub solid_color: [u8; 3],
-    pub cache_fallback: bool,
-}
-
-impl Default for FallbackConfig {
-    fn default() -> Self {
-        Self {
-            level: FallbackLevel::Cache,
-            max_zoom_gap: 4,
-            solid_color: [20, 25, 15],
-            cache_fallback: true,
-        }
-    }
-}
-
-impl FallbackConfig {
-    /// Validate fallback configuration.
-    pub fn validate(&self) -> Result<(), ConfigError> {
-        validate_range(self.max_zoom_gap as u64, 1, 10, "fallback.max_zoom_gap")?;
-        Ok(())
-    }
-}
+/// FallbackLevel and FallbackConfig — owned by `tiles::fallback` module.
+/// Re-exported here for compat.
+pub use crate::tiles::fallback::{FallbackConfig, FallbackLevel};
 
 /// Rate limiting configuration for tile requests
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -442,7 +400,12 @@ impl AutoOrthoConfig {
         validate_f32_range(self.winter_saturation, 0.0, 2.0, "winter_saturation")?;
 
         // Fallback config
-        self.fallback.validate()?;
+        self.fallback
+            .validate()
+            .map_err(|e| ConfigError::FieldInvalid {
+                field: "fallback".to_string(),
+                message: e,
+            })?;
 
         // Rate limit config
         self.rate_limit.validate()?;

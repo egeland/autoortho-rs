@@ -6,7 +6,8 @@
 //! This module provides helper functions for handling UI messages,
 //! extracted from the main update() function for better organization.
 
-use crate::config::{FallbackLevel, Season};
+use crate::seasons::Season;
+use crate::tiles::fallback::FallbackLevel;
 use crate::ui::state::{AppState, DownloadState, ServiceStatus};
 
 pub fn handle_set_xplane_path(state: &mut AppState, path: String) {

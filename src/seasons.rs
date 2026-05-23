@@ -1,8 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
 // Copyright (c) 2026 the AutoOrtho contributors
 
-use crate::config::Season;
 use chrono::{Datelike, Local};
+
+/// Season selection for seasonal adjustment
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub enum Season {
+    #[default]
+    Disabled,
+    Spring,
+    Summer,
+    Autumn,
+    Winter,
+}
 
 /// Seasonal color saturation adjustment
 pub struct SeasonalAdjustment {
@@ -197,6 +207,17 @@ mod tests {
         assert!((adj.saturation_for_month(3) - 1.1).abs() < 0.01);
         assert!((adj.saturation_for_month(4) - 1.1).abs() < 0.01);
         assert!((adj.saturation_for_month(5) - 1.1).abs() < 0.01);
+    }
+
+    // === Migration test: Season owned by seasons module ===
+    // After migration, Season is defined in seasons.rs.
+    // config.rs re-exports it via `pub use crate::seasons::Season` for compat.
+    // This test verifies the re-export chain works (importing from config == seasons).
+    #[test]
+    fn test_season_re_export_from_config_aliases_seasons() {
+        // The type from config::Season must be the same type as seasons::Season
+        fn assert_same_season(_: crate::seasons::Season) {}
+        assert_same_season(crate::config::Season::Spring);
     }
 
     #[test]

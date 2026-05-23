@@ -1,5 +1,6 @@
-use crate::config::{FallbackLevel, Season};
 use crate::dynamic_zoom::DynamicZoom;
+use crate::seasons::Season;
+use crate::tiles::fallback::FallbackLevel;
 use crate::tiles::provider::{PROVIDER_IDS, PROVIDER_INFO};
 use crate::ui::Message;
 use crate::ui::state::AppState;
