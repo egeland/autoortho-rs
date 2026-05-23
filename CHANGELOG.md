@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.13](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.12...autoortho-v0.8.13) (2026-05-23)
+
+
+### Bug Fixes
+
+* remove shutdown() after mount to keep filesystem alive ([#349](https://github.com/egeland/autoortho-rs/issues/349)) ([b759cd3](https://github.com/egeland/autoortho-rs/commit/b759cd36082e58f85e2ce921d2087a8dd1813b58))
+
 ## [0.8.12](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.11...autoortho-v0.8.12) (2026-05-14)
 
 
