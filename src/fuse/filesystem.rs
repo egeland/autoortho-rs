@@ -4,12 +4,12 @@
 //! FUSE mount and any other access method (e.g., direct API for testing).
 //! It handles path parsing, DDS generation, caching, and directory structure.
 
-use crate::config::FallbackConfig;
 use crate::fuse::{DdsPathParser, FuseError, MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
 use crate::pipeline::cache::{DdsCache, DdsCacheMetadata};
 use crate::pipeline::dds::DdsFormat;
 use crate::tiles::assembler::{AssemblyConfig, AssemblyResult, assemble_tile};
 use crate::tiles::coords::TileCoords;
+use crate::tiles::fallback::FallbackConfig;
 use crate::tiles::fallback::FallbackSystem;
 use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::zoom::ChunkGrid;
