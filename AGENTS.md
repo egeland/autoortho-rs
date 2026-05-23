@@ -23,7 +23,7 @@
 - **Repository**: <https://github.com/egeland/autoortho-rs>
 - **License**: Apache-2.0 OR GPL-3.0-or-later
 - **Author**: Frode Egeland
-- **Rust Edition**: 2024 (stable ≥1.85; no toolchain pinning, check upgrades)
+- **Rust Edition**: 2024 (stable ≥1.95; no toolchain pinning, check upgrades)
 
 ## Codebase Structure
 
@@ -63,6 +63,8 @@
 | Integration tests | `cargo test --test integration_test` |
 
 ## Workflow Specifics
+
+- NEVER change the `origin` git remote from `ssh` to `https`.
 
 1. **Branch**: Use `wt` (worktrunk tool) for tasks; see `wt --help`.
 
