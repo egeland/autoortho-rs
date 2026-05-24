@@ -65,21 +65,4 @@ mod tests {
             PathBuf::from("/Games/X-Plane 12/Custom Scenery")
         );
     }
-
-    // Migration test: verify Config delegation methods produce the same results
-    #[test]
-    fn test_paths_match_config_delegation() {
-        let xplane = "/Games/X-Plane 12";
-        let cache = "/Users/frode/Library/Caches/autoortho";
-        let config = crate::config::AutoOrthoConfig {
-            xplane_path: xplane.to_string(),
-            cache_dir: cache.to_string(),
-            ..Default::default()
-        };
-
-        assert_eq!(custom_scenery_path(xplane), config.custom_scenery_path());
-        assert_eq!(mount_dir(xplane), config.mount_dir());
-        assert_eq!(scenery_data_dir(cache), config.scenery_data_dir());
-        assert_eq!(scenery_install_dir(xplane), config.scenery_install_dir());
-    }
 }

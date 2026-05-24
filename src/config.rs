@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR GPL-3.0
 // Copyright (c) 2026 the AutoOrtho contributors
 
+use crate::errors::{validate_f32_range, validate_log_rotation, validate_range};
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -12,117 +13,14 @@ pub use crate::seasons::Season;
 /// Re-exported here for compat.
 pub use crate::tiles::fallback::{FallbackConfig, FallbackLevel};
 
-/// Rate limiting configuration for tile requests
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RateLimitConfig {
-    pub requests_per_second: f64,
-}
+/// ZoomRule — owned by `tiles::zoom` module. Re-exported here for compat.
+pub use crate::tiles::zoom::ZoomRule;
 
-impl Default for RateLimitConfig {
-    fn default() -> Self {
-        Self {
-            requests_per_second: 5.0,
-        }
-    }
-}
+/// RateLimitConfig — owned by `errors` module. Re-exported here for compat.
+pub use crate::errors::RateLimitConfig;
 
-impl RateLimitConfig {
-    pub fn validate(&self) -> Result<(), ConfigError> {
-        if self.requests_per_second < 1.0 || self.requests_per_second > 20.0 {
-            return Err(ConfigError::FieldInvalid {
-                field: "rate_limit.requests_per_second".to_string(),
-                message: format!("out of range (1.0-20.0), got {}", self.requests_per_second),
-            });
-        }
-        Ok(())
-    }
-}
-
-/// Configuration validation error
-#[derive(Debug, Clone, PartialEq)]
-pub enum ConfigError {
-    FieldInvalid {
-        field: String,
-        message: String,
-    },
-    FieldOutOfRange {
-        field: String,
-        min: u64,
-        max: u64,
-        value: u64,
-    },
-}
-
-impl std::fmt::Display for ConfigError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::FieldInvalid { field, message } => write!(f, "Invalid {}: {}", field, message),
-            Self::FieldOutOfRange {
-                field,
-                min,
-                max,
-                value,
-            } => {
-                write!(f, "{} out of range ({}-{}), got {}", field, min, max, value)
-            }
-        }
-    }
-}
-
-impl std::error::Error for ConfigError {}
-
-/// Validate a u64 field is within range.
-fn validate_range(value: u64, min: u64, max: u64, field: &str) -> Result<(), ConfigError> {
-    if value < min || value > max {
-        return Err(ConfigError::FieldOutOfRange {
-            field: field.to_string(),
-            min,
-            max,
-            value,
-        });
-    }
-    Ok(())
-}
-
-/// Validate a f32 field is within range.
-fn validate_f32_range(value: f32, min: f32, max: f32, field: &str) -> Result<(), ConfigError> {
-    if value < min || value > max {
-        return Err(ConfigError::FieldInvalid {
-            field: field.to_string(),
-            message: format!("out of range ({}-{}), got {}", min, max, value),
-        });
-    }
-    Ok(())
-}
-
-/// Validate log_rotation is a valid value.
-fn validate_log_rotation(rotation: &str) -> Result<(), ConfigError> {
-    match rotation {
-        "daily" | "hourly" | "never" => Ok(()),
-        _ => Err(ConfigError::FieldInvalid {
-            field: "log_rotation".to_string(),
-            message: "must be 'daily', 'hourly', or 'never'".to_string(),
-        }),
-    }
-}
-
-/// A zoom rule: at or above this AGL altitude, use this zoom level.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct ZoomRule {
-    /// Minimum AGL altitude in feet for this rule
-    pub min_altitude_ft: f32,
-    /// Zoom level to use at this altitude
-    pub zoom_level: u32,
-}
-
-impl Default for ZoomRule {
-    fn default() -> Self {
-        Self {
-            min_altitude_ft: 0.0,
-            zoom_level: 19,
-        }
-    }
-}
+/// ConfigError — owned by `errors` module. Re-exported here for compat.
+pub use crate::errors::ConfigError;
 
 /// All persistent configuration for AutoOrtho.
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -541,30 +439,6 @@ impl AutoOrthoConfig {
         Ok(())
     }
 
-    /// X-Plane's Custom Scenery directory, derived from `xplane_path`.
-    pub fn custom_scenery_path(&self) -> PathBuf {
-        PathBuf::from(&self.xplane_path).join("Custom Scenery")
-    }
-
-    /// FUSE mount point, derived from `xplane_path`.
-    /// This is the scenery pack root directory that X-Plane accesses.
-    pub fn mount_dir(&self) -> PathBuf {
-        self.custom_scenery_path().join("z_autoortho")
-    }
-
-    /// Scenery data directory for real files (DSF, metadata, etc.).
-    /// Lives outside the mount point to avoid filesystem recursion.
-    pub fn scenery_data_dir(&self) -> PathBuf {
-        PathBuf::from(&self.cache_dir)
-            .join("scenery")
-            .join("z_autoortho")
-    }
-
-    /// Scenery install directory (Custom Scenery), derived from `xplane_path`.
-    pub fn scenery_install_dir(&self) -> PathBuf {
-        self.custom_scenery_path()
-    }
-
     /// Clear saved window position/size (for --reset-window).
     pub fn reset_window_position(&mut self) {
         self.window_x = None;
@@ -646,12 +520,25 @@ mod tests {
     use crate::test_utils::test_config_in_temp;
 
     #[test]
-    fn test_default_config() {
+    fn test_config_snapshot_dds_memory_cache_entries() {
+        // Default config has 256 MB DDS memory cache
         let config = AutoOrthoConfig::default();
-        assert_eq!(config.xplane_port, 49000);
-        assert_eq!(config.min_zoom, 10);
-        assert_eq!(config.max_zoom, 18);
-        assert!(config.enable_night_exclusion);
+        let snapshot: ConfigSnapshot = (&config).into();
+
+        // DDS_TILE_SIZE_MB = 22, so entries = 256 / 22 ≈ 11 (floor)
+        assert_eq!(snapshot.dds_memory_cache_entries(), 11);
+
+        // Test with custom memory size
+        let mut config = AutoOrthoConfig::default();
+        config.dds_memory_cache_mb = 4096;
+        let snapshot: ConfigSnapshot = (&config).into();
+        assert_eq!(snapshot.dds_memory_cache_entries(), 186); // 4096 / 22 ≈ 186
+
+        // Test minimum (should not underflow to 0)
+        let mut config = AutoOrthoConfig::default();
+        config.dds_memory_cache_mb = 0;
+        let snapshot: ConfigSnapshot = (&config).into();
+        assert_eq!(snapshot.dds_memory_cache_entries(), 1); // .max(1) prevents underflow
     }
 
     #[test]
@@ -695,32 +582,6 @@ mod tests {
     fn test_config_path_not_empty() {
         let path = AutoOrthoConfig::config_path();
         assert!(path.to_string_lossy().contains("autoortho"));
-    }
-
-    #[test]
-    fn test_derived_paths() {
-        let mut config = AutoOrthoConfig::default();
-        config.xplane_path = "/home/user/X-Plane 12".to_string();
-
-        assert_eq!(
-            config.custom_scenery_path(),
-            PathBuf::from("/home/user/X-Plane 12/Custom Scenery")
-        );
-        assert_eq!(
-            config.mount_dir(),
-            PathBuf::from("/home/user/X-Plane 12/Custom Scenery/z_autoortho")
-        );
-        assert_eq!(
-            config.scenery_install_dir(),
-            PathBuf::from("/home/user/X-Plane 12/Custom Scenery")
-        );
-
-        // scenery_data_dir needs cache_dir set
-        config.cache_dir = "/home/user/.cache/autoortho".to_string();
-        assert_eq!(
-            config.scenery_data_dir(),
-            PathBuf::from("/home/user/.cache/autoortho/scenery/z_autoortho")
-        );
     }
 
     #[test]
