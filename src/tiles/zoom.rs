@@ -6,6 +6,26 @@
 //! - Fallback resolution (finding lower-zoom parent chunks)
 //! - Mipmap-to-zoom-level mapping
 
+use serde::{Deserialize, Serialize};
+
+/// A zoom rule: at or above this AGL altitude, use this zoom level.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct ZoomRule {
+    /// Minimum AGL altitude in feet for this rule
+    pub min_altitude_ft: f32,
+    /// Zoom level to use at this altitude
+    pub zoom_level: u32,
+}
+
+impl Default for ZoomRule {
+    fn default() -> Self {
+        Self {
+            min_altitude_ft: 0.0,
+            zoom_level: 19,
+        }
+    }
+}
+
 /// Scale a coordinate value by a zoom level difference.
 ///
 /// Positive `zoom_diff` means zooming in (higher ZL) → divide by 2^diff.

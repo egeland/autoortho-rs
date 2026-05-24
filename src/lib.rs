@@ -5,6 +5,7 @@ pub mod altitude_predictor;
 pub mod app_context;
 pub mod config;
 pub mod dynamic_zoom;
+pub mod errors;
 
 #[cfg(test)]
 pub mod test_utils;
