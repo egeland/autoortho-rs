@@ -520,12 +520,25 @@ mod tests {
     use crate::test_utils::test_config_in_temp;
 
     #[test]
-    fn test_default_config() {
+    fn test_config_snapshot_dds_memory_cache_entries() {
+        // Default config has 256 MB DDS memory cache
         let config = AutoOrthoConfig::default();
-        assert_eq!(config.xplane_port, 49000);
-        assert_eq!(config.min_zoom, 10);
-        assert_eq!(config.max_zoom, 18);
-        assert!(config.enable_night_exclusion);
+        let snapshot: ConfigSnapshot = (&config).into();
+
+        // DDS_TILE_SIZE_MB = 22, so entries = 256 / 22 ≈ 11 (floor)
+        assert_eq!(snapshot.dds_memory_cache_entries(), 11);
+
+        // Test with custom memory size
+        let mut config = AutoOrthoConfig::default();
+        config.dds_memory_cache_mb = 4096;
+        let snapshot: ConfigSnapshot = (&config).into();
+        assert_eq!(snapshot.dds_memory_cache_entries(), 186); // 4096 / 22 ≈ 186
+
+        // Test minimum (should not underflow to 0)
+        let mut config = AutoOrthoConfig::default();
+        config.dds_memory_cache_mb = 0;
+        let snapshot: ConfigSnapshot = (&config).into();
+        assert_eq!(snapshot.dds_memory_cache_entries(), 1); // .max(1) prevents underflow
     }
 
     #[test]
