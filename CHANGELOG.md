@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.18](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.17...autoortho-v0.8.18) (2026-05-24)
+
+
+### Miscellaneous
+
+* update docs ([#359](https://github.com/egeland/autoortho-rs/issues/359)) ([ca0573b](https://github.com/egeland/autoortho-rs/commit/ca0573b83ee893bab905f4728139fa90d9a4b991))
+
 ## [0.8.17](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.16...autoortho-v0.8.17) (2026-05-24)
 
 
