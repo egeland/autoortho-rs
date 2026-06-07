@@ -80,6 +80,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          # Windows runner has ~14GB free disk; the full target/ for this
+          # workspace (with iced/wgpu UI deps + simulator) can exceed the
+          # remaining 10GB cache limit when zstd-compressed on save. Cache
+          # only the cargo registry on Windows to keep cache saves reliable.
+          cache-targets: ${{ matrix.os != 'windows-latest' }}
 
       - name: Run library tests
         run: cargo test --lib --all-features
