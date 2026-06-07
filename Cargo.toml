@@ -130,3 +130,6 @@ panic = "abort"
 [profile.dist]
 inherits = "release"
 lto = "thin"
+
+[workspace]
+members = [".", "tools/xplane-simulator"]

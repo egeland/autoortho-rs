@@ -80,6 +80,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
+        with:
+          # Windows runner has ~14GB free disk; the full target/ for this
+          # workspace (with iced/wgpu UI deps + simulator) can exceed the
+          # remaining 10GB cache limit when zstd-compressed on save. Cache
+          # only the cargo registry on Windows to keep cache saves reliable.
+          cache-targets: ${{ matrix.os != 'windows-latest' }}
 
       - name: Run library tests
         run: cargo test --lib --all-features
@@ -99,3 +105,21 @@ jobs:
           cargo build --all-features
           ./target/debug/autoortho --help
           ./target/debug/autoortho --version
+
+      - name: Run xplane-simulator tests
+        run: cargo test -p xplane-simulator --all-targets
+
+      - name: Build xplane-simulator
+        run: cargo build -p xplane-simulator
+
+      - name: Verify xplane-simulator runs
+        run: ./target/debug/xplane-simulator --help
+
+      - name: Upload xplane-simulator artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: xplane-simulator-${{ matrix.os }}
+          path: |
+            target/debug/xplane-simulator
+            target/debug/xplane-simulator.exe
+            target/debug/xplane-simulator.pdb
