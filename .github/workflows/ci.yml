@@ -99,3 +99,21 @@ jobs:
           cargo build --all-features
           ./target/debug/autoortho --help
           ./target/debug/autoortho --version
+
+      - name: Run xplane-simulator tests
+        run: cargo test -p xplane-simulator --all-targets
+
+      - name: Build xplane-simulator
+        run: cargo build -p xplane-simulator
+
+      - name: Verify xplane-simulator runs
+        run: ./target/debug/xplane-simulator --help
+
+      - name: Upload xplane-simulator artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: xplane-simulator-${{ matrix.os }}
+          path: |
+            target/debug/xplane-simulator
+            target/debug/xplane-simulator.exe
+            target/debug/xplane-simulator.pdb
