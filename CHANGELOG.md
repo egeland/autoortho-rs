@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.19](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.18...autoortho-v0.8.19) (2026-06-07)
+
+
+### Features
+
+* add xplane-simulator tool + CI build ([#367](https://github.com/egeland/autoortho-rs/issues/367)) ([9b9a771](https://github.com/egeland/autoortho-rs/commit/9b9a771873f6a71540c75c329f649fb01f6f3643))
+
 ## [0.8.18](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.17...autoortho-v0.8.18) (2026-05-24)
 
 
