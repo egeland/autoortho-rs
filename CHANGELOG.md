@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.20](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.19...autoortho-v0.8.20) (2026-06-11)
+
+
+### Features
+
+* show tile progress in UI status bar ([#374](https://github.com/egeland/autoortho-rs/issues/374)) ([8cd478b](https://github.com/egeland/autoortho-rs/commit/8cd478bc46afdb2bd037da51d8c768c393d431aa))
+
 ## [0.8.19](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.18...autoortho-v0.8.19) (2026-06-07)
 
 
