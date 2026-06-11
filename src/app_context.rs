@@ -27,6 +27,7 @@ pub struct AppContext {
     #[cfg(feature = "fuse")]
     pub fs: Arc<DdsFileSystem>,
     pub custom_map: Arc<CustomMapStore>,
+    pub tile_progress: Arc<crate::ui::state::TileProgress>,
 }
 
 impl AppContext {
@@ -58,13 +59,17 @@ impl AppContext {
             None
         };
 
+        // Create shared tile progress tracker for UI
+        let tile_progress = Arc::new(crate::ui::state::TileProgress::new());
+
         let fs = {
             #[cfg(feature = "fuse")]
             {
                 let mut builder = DdsFileSystem::builder(fetcher.clone(), &config.tile_provider)
                     .cache_entries(dds_cache_entries)
                     .custom_map(custom_map.clone())
-                    .root(scenery_data_dir(&config.cache_dir));
+                    .root(scenery_data_dir(&config.cache_dir))
+                    .tile_progress(tile_progress.clone());
 
                 if let Some(dc) = dds_cache.clone() {
                     builder = builder.disk_cache(dc);
@@ -90,6 +95,7 @@ impl AppContext {
             #[cfg(feature = "fuse")]
             fs,
             custom_map,
+            tile_progress,
         })
     }
 }

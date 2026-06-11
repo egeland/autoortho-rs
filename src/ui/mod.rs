@@ -86,7 +86,8 @@ pub enum Message {
     ServicesStarted(
         String,
         Option<std::sync::Arc<crate::xplane::dataref::DatarefTracker>>,
-    ), // web URL and tracker
+        std::sync::Arc<crate::ui::state::TileProgress>,
+    ), // web URL, tracker, and tile progress
     ServicesFailed(String),
 
     // Scenery management
@@ -665,7 +666,9 @@ impl AutoOrthoApp {
                             .unwrap_or(Err("Runtime channel closed".into()))
                     },
                     |result| match result {
-                        Ok((url, tracker)) => Message::ServicesStarted(url, Some(tracker)),
+                        Ok((url, tracker, tile_progress)) => {
+                            Message::ServicesStarted(url, Some(tracker), tile_progress)
+                        }
                         Err(e) => Message::ServicesFailed(e),
                     },
                 );
@@ -679,11 +682,12 @@ impl AutoOrthoApp {
                 self.state.web_server_url = None;
                 self.state.xplane_tracker = ServiceStatus::Stopped;
             }
-            Message::ServicesStarted(url, tracker) => {
+            Message::ServicesStarted(url, tracker, tile_progress) => {
                 self.state.web_server = ServiceStatus::Running;
                 self.state.web_server_url = Some(url);
                 self.state.xplane_tracker = ServiceStatus::Running;
                 self.state.tracker = tracker;
+                self.state.tile_progress = tile_progress;
             }
             Message::ServicesFailed(err) => {
                 self.state.web_server = ServiceStatus::Error;
@@ -1236,6 +1240,51 @@ impl AutoOrthoApp {
                 .into(),
         ];
 
+        // Show tile progress if active
+        if self
+            .state
+            .tile_progress
+            .active
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            let tile_label = self.state.tile_progress.tile_label();
+            let progress = self.state.tile_progress.progress();
+            let chunks_done = self
+                .state
+                .tile_progress
+                .chunks_done
+                .load(std::sync::atomic::Ordering::Relaxed);
+            let chunks_total = self
+                .state
+                .tile_progress
+                .chunks_total
+                .load(std::sync::atomic::Ordering::Relaxed);
+
+            status_items.push(text("  ·  ").size(11).into());
+            status_items.push(
+                text(format!(
+                    "Tile: {} ({}/{})",
+                    tile_label, chunks_done, chunks_total
+                ))
+                .size(11)
+                .color(iced::Color::from_rgb(0.9, 0.7, 0.0))
+                .into(),
+            );
+
+            // Simple progress bar
+            let bar_width: usize = 40;
+            let filled = (progress * bar_width as f32) as usize;
+            let bar: String = "█".repeat(filled) + &"░".repeat(bar_width.saturating_sub(filled));
+            status_items.push(text(" ").size(11).into());
+            status_items.push(
+                text(bar)
+                    .size(11)
+                    .font(iced::Font::MONOSPACE)
+                    .color(iced::Color::from_rgb(0.9, 0.7, 0.0))
+                    .into(),
+            );
+        }
+
         if downloads_active > 0 {
             status_items.push(text("  ·  ").size(11).into());
             status_items.push(
@@ -1273,7 +1322,14 @@ async fn start_all_services(
     xplane_port: u16,
     config: crate::config::AutoOrthoConfig,
     shutdown_rx: watch::Receiver<bool>,
-) -> Result<(String, Arc<crate::xplane::dataref::DatarefTracker>), String> {
+) -> Result<
+    (
+        String,
+        Arc<crate::xplane::dataref::DatarefTracker>,
+        Arc<crate::ui::state::TileProgress>,
+    ),
+    String,
+> {
     use crate::app_context::AppContext;
     use crate::xplane::dataref::{self};
 
@@ -1285,6 +1341,7 @@ async fn start_all_services(
     // Shared state between web server and tracker
     let stats = context.stats.clone();
     let tracker = context.tracker.clone();
+    let tile_progress = context.tile_progress.clone();
     let web_config = context.config.clone();
 
     // Start web server
@@ -1368,7 +1425,7 @@ async fn start_all_services(
         log::info!("FUSE mount skipped: fuse feature not enabled");
     }
 
-    Ok((format!("http://{}", addr), tracker))
+    Ok((format!("http://{}", addr), tracker, tile_progress))
 }
 
 /// Core implementation of test tile fetch - takes a pre-configured fetcher.
@@ -2009,7 +2066,11 @@ mod tests {
         setup_test_runtime();
         let mut app = AutoOrthoApp::new();
         let url = format!("http://127.0.0.1:{}", crate::webui::WEB_UI_PORT);
-        let _ = app.update(Message::ServicesStarted(url.clone(), None));
+        let _ = app.update(Message::ServicesStarted(
+            url.clone(),
+            None,
+            std::sync::Arc::new(crate::ui::state::TileProgress::new()),
+        ));
         assert_eq!(app.state.web_server, ServiceStatus::Running);
         assert_eq!(app.state.xplane_tracker, ServiceStatus::Running);
         assert_eq!(app.state.web_server_url, Some(url));
@@ -2029,7 +2090,11 @@ mod tests {
         setup_test_runtime();
         let mut app = AutoOrthoApp::new();
         let url = format!("http://127.0.0.1:{}", crate::webui::WEB_UI_PORT);
-        let _ = app.update(Message::ServicesStarted(url, None));
+        let _ = app.update(Message::ServicesStarted(
+            url,
+            None,
+            std::sync::Arc::new(crate::ui::state::TileProgress::new()),
+        ));
         assert!(app.state.any_service_running());
 
         let _ = app.update(Message::StopServices);
@@ -2044,7 +2109,11 @@ mod tests {
         assert!(!app.title().contains("[Running]"));
 
         let url = format!("http://127.0.0.1:{}", crate::webui::WEB_UI_PORT);
-        let _ = app.update(Message::ServicesStarted(url, None));
+        let _ = app.update(Message::ServicesStarted(
+            url,
+            None,
+            std::sync::Arc::new(crate::ui::state::TileProgress::new()),
+        ));
         assert!(app.title().contains("[Running]"));
     }
 
@@ -2085,7 +2154,7 @@ mod tests {
             "Services should start without FUSE when no X-Plane path: {:?}",
             result.err()
         );
-        let (url, _tracker) = result.unwrap();
+        let (url, _tracker, _tile_progress) = result.unwrap();
         assert!(url.starts_with("http://"));
     }
 

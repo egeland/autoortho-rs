@@ -13,6 +13,7 @@ use crate::tiles::fallback::FallbackConfig;
 use crate::tiles::fallback::FallbackSystem;
 use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::zoom::ChunkGrid;
+use crate::ui::state::TileProgress;
 use crate::webui::custommap::CustomMapStore;
 use log::{debug, warn};
 use lru::LruCache;
@@ -53,6 +54,8 @@ pub struct DdsFileSystem {
     cache_hits: AtomicU64,
     cache_misses: AtomicU64,
     cache_evictions: AtomicU64,
+    /// Shared tile progress tracker for UI status bar
+    tile_progress: Option<Arc<TileProgress>>,
 }
 
 pub struct DdsFileSystemBuilder {
@@ -66,6 +69,7 @@ pub struct DdsFileSystemBuilder {
     custom_map: Option<Arc<CustomMapStore>>,
     default_provider: String,
     fallback: Option<Arc<FallbackSystem>>,
+    tile_progress: Option<Arc<TileProgress>>,
 }
 
 impl DdsFileSystemBuilder {
@@ -81,7 +85,13 @@ impl DdsFileSystemBuilder {
             custom_map: None,
             default_provider: provider_id.to_string(),
             fallback: None,
+            tile_progress: None,
         }
+    }
+
+    pub fn tile_progress(mut self, progress: Arc<TileProgress>) -> Self {
+        self.tile_progress = Some(progress);
+        self
     }
 
     pub fn cache_entries(mut self, entries: usize) -> Self {
@@ -131,6 +141,7 @@ impl DdsFileSystemBuilder {
             cache_hits: AtomicU64::new(0),
             cache_misses: AtomicU64::new(0),
             cache_evictions: AtomicU64::new(0),
+            tile_progress: self.tile_progress,
         }
     }
 }
@@ -547,8 +558,14 @@ impl DdsFileSystem {
             pixel_height: 4096,
         };
 
+        // Notify progress tracker that we're starting
+        if let Some(ref tp) = self.tile_progress {
+            tp.start(row, col, zoom, maptype);
+        }
+
         // Fetch all 256 chunks with per-chunk provider resolution
         let mut jpeg_chunks: Vec<Option<Vec<u8>>> = Vec::with_capacity(256);
+        let mut chunks_fetched = 0u32;
         for (chunk_col, chunk_row) in grid.iter_chunks() {
             // Get the provider for this specific chunk based on custom map overrides
             let provider_id = self.get_provider_for_tile(chunk_row, chunk_col, zoom);
@@ -558,8 +575,15 @@ impl DdsFileSystem {
                 .get_chunk_data_with_provider(chunk_row, chunk_col, maptype, zoom, &provider_id)
                 .await;
             match result {
-                Ok(Some(data)) => jpeg_chunks.push(Some(data.to_vec())),
+                Ok(Some(data)) => {
+                    jpeg_chunks.push(Some(data.to_vec()));
+                }
                 _ => jpeg_chunks.push(None),
+            }
+            chunks_fetched += 1;
+            // Update progress tracker
+            if let Some(ref tp) = self.tile_progress {
+                tp.update_progress(chunks_fetched);
             }
         }
 
@@ -586,6 +610,11 @@ impl DdsFileSystem {
                 "Tile {}_{}_{}_{}: {} chunks used fallback color",
                 row, col, maptype, zoom, result.chunks_failed
             );
+        }
+
+        // Notify progress tracker that we're done
+        if let Some(ref tp) = self.tile_progress {
+            tp.finish();
         }
 
         Ok(result)
