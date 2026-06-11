@@ -2,6 +2,87 @@ use crate::config::AutoOrthoConfig;
 use crate::scenery::paths::{
     custom_scenery_path, mount_dir, scenery_data_dir, scenery_install_dir,
 };
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+
+/// Shared tile progress state for the status bar.
+/// Updated by DdsFileSystem during tile generation, read by UI.
+#[derive(Debug)]
+pub struct TileProgress {
+    /// Whether a tile is currently being generated
+    pub active: AtomicBool,
+    /// Current tile row
+    pub row: AtomicU32,
+    /// Current tile col
+    pub col: AtomicU32,
+    /// Current zoom level
+    pub zoom: AtomicU32,
+    /// Chunks decoded so far (out of 256)
+    pub chunks_done: AtomicU32,
+    /// Total chunks to fetch (256)
+    pub chunks_total: AtomicU32,
+    /// Provider name being used
+    pub provider: parking_lot::Mutex<String>,
+}
+
+impl TileProgress {
+    pub fn new() -> Self {
+        Self {
+            active: AtomicBool::new(false),
+            row: AtomicU32::new(0),
+            col: AtomicU32::new(0),
+            zoom: AtomicU32::new(0),
+            chunks_done: AtomicU32::new(0),
+            chunks_total: AtomicU32::new(0),
+            provider: parking_lot::Mutex::new(String::new()),
+        }
+    }
+
+    pub fn start(&self, row: u32, col: u32, zoom: u32, provider: &str) {
+        self.row.store(row, Ordering::Relaxed);
+        self.col.store(col, Ordering::Relaxed);
+        self.zoom.store(zoom, Ordering::Relaxed);
+        self.chunks_done.store(0, Ordering::Relaxed);
+        self.chunks_total.store(256, Ordering::Relaxed);
+        *self.provider.lock() = provider.to_string();
+        self.active.store(true, Ordering::Relaxed);
+    }
+
+    pub fn update_progress(&self, chunks_done: u32) {
+        self.chunks_done.store(chunks_done, Ordering::Relaxed);
+    }
+
+    pub fn finish(&self) {
+        self.active.store(false, Ordering::Relaxed);
+    }
+
+    /// Get a display string for the current tile (e.g., "1234/5678 @ z14")
+    pub fn tile_label(&self) -> String {
+        if !self.active.load(Ordering::Relaxed) {
+            return String::new();
+        }
+        let row = self.row.load(Ordering::Relaxed);
+        let col = self.col.load(Ordering::Relaxed);
+        let zoom = self.zoom.load(Ordering::Relaxed);
+        format!("{}/{}/z{}", row, col, zoom)
+    }
+
+    /// Get progress as a value 0.0-1.0
+    pub fn progress(&self) -> f32 {
+        let total = self.chunks_total.load(Ordering::Relaxed);
+        if total == 0 {
+            return 0.0;
+        }
+        let done = self.chunks_done.load(Ordering::Relaxed);
+        done as f32 / total as f32
+    }
+}
+
+impl Default for TileProgress {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
@@ -164,6 +245,9 @@ pub struct AppState {
     pub prefetch_status: Option<String>,
     pub prefetch_completed: u32,
     pub prefetch_total: u32,
+
+    // Tile progress (shared with DdsFileSystem)
+    pub tile_progress: Arc<TileProgress>,
 }
 
 #[derive(Debug, Clone)]
@@ -237,6 +321,7 @@ impl AppState {
             prefetch_status: None,
             prefetch_completed: 0,
             prefetch_total: 0,
+            tile_progress: Arc::new(TileProgress::new()),
         }
     }
 
