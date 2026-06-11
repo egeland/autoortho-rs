@@ -1341,6 +1341,7 @@ async fn start_all_services(
     // Shared state between web server and tracker
     let stats = context.stats.clone();
     let tracker = context.tracker.clone();
+    let tile_progress = context.tile_progress.clone();
     let web_config = context.config.clone();
 
     // Start web server
@@ -1424,7 +1425,7 @@ async fn start_all_services(
         log::info!("FUSE mount skipped: fuse feature not enabled");
     }
 
-    Ok((format!("http://{}", addr), tracker, context.tile_progress))
+    Ok((format!("http://{}", addr), tracker, tile_progress))
 }
 
 /// Core implementation of test tile fetch - takes a pre-configured fetcher.
