@@ -114,6 +114,30 @@ pub fn sha256(data: &[u8]) -> String {
     hex::encode(result)
 }
 
+/// Validate that the given path looks like a valid X-Plane installation.
+pub fn validate_xplane_dir(path: &std::path::Path) -> Result<(), String> {
+    if !path.exists() {
+        return Err(format!(
+            "X-Plane directory does not exist: {}",
+            path.display()
+        ));
+    }
+    if !path.is_dir() {
+        return Err(format!(
+            "X-Plane path is not a directory: {}",
+            path.display()
+        ));
+    }
+    let custom_scenery = path.join("Custom Scenery");
+    if !custom_scenery.exists() {
+        return Err(format!(
+            "Not a valid X-Plane installation: missing 'Custom Scenery' directory in {}",
+            path.display()
+        ));
+    }
+    Ok(())
+}
+
 /// Reference tile metadata for comparison.
 #[derive(Debug, serde::Serialize)]
 pub struct ReferenceMetadata {
@@ -218,6 +242,44 @@ pub struct DdsInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_validate_xplane_dir_nonexistent() {
+        let bad = std::path::PathBuf::from("/nonexistent/path/to/X-Plane");
+        let result = validate_xplane_dir(&bad);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("does not exist"));
+    }
+
+    #[test]
+    fn test_validate_xplane_dir_not_a_dir() {
+        let tmp = std::env::temp_dir();
+        let file = tmp.join("not_a_dir_test_file_394");
+        std::fs::write(&file, "test").unwrap();
+        let result = validate_xplane_dir(&file);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not a directory"));
+        let _ = std::fs::remove_file(&file);
+    }
+
+    #[test]
+    fn test_validate_xplane_dir_missing_custom_scenery() {
+        let tmp = std::env::temp_dir().join("fake_xplane_394");
+        let _ = std::fs::create_dir_all(&tmp);
+        let result = validate_xplane_dir(&tmp);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("missing 'Custom Scenery'"));
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_validate_xplane_dir_valid() {
+        let tmp = std::env::temp_dir().join("valid_xplane_394");
+        let _ = std::fs::create_dir_all(tmp.join("Custom Scenery"));
+        let result = validate_xplane_dir(&tmp);
+        assert!(result.is_ok());
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
 
     #[test]
     fn test_validate_dds_magic() {
