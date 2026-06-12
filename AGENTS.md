@@ -226,4 +226,13 @@ When the user requests a durable behavior change, record it here or in the relev
 
 ## Child DOX Index
 
-This project is not yet indexed. Before continuing you must scan the project, build the DOX tree and replace this message with the actual index. Go deep and scan files recursively to properly evaluate complexity and create nested DOX files where needed.
+| Path | Scope |
+|------|-------|
+| `src/pipeline/AGENTS.md` | Image processing: JPEG decode, DDS gen, cache, budget |
+| `src/tiles/AGENTS.md` | Tile engine: coords, chunks, assembly, prefetch, providers, fetcher, fallback |
+| `src/fuse/AGENTS.md` | FUSE/Dokan virtual filesystem, DDS path parsing |
+| `src/xplane/AGENTS.md` | X-Plane integration: dataref, simbrief, UDP |
+| `src/webui/AGENTS.md` | Web UI: axum server, WebSocket, REST API, custom map |
+| `src/ui/AGENTS.md` | Desktop UI (iced MVU): app lifecycle, state, handlers |
+| `src/ui/screens/AGENTS.md` | Screen implementations (welcome, setup, settings, dashboard, etc.) |
+| `src/scenery/AGENTS.md` | Scenery pack discovery, download, installation, SimHeaven |
