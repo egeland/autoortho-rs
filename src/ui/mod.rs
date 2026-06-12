@@ -87,7 +87,8 @@ pub enum Message {
         String,
         Option<std::sync::Arc<crate::xplane::dataref::DatarefTracker>>,
         std::sync::Arc<crate::ui::state::TileProgress>,
-    ), // web URL, tracker, and tile progress
+        Option<std::sync::Arc<parking_lot::Mutex<crate::pipeline::cache::DdsCache>>>,
+    ), // web URL, tracker, tile progress, and DDS cache
     ServicesFailed(String),
 
     // Scenery management
@@ -386,6 +387,11 @@ impl AutoOrthoApp {
                     } else {
                         log::info!("DDS cache cleared");
                         self.state.dds_cache_size_bytes = 0;
+                        // Also clear in-memory cache state
+                        if let Some(ref cache) = self.state.dds_cache {
+                            let mut cache = cache.lock();
+                            let _ = cache.clear();
+                        }
                     }
                 }
             }
@@ -688,8 +694,8 @@ impl AutoOrthoApp {
                             .unwrap_or(Err("Runtime channel closed".into()))
                     },
                     |result| match result {
-                        Ok((url, tracker, tile_progress)) => {
-                            Message::ServicesStarted(url, Some(tracker), tile_progress)
+                        Ok((url, tracker, tile_progress, dds_cache)) => {
+                            Message::ServicesStarted(url, Some(tracker), tile_progress, dds_cache)
                         }
                         Err(e) => Message::ServicesFailed(e),
                     },
@@ -704,12 +710,13 @@ impl AutoOrthoApp {
                 self.state.web_server_url = None;
                 self.state.xplane_tracker = ServiceStatus::Stopped;
             }
-            Message::ServicesStarted(url, tracker, tile_progress) => {
+            Message::ServicesStarted(url, tracker, tile_progress, dds_cache) => {
                 self.state.web_server = ServiceStatus::Running;
                 self.state.web_server_url = Some(url);
                 self.state.xplane_tracker = ServiceStatus::Running;
                 self.state.tracker = tracker;
                 self.state.tile_progress = tile_progress;
+                self.state.dds_cache = dds_cache;
             }
             Message::ServicesFailed(err) => {
                 self.state.web_server = ServiceStatus::Error;
@@ -1133,6 +1140,12 @@ impl AutoOrthoApp {
                         self.state.xplane_tracker = ServiceStatus::Stopped;
                     }
                 }
+
+                // Poll DDS cache size if available
+                if let Some(ref cache) = self.state.dds_cache {
+                    let cache = cache.lock();
+                    self.state.dds_cache_size_bytes = cache.size_bytes();
+                }
             }
             Message::OpenMapInBrowser => {
                 if let Some(ref url) = self.state.web_server_url {
@@ -1349,6 +1362,7 @@ async fn start_all_services(
         String,
         Arc<crate::xplane::dataref::DatarefTracker>,
         Arc<crate::ui::state::TileProgress>,
+        Option<Arc<parking_lot::Mutex<crate::pipeline::cache::DdsCache>>>,
     ),
     String,
 > {
@@ -1364,6 +1378,7 @@ async fn start_all_services(
     let stats = context.stats.clone();
     let tracker = context.tracker.clone();
     let tile_progress = context.tile_progress.clone();
+    let dds_cache = context.dds_cache.clone();
     let web_config = context.config.clone();
 
     // Clone shutdown signal for web server (tracker gets the original)
@@ -1456,7 +1471,12 @@ async fn start_all_services(
         log::info!("FUSE mount skipped: fuse feature not enabled");
     }
 
-    Ok((format!("http://{}", addr), tracker, tile_progress))
+    Ok((
+        format!("http://{}", addr),
+        tracker,
+        tile_progress,
+        dds_cache,
+    ))
 }
 
 /// Core implementation of test tile fetch - takes a pre-configured fetcher.
@@ -2112,6 +2132,7 @@ mod tests {
             url.clone(),
             None,
             std::sync::Arc::new(crate::ui::state::TileProgress::new()),
+            None,
         ));
         assert_eq!(app.state.web_server, ServiceStatus::Running);
         assert_eq!(app.state.xplane_tracker, ServiceStatus::Running);
@@ -2136,6 +2157,7 @@ mod tests {
             url,
             None,
             std::sync::Arc::new(crate::ui::state::TileProgress::new()),
+            None,
         ));
         assert!(app.state.any_service_running());
 
@@ -2155,6 +2177,7 @@ mod tests {
             url,
             None,
             std::sync::Arc::new(crate::ui::state::TileProgress::new()),
+            None,
         ));
         assert!(app.title().contains("[Running]"));
     }
@@ -2196,7 +2219,7 @@ mod tests {
             "Services should start without FUSE when no X-Plane path: {:?}",
             result.err()
         );
-        let (url, _tracker, _tile_progress) = result.unwrap();
+        let (url, _tracker, _tile_progress, _dds_cache) = result.unwrap();
         assert!(url.starts_with("http://"));
     }
 
@@ -2221,6 +2244,62 @@ mod tests {
             result.is_ok(),
             "Services should start even if FUSE fails: {:?}",
             result.err()
+        );
+    }
+
+    #[test]
+    fn test_tick_updates_dds_cache_size() {
+        use crate::pipeline::cache::{DdsCache, DdsCacheMetadata};
+        use tempfile::TempDir;
+
+        setup_test_runtime();
+        let mut app = AutoOrthoApp::new();
+
+        // Create a DdsCache with some data
+        let tmp = TempDir::new().unwrap();
+        let cache_dir = tmp.path().join("dds");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+
+        let mut cache = DdsCache::open(cache_dir, 1024 * 1024).unwrap();
+        let key = DdsCache::tile_key(100, 200, 14, "ARC");
+        let dds_data = vec![0u8; 1024];
+        let metadata = DdsCacheMetadata {
+            v: 3,
+            w: 32,
+            h: 32,
+            mm: 1,
+            zl: 14,
+            max_zl: 14,
+            fmt: "BC1".to_string(),
+            map: "ARC".to_string(),
+            built: 0.0,
+            tile_row: 200,
+            tile_col: 100,
+            populated_mipmaps: vec![0],
+            missing_indices: vec![],
+            fallback_indices: vec![],
+            disk_compression: "zstd".to_string(),
+        };
+        cache.put(key.clone(), &dds_data, &metadata).unwrap();
+        let expected_size = cache.size_bytes();
+        assert!(expected_size > 0, "Cache should have data after put");
+
+        let cache = std::sync::Arc::new(parking_lot::Mutex::new(cache));
+
+        // Simulate services started with cache
+        let _ = app.update(Message::ServicesStarted(
+            "http://127.0.0.1:0".to_string(),
+            None,
+            std::sync::Arc::new(crate::ui::state::TileProgress::new()),
+            Some(cache),
+        ));
+
+        // Tick should update cache size
+        let _ = app.update(Message::Tick);
+
+        assert_eq!(
+            app.state.dds_cache_size_bytes, expected_size,
+            "Tick should poll DdsCache and update dds_cache_size_bytes"
         );
     }
 

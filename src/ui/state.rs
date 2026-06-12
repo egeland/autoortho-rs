@@ -217,6 +217,7 @@ pub struct AppState {
 
     // Cache status
     pub dds_cache_size_bytes: u64,
+    pub dds_cache: Option<std::sync::Arc<parking_lot::Mutex<crate::pipeline::cache::DdsCache>>>,
 
     // SimBrief flight plan
     pub simbrief_fetching: bool,
@@ -303,6 +304,7 @@ impl AppState {
             xplane_tracker: ServiceStatus::Stopped,
             tracker: None,
             dds_cache_size_bytes: 0,
+            dds_cache: None,
             simbrief_fetching: false,
             simbrief_route_summary: None,
             simbrief_fixes: Vec::new(),
