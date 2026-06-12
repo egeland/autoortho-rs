@@ -90,10 +90,17 @@ impl FlightData {
 
     /// Validate that position data is reasonable
     pub fn is_position_valid(&self) -> bool {
+        // Convert validation bounds from feet to meters since alt_agl_m is stored in meters
+        // Assuming X-Plane's y_agl dataref is in FEET with reasonable range of -500 to 50000 feet
+        const ALT_AGL_MIN_FEET: f32 = -500.0;
+        const ALT_AGL_MAX_FEET: f32 = 50000.0;
+        const ALT_AGL_MIN_METERS: f32 = ALT_AGL_MIN_FEET / METERS_TO_FEET;
+        const ALT_AGL_MAX_METERS: f32 = ALT_AGL_MAX_FEET / METERS_TO_FEET;
+
         (-90.0..=90.0).contains(&self.lat)
             && (-180.0..=180.0).contains(&self.lon)
-            && self.alt_agl_m > -500.0
-            && self.alt_agl_m < 50000.0
+            && self.alt_agl_m > ALT_AGL_MIN_METERS
+            && self.alt_agl_m < ALT_AGL_MAX_METERS
     }
 }
 
@@ -166,7 +173,11 @@ impl DatarefTracker {
             match index {
                 0 => data.lat = value as f64,
                 1 => data.lon = value as f64,
-                2 => data.alt_agl_m = value,
+                2 => {
+                    // X-Plane's y_agl dataref returns height AGL in FEET
+                    // Convert to meters for internal storage
+                    data.alt_agl_m = value / METERS_TO_FEET;
+                }
                 3 => data.heading = value,
                 4 => data.ground_speed_mps = value,
                 5 => data.local_time_sec = value,
@@ -413,5 +424,37 @@ mod tests {
     #[test]
     fn test_datarefs_all_has_8_entries() {
         assert_eq!(datarefs::ALL.len(), 8);
+    }
+
+    #[test]
+    fn test_tracker_handles_invalid_altitude() {
+        let tracker = DatarefTracker::new();
+
+        // Send valid latitude and longitude
+        // Send invalid altitude (-999.0 feet, presumed X-Plane invalid indicator)
+        let values = vec![
+            (0, 37.7749f32),   // lat
+            (1, -122.4194f32), // lon
+            (2, -999.0f32),    // alt_agl_m (invalid altitude in feet)
+            (3, 270.0f32),     // heading
+            (4, 50.0f32),      // ground_speed
+        ];
+
+        tracker.update_from_response(&values);
+        let data = tracker.get_flight_data();
+
+        // We should be connected (we got a packet)
+        assert!(data.connected);
+
+        // But data should be invalid due to bad altitude
+        assert!(!data.data_valid);
+
+        // Latitude and longitude should be stored correctly
+        assert!((data.lat - 37.7749).abs() < 0.001);
+        assert!((data.lon - (-122.4194)).abs() < 0.001);
+
+        // Heading and ground speed should be stored correctly
+        assert!((data.heading - 270.0).abs() < 0.1);
+        assert!((data.ground_speed_mps - 50.0).abs() < 0.1);
     }
 }
