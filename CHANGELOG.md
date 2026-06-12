@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.23](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.22...autoortho-v0.8.23) (2026-06-12)
+
+
+### Bug Fixes
+
+* bind web server to 127.0.0.1 instead of 0.0.0.0 ([#380](https://github.com/egeland/autoortho-rs/issues/380)) ([9d66f15](https://github.com/egeland/autoortho-rs/commit/9d66f15b47bc12bbe16bfe9910d879438f08d726))
+
 ## [0.8.22](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.21...autoortho-v0.8.22) (2026-06-12)
 
 
