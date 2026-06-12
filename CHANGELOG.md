@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.24](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.23...autoortho-v0.8.24) (2026-06-12)
+
+
+### Features
+
+* make route prefetch stoppable ([#382](https://github.com/egeland/autoortho-rs/issues/382)) ([1962957](https://github.com/egeland/autoortho-rs/commit/196295738e4d45e07f7593d14881460b96d20165)), closes [#370](https://github.com/egeland/autoortho-rs/issues/370)
+
 ## [0.8.23](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.22...autoortho-v0.8.23) (2026-06-12)
 
 
