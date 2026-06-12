@@ -1378,6 +1378,7 @@ async fn start_all_services(
     let stats = context.stats.clone();
     let tracker = context.tracker.clone();
     let tile_progress = context.tile_progress.clone();
+    let dds_cache = context.dds_cache.clone();
     let web_config = context.config.clone();
 
     // Clone shutdown signal for web server (tracker gets the original)
@@ -1474,7 +1475,7 @@ async fn start_all_services(
         format!("http://{}", addr),
         tracker,
         tile_progress,
-        context.dds_cache.clone(),
+        dds_cache,
     ))
 }
 
