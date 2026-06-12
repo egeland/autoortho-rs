@@ -741,6 +741,87 @@ mod tests {
         assert_eq!(format_bytes(2 * 1024 * 1024 * 1024), "2.00 GB");
     }
 
+    #[tokio::test]
+    async fn test_cache_tiles_returns_bounds() {
+        use crate::config::AutoOrthoConfig;
+        use crate::pipeline::cache::DdsCacheMetadata;
+        use crate::stats::StatsStore;
+        use crate::webui::custommap::CustomMapStore;
+        use crate::webui::routes::WebState;
+        use crate::xplane::dataref::DatarefTracker;
+        use parking_lot::RwLock;
+        use std::sync::Arc;
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().unwrap();
+        let cache_dir = tmp.path().join("dds");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+
+        // Create a mock .ddm metadata file with key format: col_row_provider_zzoom
+        // e.g., 100_200_BI_z16.ddm
+        let meta = DdsCacheMetadata {
+            v: 3,
+            w: 4096,
+            h: 4096,
+            mm: 13,
+            zl: 16,
+            max_zl: 16,
+            fmt: "BC1".to_string(),
+            map: "BI".to_string(),
+            built: 1700000000.0,
+            tile_row: 200,
+            tile_col: 100,
+            populated_mipmaps: vec![0, 1, 2, 3, 4],
+            missing_indices: vec![],
+            fallback_indices: vec![],
+            disk_compression: "zstd".to_string(),
+        };
+        let meta_json = serde_json::to_string_pretty(&meta).unwrap();
+        std::fs::write(cache_dir.join("100_200_BI_z16.ddm"), meta_json).unwrap();
+
+        // Also create the .dds.zst file so it exists
+        std::fs::write(cache_dir.join("100_200_BI_z16.dds.zst"), b"fake dds").unwrap();
+
+        let config = AutoOrthoConfig {
+            cache_dir: tmp.path().to_string_lossy().to_string(),
+            ..Default::default()
+        };
+
+        let state = Arc::new(WebState::new(
+            Arc::new(StatsStore::new()),
+            Arc::new(DatarefTracker::new()),
+            CustomMapStore::load(tmp.path().join("custom_map.json")),
+            Arc::new(RwLock::new(config)),
+        ));
+
+        let response = cache_tiles(State(state)).await;
+        let tiles = response.0;
+
+        assert_eq!(tiles.len(), 1, "Should return 1 tile");
+        let tile = &tiles[0];
+        assert_eq!(tile.col, 100);
+        assert_eq!(tile.row, 200);
+        assert_eq!(tile.zoom, 16);
+        assert_eq!(tile.provider, "BI");
+
+        // Verify bounds are calculated correctly
+        // At zoom 16, tile 100, 200 should have valid lat/lng bounds
+        assert!(tile.lat_n > tile.lat_s, "North should be > South");
+        assert!(tile.lon_e > tile.lon_w, "East should be > West");
+
+        // Verify bounds are reasonable for zoom 16
+        let lat_diff = tile.lat_n - tile.lat_s;
+        let lon_diff = tile.lon_e - tile.lon_w;
+        assert!(
+            lat_diff > 0.0 && lat_diff < 0.1,
+            "Latitude diff should be small at zoom 16"
+        );
+        assert!(
+            lon_diff > 0.0 && lon_diff < 0.1,
+            "Longitude diff should be small at zoom 16"
+        );
+    }
+
     #[test]
     fn test_scan_dsf_tiles() {
         use tempfile::TempDir;
