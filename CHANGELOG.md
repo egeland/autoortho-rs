@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.22](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.21...autoortho-v0.8.22) (2026-06-12)
+
+
+### Bug Fixes
+
+* gracefully shutdown web server on stop so restart doesn't fail ([#378](https://github.com/egeland/autoortho-rs/issues/378)) ([20896d2](https://github.com/egeland/autoortho-rs/commit/20896d221ca84097ba7c20c1a3b9a61e2835b6a1)), closes [#371](https://github.com/egeland/autoortho-rs/issues/371)
+
 ## [0.8.21](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.20...autoortho-v0.8.21) (2026-06-12)
 
 
