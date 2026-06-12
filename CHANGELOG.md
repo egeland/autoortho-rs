@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.30](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.29...autoortho-v0.8.30) (2026-06-12)
+
+
+### Bug Fixes
+
+* update DDS cache size display in settings ([#399](https://github.com/egeland/autoortho-rs/issues/399)) ([dc366e6](https://github.com/egeland/autoortho-rs/commit/dc366e6131c2edd839b30ba58cf30a36f5c9ed67))
+
 ## [0.8.29](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.28...autoortho-v0.8.29) (2026-06-12)
 
 
