@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.26](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.25...autoortho-v0.8.26) (2026-06-12)
+
+
+### Miscellaneous
+
+* build DOX tree for src/ modules ([#386](https://github.com/egeland/autoortho-rs/issues/386)) ([85887a7](https://github.com/egeland/autoortho-rs/commit/85887a77c5ecc2ff7fcf1323cafe553aad39c592))
+
 ## [0.8.25](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.24...autoortho-v0.8.25) (2026-06-12)
 
 
