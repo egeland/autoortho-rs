@@ -171,6 +171,7 @@ pub enum Message {
 
     // Route prefetch
     PrefetchRoute,
+    StopPrefetch,
     PrefetchProgress(u32, u32), // (completed, total)
     PrefetchComplete(String),
     PrefetchFailed(String),
@@ -564,12 +565,15 @@ impl AutoOrthoApp {
                 self.state.prefetch_completed = 0;
                 self.state.prefetch_total = 0;
 
+                let cancel = tokio_util::sync::CancellationToken::new();
+                self.state.prefetch_cancel = Some(cancel.clone());
+
                 let config = self.state.config.clone();
                 let (tx, rx) = oneshot::channel();
                 let rt = self.runtime.clone();
 
                 rt.spawn(async move {
-                    let result = prefetch_route_impl(&flight_plan, &config).await;
+                    let result = prefetch_route_impl(&flight_plan, &config, &cancel).await;
                     let _ = tx.send(result);
                 });
 
@@ -581,16 +585,25 @@ impl AutoOrthoApp {
                     },
                 );
             }
+            Message::StopPrefetch => {
+                if let Some(cancel) = self.state.prefetch_cancel.take() {
+                    cancel.cancel();
+                }
+                self.state.prefetch_running = false;
+                self.state.prefetch_status = Some("Prefetch cancelled".to_string());
+            }
             Message::PrefetchProgress(completed, total) => {
                 self.state.prefetch_completed = completed;
                 self.state.prefetch_total = total;
             }
             Message::PrefetchComplete(msg) => {
                 self.state.prefetch_running = false;
+                self.state.prefetch_cancel = None;
                 self.state.prefetch_status = Some(msg);
             }
             Message::PrefetchFailed(err) => {
                 self.state.prefetch_running = false;
+                self.state.prefetch_cancel = None;
                 self.state.prefetch_status = Some(format!("Error: {}", err));
             }
             Message::SaveConfiguration => {
@@ -1854,6 +1867,7 @@ fn boot() -> (AutoOrthoApp, Task<Message>) {
 async fn prefetch_route_impl(
     flight_plan: &crate::xplane::simbrief::FlightPlan,
     config: &crate::config::AutoOrthoConfig,
+    cancel: &tokio_util::sync::CancellationToken,
 ) -> Result<String, String> {
     use crate::pipeline::cache::DdsCache;
     use crate::pipeline::dds::DdsFormat;
@@ -1927,8 +1941,11 @@ async fn prefetch_route_impl(
         .map_err(|e| format!("Failed to open DDS cache: {}", e))?;
 
     // 6. For each DDS tile, fetch all 256 chunks and assemble
-    let mut tiles_cached = 0;
+    let mut tiles_cached = 0u32;
     for (dds_row, dds_col) in dds_tiles.keys() {
+        if cancel.is_cancelled() {
+            return Err("Prefetch cancelled".to_string());
+        }
         let tile_row = *dds_row;
         let tile_col = *dds_col;
 
