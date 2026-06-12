@@ -766,4 +766,18 @@ mod tests {
         let _router = create_router(state);
         // Just verify it doesn't panic
     }
+
+    #[test]
+    fn test_cache_viewer_sri_hashes() {
+        // Regression test for issue #390: SRI hashes must match actual Leaflet 1.9.4 files
+        let html = CACHE_VIEWER_HTML;
+        assert!(
+            html.contains("integrity=\"sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=\""),
+            "leaflet.css SRI hash incorrect"
+        );
+        assert!(
+            html.contains("integrity=\"sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=\""),
+            "leaflet.js SRI hash incorrect"
+        );
+    }
 }
