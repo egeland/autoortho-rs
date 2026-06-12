@@ -83,6 +83,17 @@ pub struct DdsCache {
     index: LruCache<String, u64>, // key → compressed size on disk (LRU ordered)
 }
 
+impl std::fmt::Debug for DdsCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("DdsCache")
+            .field("cache_dir", &self.cache_dir)
+            .field("max_size_bytes", &self.max_size_bytes)
+            .field("current_size_bytes", &self.current_size_bytes)
+            .field("index_len", &self.index.len())
+            .finish()
+    }
+}
+
 impl DdsCache {
     pub fn new(cache_dir: PathBuf, max_size_bytes: u64) -> Self {
         Self {
