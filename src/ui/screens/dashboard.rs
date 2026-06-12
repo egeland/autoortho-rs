@@ -132,6 +132,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     || status.to_lowercase().contains("fail")
                 {
                     iced::Color::from_rgb(0.8, 0.1, 0.1)
+                } else if status.contains("cache 90") {
+                    iced::Color::from_rgb(0.9, 0.6, 0.1)
                 } else {
                     iced::Color::from_rgb(0.0, 0.6, 0.0)
                 };

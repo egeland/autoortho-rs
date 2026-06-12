@@ -174,6 +174,7 @@ pub enum Message {
     StopPrefetch,
     PrefetchProgress(u32, u32), // (completed, total)
     PrefetchComplete(String),
+    PrefetchCompleteCacheFull(String),
     PrefetchFailed(String),
 
     // UI refresh
@@ -580,6 +581,9 @@ impl AutoOrthoApp {
                 return Task::perform(
                     async { rx.await.unwrap_or(Err("Channel closed".into())) },
                     |result| match result {
+                        Ok(msg) if msg.contains("cache 90") => {
+                            Message::PrefetchCompleteCacheFull(msg)
+                        }
                         Ok(msg) => Message::PrefetchComplete(msg),
                         Err(e) => Message::PrefetchFailed(e),
                     },
@@ -597,6 +601,11 @@ impl AutoOrthoApp {
                 self.state.prefetch_total = total;
             }
             Message::PrefetchComplete(msg) => {
+                self.state.prefetch_running = false;
+                self.state.prefetch_cancel = None;
+                self.state.prefetch_status = Some(msg);
+            }
+            Message::PrefetchCompleteCacheFull(msg) => {
                 self.state.prefetch_running = false;
                 self.state.prefetch_cancel = None;
                 self.state.prefetch_status = Some(msg);
@@ -1945,6 +1954,13 @@ async fn prefetch_route_impl(
     for (dds_row, dds_col) in dds_tiles.keys() {
         if cancel.is_cancelled() {
             return Err("Prefetch cancelled".to_string());
+        }
+        // Stop when cache is 90% full to leave room for runtime usage
+        if cache.usage_fraction() >= 0.9 {
+            return Ok(format!(
+                "Prefetched {} DDS tiles (cache 90% full, stopping early)",
+                tiles_cached
+            ));
         }
         let tile_row = *dds_row;
         let tile_col = *dds_col;

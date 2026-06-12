@@ -125,6 +125,14 @@ impl DdsCache {
         self.index.len()
     }
 
+    /// Cache usage as a fraction (0.0–1.0).
+    pub fn usage_fraction(&self) -> f64 {
+        if self.max_size_bytes == 0 {
+            return 1.0;
+        }
+        self.current_size_bytes as f64 / self.max_size_bytes as f64
+    }
+
     pub fn cache_dir(&self) -> &PathBuf {
         &self.cache_dir
     }
@@ -524,5 +532,20 @@ mod tests {
 
         // "mid" was LRU, should be evicted
         assert!(!cache.contains("mid"));
+    }
+
+    #[test]
+    fn test_cache_usage_fraction() {
+        let tmp_dir = TempDir::new().unwrap();
+        let mut cache = DdsCache::new(tmp_dir.path().to_path_buf(), 1000);
+        let meta = sample_metadata();
+
+        // Empty cache
+        assert!((cache.usage_fraction() - 0.0).abs() < f64::EPSILON);
+
+        // Add some data
+        cache.put("a".to_string(), b"data_a", &meta).unwrap();
+        let frac = cache.usage_fraction();
+        assert!(frac > 0.0 && frac < 1.0, "Expected 0 < {} < 1", frac);
     }
 }
