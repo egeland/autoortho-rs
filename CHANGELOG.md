@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.28](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.27...autoortho-v0.8.28) (2026-06-12)
+
+
+### Bug Fixes
+
+* **xplane-simulator:** add stdout logging and X-Plane path validation ([#395](https://github.com/egeland/autoortho-rs/issues/395)) ([08cd3d1](https://github.com/egeland/autoortho-rs/commit/08cd3d11618e9adb326258c1c24e513da2054a1b)), closes [#394](https://github.com/egeland/autoortho-rs/issues/394)
+
 ## [0.8.27](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.26...autoortho-v0.8.27) (2026-06-12)
 
 
