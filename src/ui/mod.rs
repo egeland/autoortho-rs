@@ -1344,10 +1344,19 @@ async fn start_all_services(
     let tile_progress = context.tile_progress.clone();
     let web_config = context.config.clone();
 
-    // Start web server
-    let addr = crate::webui::start_server(web_port, stats.clone(), tracker.clone(), web_config)
-        .await
-        .map_err(|e| e.to_string())?;
+    // Clone shutdown signal for web server (tracker gets the original)
+    let web_shutdown_rx = shutdown_rx.clone();
+
+    // Start web server with shutdown support
+    let addr = crate::webui::start_server_with_shutdown(
+        web_port,
+        stats.clone(),
+        tracker.clone(),
+        web_config,
+        web_shutdown_rx,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     // Start X-Plane dataref tracker (runs in background, retries on timeout)
     let xplane_addr: SocketAddr = format!("{}:{}", xplane_host, xplane_port)

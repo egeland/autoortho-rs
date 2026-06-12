@@ -68,11 +68,13 @@ pub struct PositionUpdate {
 /// Start the web server on the given port.
 ///
 /// Returns the actual bound address (useful when port=0 for OS-assigned).
-pub async fn start_server(
+/// The server shuts down gracefully when `shutdown_rx` receives `true`.
+pub async fn start_server_with_shutdown(
     port: u16,
     stats: Arc<StatsStore>,
     tracker: Arc<DatarefTracker>,
     config: Arc<parking_lot::RwLock<AutoOrthoConfig>>,
+    mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
 ) -> Result<SocketAddr, Box<dyn std::error::Error + Send + Sync>> {
     let custom_map_path = dirs::config_dir()
         .unwrap_or_else(|| std::path::PathBuf::from("."))
@@ -89,14 +91,35 @@ pub async fn start_server(
 
     info!("Web UI server listening on http://{}", bound_addr);
 
+    let shutdown_signal = async move {
+        let _ = shutdown_rx.wait_for(|v| *v).await;
+        info!("Web server received shutdown signal");
+    };
+
     tokio::spawn(async move {
-        if let Err(e) = axum::serve(listener, app).await {
+        if let Err(e) = axum::serve(listener, app)
+            .with_graceful_shutdown(shutdown_signal)
+            .await
+        {
             error!("Web server error: {}", e);
         }
         info!("Web server shut down");
     });
 
     Ok(bound_addr)
+}
+
+/// Start the web server on the given port (no shutdown support).
+///
+/// Returns the actual bound address (useful when port=0 for OS-assigned).
+pub async fn start_server(
+    port: u16,
+    stats: Arc<StatsStore>,
+    tracker: Arc<DatarefTracker>,
+    config: Arc<parking_lot::RwLock<AutoOrthoConfig>>,
+) -> Result<SocketAddr, Box<dyn std::error::Error + Send + Sync>> {
+    let (_tx, rx) = tokio::sync::watch::channel(false);
+    start_server_with_shutdown(port, stats, tracker, config, rx).await
 }
 
 #[cfg(test)]
@@ -114,6 +137,36 @@ mod tests {
 
         let addr = start_server(0, stats, tracker, config).await.unwrap();
         assert_ne!(addr.port(), 0); // Should have been assigned a real port
+    }
+
+    #[tokio::test]
+    async fn test_server_restart_after_shutdown() {
+        use tokio::sync::watch;
+
+        let stats = Arc::new(StatsStore::new());
+        let tracker = Arc::new(DatarefTracker::new());
+        let config = Arc::new(parking_lot::RwLock::new(
+            crate::config::AutoOrthoConfig::default(),
+        ));
+
+        // Start server on a random port
+        let (tx1, rx1) = watch::channel(false);
+        let addr =
+            start_server_with_shutdown(0, stats.clone(), tracker.clone(), config.clone(), rx1)
+                .await
+                .unwrap();
+        let port = addr.port();
+
+        // Shut down the server
+        let _ = tx1.send(true);
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        // Start a new server on the same port — should succeed
+        let (_tx2, rx2) = watch::channel(false);
+        let addr2 = start_server_with_shutdown(port, stats, tracker, config, rx2)
+            .await
+            .unwrap();
+        assert_eq!(addr2.port(), port);
     }
 
     #[test]
