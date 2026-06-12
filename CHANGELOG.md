@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.25](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.24...autoortho-v0.8.25) (2026-06-12)
+
+
+### Features
+
+* stop prefetch when cache is 90% full ([#384](https://github.com/egeland/autoortho-rs/issues/384)) ([fe9cb9a](https://github.com/egeland/autoortho-rs/commit/fe9cb9a6b517261f14b5a67d90d56b232ddb3e3d)), closes [#370](https://github.com/egeland/autoortho-rs/issues/370)
+
 ## [0.8.24](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.23...autoortho-v0.8.24) (2026-06-12)
 
 
