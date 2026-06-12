@@ -16,6 +16,7 @@ use clap::Parser;
 use std::path::PathBuf;
 use std::time::Instant;
 use tracing::{info, warn};
+use tracing_subscriber::prelude::*;
 use xplane_simulator::perf;
 use xplane_simulator::route::Route;
 use xplane_simulator::{error, validation};
@@ -107,21 +108,26 @@ fn main() -> anyhow::Result<()> {
     // Parse args first to handle --help without requiring full init
     let args = Args::parse();
 
-    // Initialize logging to a file in the simulator directory
+    // Logging: stdout + file
     let log_dir = std::env::current_exe()
         .ok()
         .and_then(|p| p.parent().map(|p| p.to_path_buf()))
         .unwrap_or_else(std::env::temp_dir);
 
-    let log_file = log_dir.join("xplane-simulator.log");
-    let _ = log_file; // reserved for future use
-
-    // Initialize logging to file
     let file_appender = tracing_appender::rolling::daily(&log_dir, "xplane-simulator.log");
     let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
-    tracing_subscriber::fmt()
+
+    let file_layer = tracing_subscriber::fmt::layer()
         .with_writer(non_blocking)
-        .with_ansi(false)
+        .with_ansi(false);
+
+    let stdout_layer = tracing_subscriber::fmt::layer()
+        .with_writer(std::io::stdout)
+        .with_target(false);
+
+    tracing_subscriber::registry()
+        .with(file_layer)
+        .with(stdout_layer)
         .init();
 
     info!("X-Plane Simulator starting");
@@ -136,6 +142,14 @@ fn main() -> anyhow::Result<()> {
     };
 
     info!("Mount path: {:?}", mount_path);
+
+    // Validate X-Plane installation
+    if let Some(ref xp) = args.xplane_path {
+        match validation::validate_xplane_dir(std::path::Path::new(xp)) {
+            Ok(()) => println!("✓ X-Plane directory valid: {}", xp),
+            Err(e) => anyhow::bail!("{}", e),
+        }
+    }
 
     // Verify mount is accessible
     if !mount_path.exists() {
@@ -186,10 +200,15 @@ fn main() -> anyhow::Result<()> {
         let elapsed = start.elapsed();
         match &result {
             Ok(data) => {
-                info!("OK   {} ({} bytes, {:?})", filename, data.len(), elapsed);
+                info!(
+                    "✓ Read tile {} — {} bytes, {:?}",
+                    filename,
+                    data.len(),
+                    elapsed
+                );
             }
             Err(e) => {
-                warn!("FAIL {}: {:?} ({:?})", filename, e, elapsed);
+                warn!("✗ Failed tile {}: {:?} ({:?})", filename, e, elapsed);
             }
         }
 
