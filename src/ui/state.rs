@@ -245,6 +245,7 @@ pub struct AppState {
     pub prefetch_status: Option<String>,
     pub prefetch_completed: u32,
     pub prefetch_total: u32,
+    pub prefetch_cancel: Option<tokio_util::sync::CancellationToken>,
 
     // Tile progress (shared with DdsFileSystem)
     pub tile_progress: Arc<TileProgress>,
@@ -321,6 +322,7 @@ impl AppState {
             prefetch_status: None,
             prefetch_completed: 0,
             prefetch_total: 0,
+            prefetch_cancel: None,
             tile_progress: Arc::new(TileProgress::new()),
         }
     }

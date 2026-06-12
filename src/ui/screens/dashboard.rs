@@ -95,8 +95,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             if state.simbrief_route_summary.is_some() {
                 if state.prefetch_running {
                     btn_row = btn_row.push(
-                        button(text(format!("{} Prefetching…", ICON_MAP)).size(14))
-                            .padding([8, 16]),
+                        button(text(format!("{} Stop Prefetch", ICON_STOP)).size(14))
+                            .padding([8, 16])
+                            .style(button::danger)
+                            .on_press(Message::StopPrefetch),
                     );
                 } else {
                     btn_row = btn_row.push(
