@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.21](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.20...autoortho-v0.8.21) (2026-06-12)
+
+
+### Bug Fixes
+
+* X-Plane tracker unit conversion for altitude dataref ([#376](https://github.com/egeland/autoortho-rs/issues/376)) ([c94da33](https://github.com/egeland/autoortho-rs/commit/c94da3394353c9202801d55a5732848c28259258)), closes [#372](https://github.com/egeland/autoortho-rs/issues/372)
+
 ## [0.8.20](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.19...autoortho-v0.8.20) (2026-06-11)
 
 
