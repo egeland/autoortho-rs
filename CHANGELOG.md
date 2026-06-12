@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.27](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.26...autoortho-v0.8.27) (2026-06-12)
+
+
+### Bug Fixes
+
+* wire StatsStore into DdsFileSystem for web UI stats ([#392](https://github.com/egeland/autoortho-rs/issues/392)) ([654e87b](https://github.com/egeland/autoortho-rs/commit/654e87b2a59e47d48ed4bc934bfa636c0666f755)), closes [#389](https://github.com/egeland/autoortho-rs/issues/389)
+
 ## [0.8.26](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.25...autoortho-v0.8.26) (2026-06-12)
 
 
