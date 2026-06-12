@@ -62,6 +62,8 @@ impl AppContext {
         // Create shared tile progress tracker for UI
         let tile_progress = Arc::new(crate::ui::state::TileProgress::new());
 
+        let stats = Arc::new(StatsStore::new());
+
         let fs = {
             #[cfg(feature = "fuse")]
             {
@@ -69,7 +71,8 @@ impl AppContext {
                     .cache_entries(dds_cache_entries)
                     .custom_map(custom_map.clone())
                     .root(scenery_data_dir(&config.cache_dir))
-                    .tile_progress(tile_progress.clone());
+                    .tile_progress(tile_progress.clone())
+                    .stats(stats.clone());
 
                 if let Some(dc) = dds_cache.clone() {
                     builder = builder.disk_cache(dc);
@@ -83,7 +86,6 @@ impl AppContext {
             }
         };
 
-        let stats = Arc::new(StatsStore::new());
         let tracker = Arc::new(DatarefTracker::new());
 
         Ok(Self {
