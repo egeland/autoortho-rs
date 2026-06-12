@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.29](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.28...autoortho-v0.8.29) (2026-06-12)
+
+
+### Bug Fixes
+
+* correct SRI hashes for Leaflet 1.9.4 in cache viewer ([#397](https://github.com/egeland/autoortho-rs/issues/397)) ([a738558](https://github.com/egeland/autoortho-rs/commit/a73855862ec6ebda77d3dc09c5f81fe510bf5edd)), closes [#390](https://github.com/egeland/autoortho-rs/issues/390)
+
 ## [0.8.28](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.27...autoortho-v0.8.28) (2026-06-12)
 
 
