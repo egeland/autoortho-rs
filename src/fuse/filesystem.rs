@@ -7,6 +7,7 @@
 use crate::fuse::{DdsPathParser, FuseError, MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
 use crate::pipeline::cache::{DdsCache, DdsCacheMetadata};
 use crate::pipeline::dds::DdsFormat;
+use crate::stats::StatsStore;
 use crate::tiles::assembler::{AssemblyConfig, AssemblyResult, assemble_tile};
 use crate::tiles::coords::TileCoords;
 use crate::tiles::fallback::FallbackConfig;
@@ -56,6 +57,8 @@ pub struct DdsFileSystem {
     cache_evictions: AtomicU64,
     /// Shared tile progress tracker for UI status bar
     tile_progress: Option<Arc<TileProgress>>,
+    /// Shared stats store for web UI
+    stats: Option<Arc<StatsStore>>,
 }
 
 pub struct DdsFileSystemBuilder {
@@ -70,6 +73,7 @@ pub struct DdsFileSystemBuilder {
     default_provider: String,
     fallback: Option<Arc<FallbackSystem>>,
     tile_progress: Option<Arc<TileProgress>>,
+    stats: Option<Arc<StatsStore>>,
 }
 
 impl DdsFileSystemBuilder {
@@ -86,11 +90,17 @@ impl DdsFileSystemBuilder {
             default_provider: provider_id.to_string(),
             fallback: None,
             tile_progress: None,
+            stats: None,
         }
     }
 
     pub fn tile_progress(mut self, progress: Arc<TileProgress>) -> Self {
         self.tile_progress = Some(progress);
+        self
+    }
+
+    pub fn stats(mut self, stats: Arc<StatsStore>) -> Self {
+        self.stats = Some(stats);
         self
     }
 
@@ -142,6 +152,7 @@ impl DdsFileSystemBuilder {
             cache_misses: AtomicU64::new(0),
             cache_evictions: AtomicU64::new(0),
             tile_progress: self.tile_progress,
+            stats: self.stats,
         }
     }
 }
@@ -386,10 +397,16 @@ impl DdsFileSystem {
             if let Some(dds) = cache.get(&tile_key) {
                 self.cache_hits
                     .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                if let Some(ref stats) = self.stats {
+                    stats.record_cache_hit();
+                }
                 return Ok(slice_range(dds, offset, size).into_owned());
             }
             self.cache_misses
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if let Some(ref stats) = self.stats {
+                stats.record_cache_miss();
+            }
         }
 
         // Check disk cache for requested zoom
@@ -455,6 +472,11 @@ impl DdsFileSystem {
         // Not cached — generate the DDS tile
         let result = self.generate_tile(row, col, &maptype, zoom).await?;
         let dds_data = result.dds_data;
+
+        // Record download in stats store
+        if let Some(ref stats) = self.stats {
+            stats.record_download(dds_data.len() as u64);
+        }
 
         // Check if tile has missing chunks and fallback is configured
         if result.chunks_failed > 0
