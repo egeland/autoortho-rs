@@ -85,7 +85,7 @@ pub async fn start_server_with_shutdown(
     let state = Arc::new(WebState::new(stats, tracker, custom_map, config));
     let app = routes::create_router(state);
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let bound_addr = listener.local_addr()?;
 
