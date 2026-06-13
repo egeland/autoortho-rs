@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.31](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.30...autoortho-v0.8.31) (2026-06-13)
+
+
+### Bug Fixes
+
+* add auto-fit to cache map tiles ([#403](https://github.com/egeland/autoortho-rs/issues/403)) ([d554cdc](https://github.com/egeland/autoortho-rs/commit/d554cdcc7cd03217df99b8aa259b0a9366206a8e)), closes [#401](https://github.com/egeland/autoortho-rs/issues/401)
+
 ## [0.8.30](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.29...autoortho-v0.8.30) (2026-06-12)
 
 
