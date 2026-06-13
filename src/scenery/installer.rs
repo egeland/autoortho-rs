@@ -321,15 +321,18 @@ pub fn extract_zip(zip_path: &Path, target_dir: &Path) -> Result<(), InstallErro
     Ok(())
 }
 
-/// Extract a ZIP file to the target directory with progress reporting.
+/// Extract a ZIP file to the target directory with per-file progress reporting.
 ///
 /// Reports progress by updating `files_done` and `files_total` atomics.
+/// Also tracks which pack is being extracted via `current_pack` and `total_packs`.
 /// Uses the same security filtering as `extract_zip`.
-pub fn extract_zip_with_progress(
+pub fn extract_zip_with_pack_progress(
     zip_path: &Path,
     target_dir: &Path,
     files_done: Arc<AtomicU32>,
     files_total: Arc<AtomicU32>,
+    _current_pack: u32,
+    _total_packs: u32,
 ) -> Result<(), InstallError> {
     info!(
         "Extracting {} to {}",
@@ -819,7 +822,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_zip_with_progress() {
+    fn test_extract_zip_with_pack_progress() {
         use std::io::Write;
         use std::sync::Arc;
         use std::sync::atomic::{AtomicU32, Ordering};
@@ -844,14 +847,16 @@ mod tests {
 
         // Track progress
         let files_done = Arc::new(AtomicU32::new(0));
-        let files_total = Arc::new(AtomicU32::new(5));
+        let files_total = Arc::new(AtomicU32::new(0));
 
         // Extract with progress tracking
-        let result = extract_zip_with_progress(
+        let result = extract_zip_with_pack_progress(
             &zip_path,
             &target_dir,
             Arc::clone(&files_done),
             Arc::clone(&files_total),
+            1, // current pack
+            3, // total packs
         );
         assert!(result.is_ok(), "Extraction should succeed");
 

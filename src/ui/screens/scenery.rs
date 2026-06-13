@@ -123,7 +123,9 @@ fn region_row<'a>(
         if dl.is_extracting() {
             let extract_pct = dl.extract_progress_percent();
             let info = format!(
-                "Extracting... {}/{} files",
+                "Extracting pack {}/{} · {}/{} files",
+                dl.pack_current(),
+                dl.pack_total(),
                 dl.extract_files_completed(),
                 dl.extract_files_total(),
             );
