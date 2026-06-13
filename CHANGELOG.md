@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.35](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.34...autoortho-v0.8.35) (2026-06-13)
+
+
+### Features
+
+* add per-waypoint prefetch progress emojis ([#413](https://github.com/egeland/autoortho-rs/issues/413)) ([d7f59da](https://github.com/egeland/autoortho-rs/commit/d7f59da42cfc9948bd2419f990d9fb6e2b93fa64))
+
 ## [0.8.34](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.33...autoortho-v0.8.34) (2026-06-13)
 
 
