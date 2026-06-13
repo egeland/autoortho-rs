@@ -553,27 +553,9 @@ async fn cache_tiles(State(state): State<Arc<WebState>>) -> Json<Vec<CachedTile>
             continue;
         };
 
-        // Parse key: col_row_provider_zZoom (e.g., "100_200_BI_z16")
-        let parts: Vec<&str> = stem.split('_').collect();
-        if parts.len() != 4 || !parts[3].starts_with('z') {
-            continue;
-        }
-
-        let col = match parts[0].parse::<u32>().ok() {
-            Some(c) => c,
-            None => continue,
-        };
-        let row = match parts[1].parse::<u32>().ok() {
-            Some(r) => r,
-            None => continue,
-        };
-        let provider = parts[2].to_string();
-        let zoom = match parts[3][1..].parse::<u32>().ok() {
-            Some(z) if z <= 21 => z,
-            _ => continue,
-        };
-
-        // Read metadata
+        // Read metadata — use tile_row/tile_col from the .ddm file
+        // rather than parsing the filename, because the key format
+        // varies between callers (filesystem.rs vs DdsCache::tile_key).
         let meta_str = match std::fs::read_to_string(&path) {
             Ok(s) => s,
             Err(_) => continue,
@@ -584,6 +566,23 @@ async fn cache_tiles(State(state): State<Arc<WebState>>) -> Json<Vec<CachedTile>
             Err(_) => continue,
         };
 
+        let row = match meta.get("tile_row").and_then(|v| v.as_u64()) {
+            Some(r) => r as u32,
+            None => continue,
+        };
+        let col = match meta.get("tile_col").and_then(|v| v.as_u64()) {
+            Some(c) => c as u32,
+            None => continue,
+        };
+        let provider = meta
+            .get("map")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown")
+            .to_string();
+        let zoom = match meta.get("zl").and_then(|v| v.as_u64()) {
+            Some(z) if z <= 21 => z as u32,
+            _ => continue,
+        };
         let built = meta.get("built").and_then(|v| v.as_f64()).unwrap_or(0.0);
 
         // Get DDS file size
@@ -820,6 +819,235 @@ mod tests {
             lon_diff > 0.0 && lon_diff < 0.1,
             "Longitude diff should be small at zoom 16"
         );
+    }
+
+    #[tokio::test]
+    async fn test_cache_tiles_reads_metadata_not_filename() {
+        // Regression test: cache viewer must use .ddm metadata (tile_row/tile_col)
+        // instead of parsing the filename, because filesystem.rs and DdsCache::tile_key
+        // use different key formats.
+        use crate::config::AutoOrthoConfig;
+        use crate::pipeline::cache::DdsCacheMetadata;
+        use crate::stats::StatsStore;
+        use crate::webui::custommap::CustomMapStore;
+        use crate::webui::routes::WebState;
+        use crate::xplane::dataref::DatarefTracker;
+        use parking_lot::RwLock;
+        use std::sync::Arc;
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().unwrap();
+        let cache_dir = tmp.path().join("dds");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+
+        // Simulate a cache file written by filesystem.rs: row_col_maptype_zoom
+        // (key format differs from DdsCache::tile_key which uses col_row_maptype_zzoom)
+        // Filename: 200_100_BI_16 (row=200, col=100)
+        let meta = DdsCacheMetadata {
+            v: 3,
+            w: 4096,
+            h: 4096,
+            mm: 13,
+            zl: 16,
+            max_zl: 16,
+            fmt: "BC1".to_string(),
+            map: "BI".to_string(),
+            built: 1700000000.0,
+            tile_row: 200,
+            tile_col: 100,
+            populated_mipmaps: vec![0, 1, 2, 3, 4],
+            missing_indices: vec![],
+            fallback_indices: vec![],
+            disk_compression: "zstd".to_string(),
+        };
+        let meta_json = serde_json::to_string_pretty(&meta).unwrap();
+        std::fs::write(cache_dir.join("200_100_BI_16.ddm"), meta_json).unwrap();
+        std::fs::write(cache_dir.join("200_100_BI_16.dds.zst"), b"fake dds").unwrap();
+
+        let config = AutoOrthoConfig {
+            cache_dir: tmp.path().to_string_lossy().to_string(),
+            ..Default::default()
+        };
+        let state = Arc::new(WebState::new(
+            Arc::new(StatsStore::new()),
+            Arc::new(DatarefTracker::new()),
+            CustomMapStore::load(tmp.path().join("custom_map.json")),
+            Arc::new(RwLock::new(config)),
+        ));
+
+        let tiles = cache_tiles(State(state)).await.0;
+        assert_eq!(tiles.len(), 1, "Should return 1 tile");
+        let tile = &tiles[0];
+        // Must read from metadata, not filename
+        assert_eq!(tile.col, 100, "col from metadata tile_col");
+        assert_eq!(tile.row, 200, "row from metadata tile_row");
+        assert_eq!(tile.zoom, 16);
+        assert_eq!(tile.provider, "BI");
+
+        // Verify bounds match the metadata coordinates, not a swapped parse.
+        // Original bug: filename "200_100_BI_16" was parsed as col=200,row=100
+        // (swapped), placing tiles at ~85°N instead of correct position.
+        // With metadata, col=100 row=200 zoom=16 -> lat_n ≈ 84.95°
+        assert!(
+            tile.lat_n > 84.0 && tile.lat_n < 86.0,
+            "lat_n should match col=100 row=200 at z16, got {}",
+            tile.lat_n
+        );
+    }
+
+    #[tokio::test]
+    async fn test_cache_tiles_both_key_formats() {
+        // Regression: both filesystem.rs (row_col_maptype_zoom) and
+        // DdsCache::tile_key (col_row_maptype_zzoom) key formats must work.
+        use crate::config::AutoOrthoConfig;
+        use crate::pipeline::cache::DdsCacheMetadata;
+        use crate::stats::StatsStore;
+        use crate::webui::custommap::CustomMapStore;
+        use crate::webui::routes::WebState;
+        use crate::xplane::dataref::DatarefTracker;
+        use parking_lot::RwLock;
+        use std::sync::Arc;
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().unwrap();
+        let cache_dir = tmp.path().join("dds");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+
+        // File 1: filesystem.rs format — row_col_maptype_zoom
+        let meta1 = DdsCacheMetadata {
+            v: 3,
+            w: 4096,
+            h: 4096,
+            mm: 13,
+            zl: 16,
+            max_zl: 16,
+            fmt: "BC1".to_string(),
+            map: "BI".to_string(),
+            built: 1700000000.0,
+            tile_row: 300,
+            tile_col: 150,
+            populated_mipmaps: vec![0, 1, 2],
+            missing_indices: vec![],
+            fallback_indices: vec![],
+            disk_compression: "zstd".to_string(),
+        };
+        std::fs::write(
+            cache_dir.join("300_150_BI_16.ddm"),
+            serde_json::to_string_pretty(&meta1).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(cache_dir.join("300_150_BI_16.dds.zst"), b"dds1").unwrap();
+
+        // File 2: DdsCache::tile_key format — col_row_maptype_zzoom
+        let meta2 = DdsCacheMetadata {
+            v: 3,
+            w: 4096,
+            h: 4096,
+            mm: 13,
+            zl: 17,
+            max_zl: 17,
+            fmt: "BC3".to_string(),
+            map: "GO2".to_string(),
+            built: 1700000001.0,
+            tile_row: 400,
+            tile_col: 200,
+            populated_mipmaps: vec![0, 1, 2, 3],
+            missing_indices: vec![],
+            fallback_indices: vec![],
+            disk_compression: "zstd".to_string(),
+        };
+        std::fs::write(
+            cache_dir.join("200_400_GO2_z17.ddm"),
+            serde_json::to_string_pretty(&meta2).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(cache_dir.join("200_400_GO2_z17.dds.zst"), b"dds2").unwrap();
+
+        let config = AutoOrthoConfig {
+            cache_dir: tmp.path().to_string_lossy().to_string(),
+            ..Default::default()
+        };
+        let state = Arc::new(WebState::new(
+            Arc::new(StatsStore::new()),
+            Arc::new(DatarefTracker::new()),
+            CustomMapStore::load(tmp.path().join("custom_map.json")),
+            Arc::new(RwLock::new(config)),
+        ));
+
+        let tiles = cache_tiles(State(state)).await.0;
+        assert_eq!(tiles.len(), 2, "Should return both tiles");
+
+        let bi = tiles.iter().find(|t| t.provider == "BI").unwrap();
+        assert_eq!(bi.col, 150);
+        assert_eq!(bi.row, 300);
+        assert_eq!(bi.zoom, 16);
+
+        let go2 = tiles.iter().find(|t| t.provider == "GO2").unwrap();
+        assert_eq!(go2.col, 200);
+        assert_eq!(go2.row, 400);
+        assert_eq!(go2.zoom, 17);
+    }
+
+    #[tokio::test]
+    async fn test_cache_tiles_ignores_bad_filename_uses_metadata() {
+        // Regression: even a completely unparseable filename must be handled
+        // correctly as long as the .ddm metadata is valid.
+        use crate::config::AutoOrthoConfig;
+        use crate::pipeline::cache::DdsCacheMetadata;
+        use crate::stats::StatsStore;
+        use crate::webui::custommap::CustomMapStore;
+        use crate::webui::routes::WebState;
+        use crate::xplane::dataref::DatarefTracker;
+        use parking_lot::RwLock;
+        use std::sync::Arc;
+        use tempfile::TempDir;
+
+        let tmp = TempDir::new().unwrap();
+        let cache_dir = tmp.path().join("dds");
+        std::fs::create_dir_all(&cache_dir).unwrap();
+
+        let meta = DdsCacheMetadata {
+            v: 3,
+            w: 4096,
+            h: 4096,
+            mm: 13,
+            zl: 14,
+            max_zl: 14,
+            fmt: "BC1".to_string(),
+            map: "ARC".to_string(),
+            built: 1700000002.0,
+            tile_row: 500,
+            tile_col: 250,
+            populated_mipmaps: vec![0, 1],
+            missing_indices: vec![],
+            fallback_indices: vec![],
+            disk_compression: "zstd".to_string(),
+        };
+        std::fs::write(
+            cache_dir.join("garbage_filename.ddm"),
+            serde_json::to_string_pretty(&meta).unwrap(),
+        )
+        .unwrap();
+        std::fs::write(cache_dir.join("garbage_filename.dds.zst"), b"dds").unwrap();
+
+        let config = AutoOrthoConfig {
+            cache_dir: tmp.path().to_string_lossy().to_string(),
+            ..Default::default()
+        };
+        let state = Arc::new(WebState::new(
+            Arc::new(StatsStore::new()),
+            Arc::new(DatarefTracker::new()),
+            CustomMapStore::load(tmp.path().join("custom_map.json")),
+            Arc::new(RwLock::new(config)),
+        ));
+
+        let tiles = cache_tiles(State(state)).await.0;
+        assert_eq!(tiles.len(), 1, "Should return tile from metadata");
+        let tile = &tiles[0];
+        assert_eq!(tile.col, 250);
+        assert_eq!(tile.row, 500);
+        assert_eq!(tile.zoom, 14);
+        assert_eq!(tile.provider, "ARC");
     }
 
     #[test]
