@@ -5,7 +5,8 @@ use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 
@@ -317,6 +318,67 @@ pub fn extract_zip(zip_path: &Path, target_dir: &Path) -> Result<(), InstallErro
         .map_err(|e| InstallError::Extract(e.to_string()))?;
 
     info!("Extraction complete");
+    Ok(())
+}
+
+/// Extract a ZIP file to the target directory with progress reporting.
+///
+/// Reports progress by updating `files_done` and `files_total` atomics.
+/// Uses the same security filtering as `extract_zip`.
+pub fn extract_zip_with_progress(
+    zip_path: &Path,
+    target_dir: &Path,
+    files_done: Arc<AtomicU32>,
+    files_total: Arc<AtomicU32>,
+) -> Result<(), InstallError> {
+    info!(
+        "Extracting {} to {}",
+        zip_path.display(),
+        target_dir.display()
+    );
+
+    let file = std::fs::File::open(zip_path)
+        .map_err(|e| InstallError::Extract(format!("Cannot open {}: {}", zip_path.display(), e)))?;
+
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|e| InstallError::Extract(format!("Invalid ZIP: {}", e)))?;
+
+    std::fs::create_dir_all(target_dir)?;
+
+    // Get total file count for progress reporting
+    let total = archive.len() as u32;
+    files_total.store(total, Ordering::Relaxed);
+    files_done.store(0, Ordering::Relaxed);
+
+    // Iterate through all files and extract them one by one
+    for i in 0..archive.len() {
+        let mut file = archive
+            .by_index(i)
+            .map_err(|e| InstallError::Extract(e.to_string()))?;
+
+        // Get the sanitized output path
+        let outpath = match file.enclosed_name() {
+            Some(path) => target_dir.join(path),
+            None => continue, // Skip files that would escape
+        };
+
+        if file.is_dir() {
+            std::fs::create_dir_all(&outpath).map_err(|e| InstallError::Extract(e.to_string()))?;
+        } else {
+            if let Some(parent) = outpath.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| InstallError::Extract(e.to_string()))?;
+            }
+            let mut outfile = std::fs::File::create(&outpath)
+                .map_err(|e| InstallError::Extract(e.to_string()))?;
+            std::io::copy(&mut file, &mut outfile)
+                .map_err(|e| InstallError::Extract(e.to_string()))?;
+        }
+
+        files_done.fetch_add(1, Ordering::Relaxed);
+    }
+
+    info!("Extraction complete ({} files)", total);
     Ok(())
 }
 
@@ -754,6 +816,53 @@ mod tests {
         let result =
             archive.extract_unwrapped_root_dir(tmp.path(), zip::read::root_dir_common_filter);
         assert!(result.is_err(), "Path traversal should be blocked");
+    }
+
+    #[test]
+    fn test_extract_zip_with_progress() {
+        use std::io::Write;
+        use std::sync::Arc;
+        use std::sync::atomic::{AtomicU32, Ordering};
+        use zip::ZipWriter;
+        use zip::write::SimpleFileOptions;
+
+        let tmp = TempDir::new().unwrap();
+        let zip_path = tmp.path().join("test_progress.zip");
+        let target_dir = tmp.path().join("extract");
+
+        // Create a zip with multiple files
+        let file = std::fs::File::create(&zip_path).unwrap();
+        let mut zip = ZipWriter::new(file);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+        for i in 0..5 {
+            zip.start_file(format!("file{i}.txt"), options).unwrap();
+            zip.write_all(format!("content {i}").as_bytes()).unwrap();
+        }
+        zip.finish().unwrap();
+
+        // Track progress
+        let files_done = Arc::new(AtomicU32::new(0));
+        let files_total = Arc::new(AtomicU32::new(5));
+
+        // Extract with progress tracking
+        let result = extract_zip_with_progress(
+            &zip_path,
+            &target_dir,
+            Arc::clone(&files_done),
+            Arc::clone(&files_total),
+        );
+        assert!(result.is_ok(), "Extraction should succeed");
+
+        // Verify all files were extracted
+        for i in 0..5 {
+            assert!(target_dir.join(format!("file{i}.txt")).exists());
+        }
+
+        // Verify progress was updated
+        assert_eq!(files_done.load(Ordering::Relaxed), 5);
+        assert_eq!(files_total.load(Ordering::Relaxed), 5);
     }
 
     #[test]
