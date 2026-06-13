@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.32](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.31...autoortho-v0.8.32) (2026-06-13)
+
+
+### Bug Fixes
+
+* add autorefresh and improve tile progress visibility ([#406](https://github.com/egeland/autoortho-rs/issues/406)) ([d747fa3](https://github.com/egeland/autoortho-rs/commit/d747fa3f6516728416d50317abaacf4188969669)), closes [#388](https://github.com/egeland/autoortho-rs/issues/388)
+
 ## [0.8.31](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.30...autoortho-v0.8.31) (2026-06-13)
 
 
