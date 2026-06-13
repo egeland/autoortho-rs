@@ -797,6 +797,9 @@ impl AutoOrthoApp {
                     current_file: Arc::new(Mutex::new(String::new())),
                     files_done: Arc::new(std::sync::atomic::AtomicU32::new(0)),
                     files_total,
+                    extract_files_done: Arc::new(std::sync::atomic::AtomicU32::new(0)),
+                    extract_files_total: Arc::new(std::sync::atomic::AtomicU32::new(0)),
+                    extracting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
                 };
                 self.state
                     .downloading_regions
@@ -809,6 +812,9 @@ impl AutoOrthoApp {
                 let progress_bytes = dl_state.bytes_downloaded.clone();
                 let progress_file = dl_state.current_file.clone();
                 let progress_files_done = dl_state.files_done.clone();
+                let progress_extract_done = dl_state.extract_files_done.clone();
+                let progress_extract_total = dl_state.extract_files_total.clone();
+                let progress_extracting = dl_state.extracting.clone();
                 let (tx, rx) = oneshot::channel();
                 let rt = self.runtime.clone();
 
@@ -821,6 +827,9 @@ impl AutoOrthoApp {
                         &progress_bytes,
                         &progress_file,
                         &progress_files_done,
+                        &progress_extract_done,
+                        &progress_extract_total,
+                        &progress_extracting,
                     )
                     .await;
                     let _ = tx.send((rid, result));
@@ -1717,6 +1726,7 @@ async fn fetch_regions_and_installed(
 }
 
 /// Download and install a scenery region.
+#[allow(clippy::too_many_arguments)]
 async fn download_and_install_region(
     region_id: &str,
     download_dir: &str,
@@ -1725,6 +1735,9 @@ async fn download_and_install_region(
     progress_bytes: &std::sync::Arc<std::sync::atomic::AtomicU64>,
     progress_file: &Arc<Mutex<String>>,
     progress_files_done: &std::sync::Arc<std::sync::atomic::AtomicU32>,
+    progress_extract_done: &std::sync::Arc<std::sync::atomic::AtomicU32>,
+    progress_extract_total: &std::sync::Arc<std::sync::atomic::AtomicU32>,
+    progress_extracting: &std::sync::Arc<std::sync::atomic::AtomicBool>,
 ) -> Result<String, String> {
     use crate::scenery::discovery;
     use crate::scenery::installer;
@@ -1779,14 +1792,22 @@ async fn download_and_install_region(
     }
 
     // Extract ZIP files
+    progress_extracting.store(true, Ordering::Relaxed);
     for path in &downloaded_files {
         if path.to_string_lossy().ends_with(".zip") {
             let target = data_path
                 .join("scenery")
                 .join(format!("z_ao_{}", region_id));
-            installer::extract_zip(path, &target).map_err(|e| format!("Extract failed: {}", e))?;
+            installer::extract_zip_with_progress(
+                path,
+                &target,
+                progress_extract_done.clone(),
+                progress_extract_total.clone(),
+            )
+            .map_err(|e| format!("Extract failed: {}", e))?;
         }
     }
+    progress_extracting.store(false, Ordering::Relaxed);
 
     // Save metadata
     let info = installer::PackInfo {

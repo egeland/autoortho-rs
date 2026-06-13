@@ -155,6 +155,11 @@ pub struct DownloadState {
     /// Number of files completed / total files
     pub files_done: std::sync::Arc<std::sync::atomic::AtomicU32>,
     pub files_total: u32,
+    /// Extraction progress - files extracted / total files in zip
+    pub extract_files_done: std::sync::Arc<std::sync::atomic::AtomicU32>,
+    pub extract_files_total: std::sync::Arc<std::sync::atomic::AtomicU32>,
+    /// Whether extraction is in progress
+    pub extracting: std::sync::Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl DownloadState {
@@ -181,6 +186,33 @@ impl DownloadState {
 
     pub fn files_completed(&self) -> u32 {
         self.files_done.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn extract_progress_percent(&self) -> f32 {
+        let total = self
+            .extract_files_total
+            .load(std::sync::atomic::Ordering::Relaxed);
+        if total == 0 {
+            return 0.0;
+        }
+        let done = self
+            .extract_files_done
+            .load(std::sync::atomic::Ordering::Relaxed);
+        (done as f32 / total as f32) * 100.0
+    }
+
+    pub fn is_extracting(&self) -> bool {
+        self.extracting.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn extract_files_completed(&self) -> u32 {
+        self.extract_files_done
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    pub fn extract_files_total(&self) -> u32 {
+        self.extract_files_total
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     pub fn current_filename(&self) -> String {

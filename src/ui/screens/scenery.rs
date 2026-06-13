@@ -119,31 +119,55 @@ fn region_row<'a>(
 
     // Actions column — primary + secondary buttons in one row
     let action_col: Element<'a, Message> = if let Some(dl) = downloading {
-        let pct = dl.progress_percent();
-        let info = format!(
-            "{:.0}/{:.0} MB · {}/{} files",
-            dl.downloaded_mb(),
-            dl.total_mb(),
-            dl.files_completed(),
-            dl.files_total,
-        );
-        column![
-            row![
-                progress_bar(0.0..=100.0, pct),
-                text(format!("{:.0}%", pct))
-                    .size(12)
-                    .width(Length::Fixed(36.0)),
-                button(text(format!("{} Cancel", helpers::ICON_TIMES)).size(12))
-                    .padding([4, 10])
-                    .on_press(Message::CancelDownload(region.id.clone())),
+        // Show extraction progress if active, otherwise download progress
+        if dl.is_extracting() {
+            let extract_pct = dl.extract_progress_percent();
+            let info = format!(
+                "Extracting... {}/{} files",
+                dl.extract_files_completed(),
+                dl.extract_files_total(),
+            );
+            column![
+                row![
+                    progress_bar(0.0..=100.0, extract_pct),
+                    text(format!("{:.0}%", extract_pct))
+                        .size(12)
+                        .width(Length::Fixed(36.0)),
+                ]
+                .spacing(6)
+                .align_y(iced::Alignment::Center),
+                text(info).size(11),
             ]
-            .spacing(6)
-            .align_y(iced::Alignment::Center),
-            text(info).size(11),
-        ]
-        .spacing(2)
-        .width(Length::FillPortion(4))
-        .into()
+            .spacing(2)
+            .width(Length::FillPortion(4))
+            .into()
+        } else {
+            let pct = dl.progress_percent();
+            let info = format!(
+                "{:.0}/{:.0} MB · {}/{} files",
+                dl.downloaded_mb(),
+                dl.total_mb(),
+                dl.files_completed(),
+                dl.files_total,
+            );
+            column![
+                row![
+                    progress_bar(0.0..=100.0, pct),
+                    text(format!("{:.0}%", pct))
+                        .size(12)
+                        .width(Length::Fixed(36.0)),
+                    button(text(format!("{} Cancel", helpers::ICON_TIMES)).size(12))
+                        .padding([4, 10])
+                        .on_press(Message::CancelDownload(region.id.clone())),
+                ]
+                .spacing(6)
+                .align_y(iced::Alignment::Center),
+                text(info).size(11),
+            ]
+            .spacing(2)
+            .width(Length::FillPortion(4))
+            .into()
+        }
     } else if installed && !update_available {
         row![
             button(
