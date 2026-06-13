@@ -65,6 +65,7 @@
   </select>
   <div class="separator" style="width:1px;height:24px;background:#0f3460;margin:0 4px"></div>
   <button id="btn-refresh">Refresh</button>
+  <button id="btn-fit">Fit to Tiles</button>
 </div>
 
 <div id="map"></div>
@@ -135,6 +136,7 @@ function setupToolbar() {
   document.getElementById('zoom-select').addEventListener('change', filterTiles);
   document.getElementById('provider-select').addEventListener('change', filterTiles);
   document.getElementById('btn-refresh').addEventListener('click', loadTiles);
+  document.getElementById('btn-fit').addEventListener('click', fitToTiles);
 }
 
 async function loadTiles() {
@@ -189,6 +191,7 @@ function filterTiles() {
   const providerFilter = document.getElementById('provider-select').value;
   
   let count = 0;
+  const bounds = [];
   for (const tile of allTiles) {
     if (zoomFilter !== 'all' && tile.zoom !== parseInt(zoomFilter)) continue;
     if (providerFilter !== 'all' && tile.provider !== providerFilter) continue;
@@ -217,16 +220,44 @@ function filterTiles() {
     
     rect.addTo(map);
     tileLayers.push(rect);
+    
+    // Collect bounds for fit-to-tiles
+    bounds.push([tile.lat_s, tile.lon_w]);
+    bounds.push([tile.lat_n, tile.lon_e]);
     count++;
   }
   
   const zoomFilterDisplay = zoomFilter === 'all' ? 'All' : zoomFilter;
   const providerFilterDisplay = providerFilter === 'all' ? 'All' : providerFilter;
   updateStatus(`Showing ${count} tiles (Zoom: ${zoomFilterDisplay}, Provider: ${providerFilterDisplay})`);
+  
+  // Auto-fit to tiles if any are visible
+  if (bounds.length > 0) {
+    const latLngBounds = L.latLngBounds(bounds);
+    map.fitBounds(latLngBounds, { padding: [20, 20], maxZoom: 18 });
+  }
 }
 
 function updateStatus(msg) {
   document.getElementById('status').textContent = msg;
+}
+
+function fitToTiles() {
+  if (tileLayers.length === 0) {
+    updateStatus('No tiles to fit');
+    return;
+  }
+  
+  const bounds = [];
+  for (const layer of tileLayers) {
+    const layerBounds = layer.getBounds();
+    bounds.push(layerBounds.getSouthWest());
+    bounds.push(layerBounds.getNorthEast());
+  }
+  
+  const latLngBounds = L.latLngBounds(bounds);
+  map.fitBounds(latLngBounds, { padding: [20, 20], maxZoom: 18 });
+  updateStatus(`Fitted to ${tileLayers.length} tiles`);
 }
 
 document.addEventListener('DOMContentLoaded', init);
