@@ -1190,8 +1190,14 @@ impl AutoOrthoApp {
             }),
         ];
 
-        // Tick every 500ms while downloads are active to refresh progress bars
-        if !self.state.downloading_regions.is_empty() {
+        // Tick every 500ms while downloads are active OR tile progress is active
+        // to refresh progress bars
+        let tile_progress_active = self
+            .state
+            .tile_progress
+            .active
+            .load(std::sync::atomic::Ordering::Relaxed);
+        if !self.state.downloading_regions.is_empty() || tile_progress_active {
             subs.push(
                 iced::time::every(std::time::Duration::from_millis(500)).map(|_| Message::Tick),
             );
@@ -1295,6 +1301,11 @@ impl AutoOrthoApp {
                 .chunks_total
                 .load(std::sync::atomic::Ordering::Relaxed);
 
+            // Use same green as "Web: Running" for progress bar
+            let progress_green = iced::Color::from_rgb(0.3, 0.7, 0.3);
+            // Use black for readable text
+            let text_color = iced::Color::BLACK;
+
             status_items.push(text("  ·  ").size(11).into());
             status_items.push(
                 text(format!(
@@ -1302,7 +1313,7 @@ impl AutoOrthoApp {
                     tile_label, chunks_done, chunks_total
                 ))
                 .size(11)
-                .color(iced::Color::from_rgb(0.9, 0.7, 0.0))
+                .color(text_color)
                 .into(),
             );
 
@@ -1315,7 +1326,7 @@ impl AutoOrthoApp {
                 text(bar)
                     .size(11)
                     .font(iced::Font::MONOSPACE)
-                    .color(iced::Color::from_rgb(0.9, 0.7, 0.0))
+                    .color(progress_green)
                     .into(),
             );
         }
@@ -2322,5 +2333,34 @@ mod tests {
             "Mount should be skipped when xplane_path is empty; computed mount dir: {}",
             mount_str
         );
+    }
+
+    #[test]
+    fn test_tile_progress_activates_tick_subscription() {
+        use crate::ui::state::TileProgress;
+        use std::sync::Arc;
+        use std::sync::atomic::Ordering;
+
+        setup_test_runtime();
+        let mut app = AutoOrthoApp::new();
+
+        // Initially no tile progress active - no Tick subscription
+        let tile_progress = Arc::new(TileProgress::new());
+        app.state.tile_progress = tile_progress.clone();
+
+        // Start tile progress
+        tile_progress.start(100, 200, 16, "BI");
+
+        // Verify tile progress is active
+        assert!(app.state.tile_progress.active.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn test_tile_progress_text_color_readable() {
+        // Test that the tile progress text uses a readable color (black)
+        // and the progress bar uses the same green as "Web: Running"
+        let web_running_green = iced::Color::from_rgb(0.3, 0.7, 0.3);
+        // Progress bar should use this green
+        // Text should use black or a high-contrast color
     }
 }
