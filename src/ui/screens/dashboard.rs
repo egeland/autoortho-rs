@@ -164,7 +164,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
             if state.simbrief_show_details && !state.simbrief_fixes.is_empty() {
                 let mut fixes_col = column![].spacing(1);
-                for (ident, fix_type, alt) in &state.simbrief_fixes {
+                for (fix_idx, (ident, fix_type, alt)) in state.simbrief_fixes.iter().enumerate() {
                     let label = if ident == "TOC" || ident == "TOD" {
                         format!("[{}]", ident)
                     } else {
@@ -176,11 +176,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     } else {
                         iced::Color::from_rgb(0.5, 0.5, 0.5)
                     };
+                    // Show prefetch progress emoji if available
+                    let emoji = if fix_idx < state.prefetch_waypoint_status.len() {
+                        state.prefetch_waypoint_status[fix_idx].emoji()
+                    } else {
+                        ""
+                    };
                     fixes_col = fixes_col.push(
                         row![
-                            text(label)
+                            text(format!("{} {}", emoji, label))
                                 .size(13)
-                                .width(Length::Fixed(120.0))
+                                .width(Length::Fixed(140.0))
                                 .color(color),
                             text(format!("{:.0} ft", alt))
                                 .size(13)
