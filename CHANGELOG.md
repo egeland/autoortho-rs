@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.36](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.35...autoortho-v0.8.36) (2026-06-13)
+
+
+### Bug Fixes
+
+* cache viewer reads tile coords from .ddm metadata, not filename ([#415](https://github.com/egeland/autoortho-rs/issues/415)) ([246c9c8](https://github.com/egeland/autoortho-rs/commit/246c9c8e7ed62a3351e7f01962868dda8200a66a))
+
 ## [0.8.35](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.34...autoortho-v0.8.35) (2026-06-13)
 
 
