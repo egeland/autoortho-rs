@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.34](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.33...autoortho-v0.8.34) (2026-06-13)
+
+
+### Features
+
+* add pack progress to scenery extraction ([#411](https://github.com/egeland/autoortho-rs/issues/411)) ([b09fdc1](https://github.com/egeland/autoortho-rs/commit/b09fdc1387c9e7a2467f896371c7821d5078a710)), closes [#410](https://github.com/egeland/autoortho-rs/issues/410)
+
 ## [0.8.33](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.32...autoortho-v0.8.33) (2026-06-13)
 
 
