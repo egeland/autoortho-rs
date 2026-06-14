@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.38](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.37...autoortho-v0.8.38) (2026-06-14)
+
+
+### Bug Fixes
+
+* promote-first prefetch strategy for route tiles ([#417](https://github.com/egeland/autoortho-rs/issues/417)) ([#426](https://github.com/egeland/autoortho-rs/issues/426)) ([d212e8a](https://github.com/egeland/autoortho-rs/commit/d212e8ab73920a5f7477c209bda14020f4833553))
+
 ## [0.8.37](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.36...autoortho-v0.8.37) (2026-06-14)
 
 
