@@ -212,10 +212,12 @@ Pre-download tiles for SimBrief flight plans:
 **Symptom:** Dashboard shows "X-Plane not connected"
 
 **Solutions:**
-1. Ensure X-Plane is running
-2. Check UDP port matches (default: 49000)
-3. Verify firewall allows UDP
-4. Restart AutoOrtho after X-Plane starts
+1. **Ensure X-Plane is running an active flight** — The RREF UDP protocol only works when a flight is loaded (not at the main menu, aircraft selection, or "Reading new scenery files" screen). Start a flight first.
+2. **Check UDP port matches** (default: 49000) — Verify `xplane_port` in Settings matches X-Plane's UDP port.
+3. **Verify firewall allows UDP** — On Windows, allow `autoortho.exe` through Windows Defender Firewall for both Private and Public networks. On macOS/Linux, ensure UDP port 49000 is not blocked.
+4. **Restart AutoOrtho after X-Plane starts** — If AutoOrtho started before X-Plane, click "Restart" in the Dashboard or restart the app.
+5. **Check `xplane_host` config** — If X-Plane is on a different machine, set `xplane_host` to that machine's IP (not `127.0.0.1`).
+6. **Enable debug logging** — Run with `RUST_LOG=debug` to see connection attempts and timeout messages in the logs.
 
 ### No Imagery Showing
 
