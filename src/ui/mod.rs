@@ -2048,13 +2048,6 @@ async fn prefetch_route_impl(
             if cancel.is_cancelled() {
                 return Err("Prefetch cancelled".to_string());
             }
-            if cache.usage_fraction() >= 0.9 {
-                progress.set(fix_idx, crate::ui::state::WaypointPrefetchStatus::Completed);
-                return Ok(format!(
-                    "Prefetched {} DDS tiles (cache 90% full)",
-                    tiles_cached
-                ));
-            }
 
             let tile_key = (dds_row, dds_col);
             if processed_dds.contains_key(&tile_key) {

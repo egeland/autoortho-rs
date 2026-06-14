@@ -498,4 +498,61 @@ mod tests {
         assert_eq!(tracker.pending_count(), 0);
         assert_eq!(tracker.completed_count(), 0);
     }
+
+    /// Regression test for issue #417: prefetch should continue when cache is 90%+ full.
+    /// Old tiles should be evicted via LRU, not stop prefetch entirely.
+    #[test]
+    fn test_cache_eviction_allows_prefetch_to_continue() {
+        use crate::pipeline::cache::{DdsCache, DdsCacheMetadata};
+        use tempfile::TempDir;
+
+        let tmp_dir = TempDir::new().unwrap();
+        // Very small cache to ensure 90%+ full after a few entries
+        let mut cache = DdsCache::new(tmp_dir.path().to_path_buf(), 200);
+
+        let meta = DdsCacheMetadata {
+            v: 3,
+            w: 4096,
+            h: 4096,
+            mm: 13,
+            zl: 16,
+            max_zl: 16,
+            fmt: "BC1".to_string(),
+            map: "ARC".to_string(),
+            built: 1700000000.0,
+            tile_row: 100,
+            tile_col: 200,
+            populated_mipmaps: vec![0],
+            missing_indices: vec![],
+            fallback_indices: vec![],
+            disk_compression: "zstd".to_string(),
+        };
+
+        // Fill cache with "old route" tiles
+        for i in 0..20 {
+            cache
+                .put(format!("old_route_tile_{}", i), &vec![i as u8; 80], &meta)
+                .unwrap();
+        }
+        assert!(
+            cache.usage_fraction() > 0.85,
+            "Cache should be mostly full, got {}",
+            cache.usage_fraction()
+        );
+
+        // Simulate prefetching "new route" tiles
+        // Should succeed by evicting old tiles, not stop
+        let mut new_tiles_added = 0;
+        for i in 0..5 {
+            let result = cache.put(format!("new_route_tile_{}", i), &vec![255u8; 80], &meta);
+            assert!(
+                result.is_ok(),
+                "Cache should accept new tiles via LRU eviction"
+            );
+            new_tiles_added += 1;
+        }
+
+        assert_eq!(new_tiles_added, 5, "All new route tiles should be added");
+        assert!(cache.size_bytes() <= cache.max_size_bytes());
+    }
 }
