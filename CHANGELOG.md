@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.37](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.36...autoortho-v0.8.37) (2026-06-14)
+
+
+### Bug Fixes
+
+* prefetch continues past 90% cache by using LRU eviction ([#417](https://github.com/egeland/autoortho-rs/issues/417)) ([#419](https://github.com/egeland/autoortho-rs/issues/419)) ([d63cc41](https://github.com/egeland/autoortho-rs/commit/d63cc4151d084bd83e8807d1517b93b2a17224db))
+
 ## [0.8.36](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.35...autoortho-v0.8.36) (2026-06-13)
 
 
