@@ -285,6 +285,17 @@ impl DdsCache {
         self.dds_path(key).exists()
     }
 
+    /// Promote a cache entry to most-recently-used without reading data.
+    /// Returns true if the entry exists and was promoted.
+    pub fn promote(&mut self, key: &str) -> bool {
+        if self.dds_path(key).exists() {
+            self.index.promote(key);
+            true
+        } else {
+            false
+        }
+    }
+
     /// Remove a cache entry
     pub fn remove(&mut self, key: &str) -> Result<(), CacheError> {
         let dds_path = self.dds_path(key);
@@ -558,5 +569,42 @@ mod tests {
         cache.put("a".to_string(), b"data_a", &meta).unwrap();
         let frac = cache.usage_fraction();
         assert!(frac > 0.0 && frac < 1.0, "Expected 0 < {} < 1", frac);
+    }
+
+    #[test]
+    fn test_cache_promote_keeps_tile_on_eviction() {
+        let tmp_dir = TempDir::new().unwrap();
+        let mut cache = DdsCache::new(tmp_dir.path().to_path_buf(), 200);
+        let meta = sample_metadata();
+
+        // Add two entries
+        cache
+            .put("keep_me".to_string(), b"data_keep", &meta)
+            .unwrap();
+        cache
+            .put("evict_me".to_string(), b"data_evict", &meta)
+            .unwrap();
+
+        // Promote "keep_me" to make it recently used
+        assert!(cache.promote("keep_me"));
+
+        // Add entries to force eviction — "evict_me" should be evicted first
+        for i in 0..5 {
+            cache.put(format!("new_{}", i), b"new", &meta).unwrap();
+        }
+
+        // "keep_me" should survive because it was promoted
+        assert!(
+            cache.contains("keep_me"),
+            "Promoted tile should not be evicted"
+        );
+    }
+
+    #[test]
+    fn test_cache_promote_returns_false_for_missing() {
+        let tmp_dir = TempDir::new().unwrap();
+        let mut cache = DdsCache::new(tmp_dir.path().to_path_buf(), 1024 * 1024);
+
+        assert!(!cache.promote("nonexistent"));
     }
 }

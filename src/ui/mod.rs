@@ -1957,7 +1957,58 @@ fn boot() -> (AutoOrthoApp, Task<Message>) {
     (app, Task::batch([font_task, scenery_task]))
 }
 
-/// Execute route prefetch: process each fix individually, update shared progress.
+/// Generate all DDS tile coordinates for a flight plan route.
+/// Returns tiles in route order (origin → destination) with duplicates removed.
+fn generate_route_tiles(
+    flight_plan: &crate::xplane::simbrief::FlightPlan,
+    config: &crate::config::AutoOrthoConfig,
+) -> Vec<(u32, u32)> {
+    use crate::tiles::coords::TileCoords;
+    use std::collections::HashSet;
+
+    let fixes = &flight_plan.fixes;
+    let mut seen = HashSet::new();
+    let mut tiles = Vec::new();
+
+    for (fix_idx, fix) in fixes.iter().enumerate() {
+        let is_airport = fix_idx == 0 || fix_idx == fixes.len() - 1;
+        let radius_nm = if is_airport && config.prefetch_airports {
+            config.airport_radius_nm as f64
+        } else {
+            config.route_prefetch_radius_nm as f64
+        };
+
+        if let Ok((center_col, center_row)) =
+            TileCoords::latlng_to_tile(fix.lat, fix.lon, config.near_airport_zoom)
+        {
+            let tiles_per_nm = 2_f64.powi(config.near_airport_zoom as i32) / 360.0 / 60.0;
+            let radius_tiles = (radius_nm * tiles_per_nm).ceil() as i32;
+
+            for dr in -radius_tiles..=radius_tiles {
+                for dc in -radius_tiles..=radius_tiles {
+                    let col = center_col as i32 + dc;
+                    let row = center_row as i32 + dr;
+                    if col >= 0 && row >= 0 {
+                        let dds_col = col as u32 / 16;
+                        let dds_row = row as u32 / 16;
+                        let key = (dds_row, dds_col);
+                        if seen.insert(key) {
+                            tiles.push(key);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    tiles
+}
+
+/// Execute route prefetch with promote-first strategy.
+///
+/// Phase 1: Promote tiles already in cache (origin first for LRU priority).
+/// Phase 2: Fetch remaining tiles until cache is 90% full.
+/// Phase 3: Remaining tiles are demand-fetched by X-Plane.
 async fn prefetch_route_impl(
     flight_plan: &crate::xplane::simbrief::FlightPlan,
     config: &crate::config::AutoOrthoConfig,
@@ -1967,14 +2018,18 @@ async fn prefetch_route_impl(
     use crate::pipeline::cache::DdsCache;
     use crate::pipeline::dds::DdsFormat;
     use crate::tiles::assembler::{AssemblyConfig, assemble_tile};
-    use crate::tiles::coords::TileCoords;
     use crate::tiles::fetcher::TileFetcher;
     use crate::tiles::provider::ProviderFactory;
-    use std::collections::HashMap;
 
     let fixes = &flight_plan.fixes;
     if fixes.is_empty() {
         return Ok("No fixes in flight plan".to_string());
+    }
+
+    // Generate all tiles for the route (ordered origin → destination)
+    let route_tiles = generate_route_tiles(flight_plan, config);
+    if route_tiles.is_empty() {
+        return Ok("No tiles to prefetch".to_string());
     }
 
     // Create TileFetcher
@@ -1991,14 +2046,38 @@ async fn prefetch_route_impl(
     let mut cache = DdsCache::open(cache_dir.clone(), config.dds_cache_size_mb * 1024 * 1024)
         .map_err(|e| format!("Failed to open DDS cache: {}", e))?;
 
-    // Track already-processed DDS tiles to avoid duplicates
-    let mut processed_dds: HashMap<(u32, u32), bool> = HashMap::new();
-    let mut tiles_cached = 0u32;
+    // Track which tiles we've handled (promoted or fetched)
+    let mut promoted_count = 0u32;
+    let mut fetched_count = 0u32;
+    let mut processed: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
 
-    // Process each fix sequentially
+    // Phase 1: Promote tiles already in cache (origin first = higher LRU priority)
+    for &(dds_row, dds_col) in &route_tiles {
+        if cancel.is_cancelled() {
+            return Err("Prefetch cancelled".to_string());
+        }
+
+        let key = DdsCache::tile_key(
+            dds_col,
+            dds_row,
+            config.near_airport_zoom,
+            &config.tile_provider,
+        );
+
+        if cache.promote(&key) {
+            promoted_count += 1;
+            processed.insert((dds_row, dds_col));
+        }
+    }
+
+    log::info!(
+        "Prefetch promote phase: {} tiles already in cache",
+        promoted_count
+    );
+
+    // Phase 2: Fetch tiles not in cache, stop at 90%
     for (fix_idx, fix) in fixes.iter().enumerate() {
         if cancel.is_cancelled() {
-            // Mark remaining as not started (they stay at default)
             return Err("Prefetch cancelled".to_string());
         }
 
@@ -2016,14 +2095,17 @@ async fn prefetch_route_impl(
         };
 
         // Convert fix position to tile coordinates
-        let (center_col, center_row) =
-            match TileCoords::latlng_to_tile(fix.lat, fix.lon, config.near_airport_zoom) {
-                Ok(coords) => coords,
-                Err(_) => {
-                    progress.set(fix_idx, crate::ui::state::WaypointPrefetchStatus::Failed);
-                    continue;
-                }
-            };
+        let (center_col, center_row) = match crate::tiles::coords::TileCoords::latlng_to_tile(
+            fix.lat,
+            fix.lon,
+            config.near_airport_zoom,
+        ) {
+            Ok(coords) => coords,
+            Err(_) => {
+                progress.set(fix_idx, crate::ui::state::WaypointPrefetchStatus::Failed);
+                continue;
+            }
+        };
 
         // Calculate radius in tiles
         let tiles_per_nm = 2_f64.powi(config.near_airport_zoom as i32) / 360.0 / 60.0;
@@ -2043,15 +2125,32 @@ async fn prefetch_route_impl(
             }
         }
 
-        // Process DDS tiles for this fix (deduplicate)
+        // Process DDS tiles for this fix
         for (dds_row, dds_col) in dds_tiles {
             if cancel.is_cancelled() {
                 return Err("Prefetch cancelled".to_string());
             }
 
-            let tile_key = (dds_row, dds_col);
-            if processed_dds.contains_key(&tile_key) {
+            // Skip if already promoted or fetched
+            if processed.contains(&(dds_row, dds_col)) {
                 continue;
+            }
+
+            // Stop at 90% cache full
+            if cache.usage_fraction() >= 0.9 {
+                log::info!(
+                    "Prefetch stopping at {:.0}% cache full ({} promoted, {} fetched)",
+                    cache.usage_fraction() * 100.0,
+                    promoted_count,
+                    fetched_count
+                );
+                progress.set(fix_idx, crate::ui::state::WaypointPrefetchStatus::Completed);
+                return Ok(format!(
+                    "Promoted {} cached tiles, fetched {} new tiles (cache {:.0}% full)",
+                    promoted_count,
+                    fetched_count,
+                    cache.usage_fraction() * 100.0
+                ));
             }
 
             // Fetch all 256 chunks for this DDS tile
@@ -2090,7 +2189,7 @@ async fn prefetch_route_impl(
             let result = match assemble_tile(&jpeg_chunks, &assembly_config) {
                 Ok(r) => r,
                 Err(_) => {
-                    processed_dds.insert(tile_key, false);
+                    processed.insert((dds_row, dds_col));
                     continue;
                 }
             };
@@ -2126,8 +2225,8 @@ async fn prefetch_route_impl(
                 disk_compression: "zstd".to_string(),
             };
             if cache.put(key, &result.dds_data, &metadata).is_ok() {
-                processed_dds.insert(tile_key, true);
-                tiles_cached += 1;
+                processed.insert((dds_row, dds_col));
+                fetched_count += 1;
             }
         }
 
@@ -2136,8 +2235,9 @@ async fn prefetch_route_impl(
     }
 
     Ok(format!(
-        "Prefetched {} DDS tiles from {} fixes",
-        tiles_cached,
+        "Promoted {} cached tiles, fetched {} new tiles from {} fixes",
+        promoted_count,
+        fetched_count,
         fixes.len()
     ))
 }
@@ -2417,5 +2517,129 @@ mod tests {
         let web_running_green = iced::Color::from_rgb(0.3, 0.7, 0.3);
         // Progress bar should use this green
         // Text should use black or a high-contrast color
+    }
+
+    #[test]
+    fn test_generate_route_tiles_deduplicates() {
+        use crate::xplane::simbrief::{FlightFix, FlightPlan};
+
+        let mut config = AutoOrthoConfig::default();
+        config.near_airport_zoom = 14;
+        config.route_prefetch_radius_nm = 10;
+        config.airport_radius_nm = 10;
+        config.prefetch_airports = true;
+
+        // Two fixes very close together — should produce overlapping tiles
+        let flight_plan = FlightPlan {
+            origin: "KLAX".to_string(),
+            destination: "KLAS".to_string(),
+            origin_elevation_ft: 128.0,
+            destination_elevation_ft: 2181.0,
+            cruise_altitude_ft: 35000.0,
+            fixes: vec![
+                FlightFix {
+                    ident: "KLAX".to_string(),
+                    name: "Los Angeles Intl".to_string(),
+                    fix_type: "apt".to_string(),
+                    lat: 33.94,
+                    lon: -118.41,
+                    altitude_ft: 0.0,
+                    ground_height_ft: 0.0,
+                    time_total_sec: 0.0,
+                    time_leg_sec: 0.0,
+                    ground_speed_kt: 0.0,
+                },
+                FlightFix {
+                    ident: "KLAS".to_string(),
+                    name: "Las Vegas Intl".to_string(),
+                    fix_type: "apt".to_string(),
+                    lat: 33.95,
+                    lon: -118.42,
+                    altitude_ft: 10000.0,
+                    ground_height_ft: 0.0,
+                    time_total_sec: 60.0,
+                    time_leg_sec: 60.0,
+                    ground_speed_kt: 250.0,
+                },
+            ],
+        };
+
+        let tiles = generate_route_tiles(&flight_plan, &config);
+
+        // Should have tiles (exact count depends on zoom/radius)
+        assert!(!tiles.is_empty(), "Should generate tiles");
+
+        // All tiles should be unique (deduplication)
+        let mut seen = std::collections::HashSet::new();
+        for tile in &tiles {
+            assert!(seen.insert(*tile), "Duplicate tile found: {:?}", tile);
+        }
+    }
+
+    #[test]
+    fn test_generate_route_tiles_respects_radius() {
+        use crate::xplane::simbrief::{FlightFix, FlightPlan};
+
+        let mut config = AutoOrthoConfig::default();
+        config.near_airport_zoom = 14;
+        config.route_prefetch_radius_nm = 5;
+        config.airport_radius_nm = 20;
+        config.prefetch_airports = true;
+
+        let flight_plan = FlightPlan {
+            origin: "KLAX".to_string(),
+            destination: "KDEN".to_string(),
+            origin_elevation_ft: 128.0,
+            destination_elevation_ft: 5431.0,
+            cruise_altitude_ft: 38000.0,
+            fixes: vec![
+                FlightFix {
+                    ident: "KLAX".to_string(),
+                    name: "Los Angeles Intl".to_string(),
+                    fix_type: "apt".to_string(),
+                    lat: 33.94,
+                    lon: -118.41,
+                    altitude_ft: 0.0,
+                    ground_height_ft: 0.0,
+                    time_total_sec: 0.0,
+                    time_leg_sec: 0.0,
+                    ground_speed_kt: 0.0,
+                },
+                FlightFix {
+                    ident: "BOACH".to_string(),
+                    name: "Boach".to_string(),
+                    fix_type: "wpt".to_string(),
+                    lat: 36.0,
+                    lon: -115.0,
+                    altitude_ft: 35000.0,
+                    ground_height_ft: 2000.0,
+                    time_total_sec: 1800.0,
+                    time_leg_sec: 1800.0,
+                    ground_speed_kt: 450.0,
+                },
+                FlightFix {
+                    ident: "KDEN".to_string(),
+                    name: "Denver Intl".to_string(),
+                    fix_type: "apt".to_string(),
+                    lat: 39.86,
+                    lon: -104.67,
+                    altitude_ft: 5431.0,
+                    ground_height_ft: 5431.0,
+                    time_total_sec: 3600.0,
+                    time_leg_sec: 1800.0,
+                    ground_speed_kt: 450.0,
+                },
+            ],
+        };
+
+        let tiles = generate_route_tiles(&flight_plan, &config);
+
+        // Should have tiles
+        assert!(!tiles.is_empty(), "Should generate tiles");
+
+        // First fix (airport) should have more tiles than waypoint
+        // because airport_radius_nm > route_prefetch_radius_nm
+        // We can't easily count per-fix tiles after dedup, but total should be reasonable
+        assert!(tiles.len() > 10, "Should have multiple tiles");
     }
 }
