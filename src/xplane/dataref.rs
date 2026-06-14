@@ -2,7 +2,7 @@
 //! a thread-safe snapshot of current flight data.
 
 use crate::xplane::{FlightDataAverager, HeadingAverager, RrefCodec, XPlaneError};
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
@@ -279,28 +279,37 @@ async fn connect_and_track(
     shutdown: &tokio::sync::watch::Receiver<bool>,
 ) -> Result<(), XPlaneError> {
     let local: SocketAddr = "0.0.0.0:0".parse().unwrap();
-    let socket = UdpSocket::bind(local)
-        .await
-        .map_err(|_| XPlaneError::PacketError)?;
-    socket
-        .connect(addr)
-        .await
-        .map_err(|_| XPlaneError::PacketError)?;
+    let socket = UdpSocket::bind(local).await.map_err(|e| {
+        error!("Failed to bind UDP socket: {}", e);
+        XPlaneError::PacketError
+    })?;
+
+    // Get the local address we bound to for debugging
+    let local_addr = socket.local_addr().unwrap_or(local);
+    info!(
+        "UDP socket bound to {}, connecting to X-Plane at {}",
+        local_addr, addr
+    );
+    socket.connect(addr).await.map_err(|e| {
+        error!("Failed to connect UDP socket to {}: {}", addr, e);
+        XPlaneError::PacketError
+    })?;
 
     // Subscribe to all datarefs
     for &(index, dataref) in datarefs::ALL {
         let packet = RrefCodec::encode_request(DEFAULT_FREQ_HZ, index, dataref);
-        socket
-            .send(&packet)
-            .await
-            .map_err(|_| XPlaneError::PacketError)?;
+        socket.send(&packet).await.map_err(|e| {
+            error!("Failed to send subscription for dataref [{}]: {}", index, e);
+            XPlaneError::PacketError
+        })?;
         debug!("Subscribed to dataref [{}] {}", index, dataref);
     }
 
     info!(
-        "Subscribed to {} datarefs at {} Hz",
+        "Subscribed to {} datarefs at {} Hz (X-Plane at {})",
         datarefs::ALL.len(),
-        DEFAULT_FREQ_HZ
+        DEFAULT_FREQ_HZ,
+        addr
     );
 
     let mut buf = [0u8; 4096];
@@ -326,12 +335,22 @@ async fn connect_and_track(
                     debug!("Failed to decode RREF response: {}", e);
                 }
             },
-            Ok(Err(_e)) => {
+            Ok(Err(e)) => {
+                warn!("UDP socket error: {}", e);
                 return Err(XPlaneError::PacketError);
             }
             Err(_) => {
-                // Timeout — X-Plane may not be running
-                debug!("UDP timeout waiting for X-Plane response");
+                // Timeout — X-Plane may not be running or not sending data
+                warn!(
+                    "UDP timeout ({:?}) waiting for X-Plane response at {}. 
+                    This usually means:
+                    1. X-Plane is not running a flight (RREF only works during active flight)
+                    2. Firewall is blocking UDP port {}
+                    3. X-Plane is on a different machine (check xplane_host config)",
+                    UDP_TIMEOUT,
+                    addr,
+                    addr.port()
+                );
                 tracker.mark_disconnected();
             }
         }
