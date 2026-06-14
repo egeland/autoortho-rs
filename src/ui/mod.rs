@@ -2006,7 +2006,8 @@ fn generate_route_tiles(
 
 /// Execute route prefetch with promote-first strategy.
 ///
-/// Phase 1: Promote tiles already in cache (origin first for LRU priority).
+/// Phase 1: Promote tiles already in cache (reverse order: destination -> origin).
+///          This makes origin tiles most recently used (top of LRU, last to evict).
 /// Phase 2: Fetch remaining tiles until cache is 90% full.
 /// Phase 3: Remaining tiles are demand-fetched by X-Plane.
 async fn prefetch_route_impl(
@@ -2051,8 +2052,9 @@ async fn prefetch_route_impl(
     let mut fetched_count = 0u32;
     let mut processed: std::collections::HashSet<(u32, u32)> = std::collections::HashSet::new();
 
-    // Phase 1: Promote tiles already in cache (origin first = higher LRU priority)
-    for &(dds_row, dds_col) in &route_tiles {
+    // Phase 1: Promote tiles already in cache (REVERSE order: destination -> origin)
+    // This makes origin tiles the most recently used (top of LRU, last to evict)
+    for &(dds_row, dds_col) in route_tiles.iter().rev() {
         if cancel.is_cancelled() {
             return Err("Prefetch cancelled".to_string());
         }
@@ -2074,6 +2076,23 @@ async fn prefetch_route_impl(
         "Prefetch promote phase: {} tiles already in cache",
         promoted_count
     );
+
+    // Phase 1b: Evict non-route tiles to make space for new fetches
+    let route_key_set: std::collections::HashSet<String> = route_tiles
+        .iter()
+        .map(|&(row, col)| {
+            DdsCache::tile_key(col, row, config.near_airport_zoom, &config.tile_provider)
+        })
+        .collect();
+    let tiles_to_fetch = route_tiles.len() as u32 - promoted_count;
+    // Estimate ~10MB per tile (conservative), ensure space for at least some tiles
+    let bytes_needed =
+        (tiles_to_fetch as u64 * 10 * 1024 * 1024).min(config.dds_cache_size_mb * 1024 * 1024 / 2);
+    let free_bytes = config.dds_cache_size_mb * 1024 * 1024 - cache.size_bytes();
+    if free_bytes < bytes_needed {
+        let evicted = cache.evict_non_route_tiles(&route_key_set, bytes_needed - free_bytes);
+        log::info!("Evicted {} non-route tiles to make space", evicted);
+    }
 
     // Phase 2: Fetch tiles not in cache, stop at 90%
     for (fix_idx, fix) in fixes.iter().enumerate() {

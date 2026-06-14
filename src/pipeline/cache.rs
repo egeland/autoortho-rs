@@ -296,6 +296,40 @@ impl DdsCache {
         }
     }
 
+    /// Evict tiles NOT in the provided route_keys set.
+    /// Evicts from LRU (oldest first) until free_bytes_needed is available.
+    /// Returns number of tiles evicted.
+    pub fn evict_non_route_tiles(
+        &mut self,
+        route_keys: &std::collections::HashSet<String>,
+        free_bytes_needed: u64,
+    ) -> u32 {
+        let mut evicted = 0u32;
+
+        // Collect non-route keys from LRU (oldest first)
+        let keys_to_evict: Vec<String> = self
+            .index
+            .iter()
+            .rev() // LRU order (oldest first)
+            .filter(|(k, _)| !route_keys.contains(*k))
+            .map(|(k, _)| k.clone())
+            .collect();
+
+        for key in keys_to_evict {
+            if self.current_size_bytes + free_bytes_needed <= self.max_size_bytes {
+                break; // Enough space
+            }
+            if let Err(e) = self.remove(&key) {
+                log::warn!("Failed to evict non-route tile {}: {}", key, e);
+            } else {
+                evicted += 1;
+                log::debug!("Evicted non-route tile {}", key);
+            }
+        }
+
+        evicted
+    }
+
     /// Remove a cache entry
     pub fn remove(&mut self, key: &str) -> Result<(), CacheError> {
         let dds_path = self.dds_path(key);
@@ -601,10 +635,111 @@ mod tests {
     }
 
     #[test]
+    fn test_cache_reverse_promote_keeps_origin_over_destination() {
+        let tmp_dir = TempDir::new().unwrap();
+        // Use small cache to force eviction
+        let mut cache = DdsCache::new(tmp_dir.path().to_path_buf(), 80);
+        let meta = sample_metadata();
+
+        // Add tiles simulating a route: origin -> mid -> destination
+        cache
+            .put("origin".to_string(), b"data_origin", &meta)
+            .unwrap();
+        cache.put("mid".to_string(), b"data_mid", &meta).unwrap();
+        cache
+            .put("destination".to_string(), b"data_dest", &meta)
+            .unwrap();
+
+        // Promote in REVERSE order (destination -> origin)
+        // This makes origin the most recently used (top of LRU)
+        assert!(cache.promote("destination"));
+        assert!(cache.promote("mid"));
+        assert!(cache.promote("origin"));
+
+        // Add entries to force eviction
+        // destination should be evicted first (least recently used)
+        // origin should survive (most recently used)
+        for i in 0..5 {
+            cache.put(format!("new_{}", i), b"new", &meta).unwrap();
+        }
+
+        assert!(
+            cache.contains("origin"),
+            "Origin tile should survive (promoted last = MRU)"
+        );
+        assert!(
+            !cache.contains("destination"),
+            "Destination should be evicted first (promoted first = LRU)"
+        );
+    }
+
+    #[test]
     fn test_cache_promote_returns_false_for_missing() {
         let tmp_dir = TempDir::new().unwrap();
         let mut cache = DdsCache::new(tmp_dir.path().to_path_buf(), 1024 * 1024);
 
         assert!(!cache.promote("nonexistent"));
+    }
+
+    #[test]
+    fn test_evict_non_route_tiles_frees_space() {
+        let tmp_dir = TempDir::new().unwrap();
+        let mut cache = DdsCache::new(tmp_dir.path().to_path_buf(), 100);
+        let meta = sample_metadata();
+
+        // Fill cache with tiles: 3 from old route, 1 from new route
+        cache.put("old_a".to_string(), b"data", &meta).unwrap();
+        cache.put("old_b".to_string(), b"data", &meta).unwrap();
+        cache.put("old_c".to_string(), b"data", &meta).unwrap();
+        cache.put("new_origin".to_string(), b"data", &meta).unwrap();
+
+        // Route only needs new_origin + 2 more tiles
+        let mut route_keys = std::collections::HashSet::new();
+        route_keys.insert("new_origin".to_string());
+        route_keys.insert("new_waypoint1".to_string());
+        route_keys.insert("new_waypoint2".to_string());
+
+        // Ask to free 50 bytes (enough for ~2 new tiles)
+        let evicted = cache.evict_non_route_tiles(&route_keys, 50);
+
+        // Should have evicted old route tiles (not new_origin)
+        assert!(evicted > 0, "Should evict non-route tiles");
+        assert!(
+            cache.contains("new_origin"),
+            "Route tile should not be evicted"
+        );
+        assert!(
+            !cache.contains("old_a") || !cache.contains("old_b"),
+            "Old tiles should be evicted"
+        );
+    }
+
+    #[test]
+    fn test_evict_non_route_tiles_preserves_route_tiles() {
+        let tmp_dir = TempDir::new().unwrap();
+        let mut cache = DdsCache::new(tmp_dir.path().to_path_buf(), 80);
+        let meta = sample_metadata();
+
+        // Fill cache with route tiles and non-route tiles
+        cache.put("route_1".to_string(), b"data", &meta).unwrap();
+        cache.put("route_2".to_string(), b"data", &meta).unwrap();
+        cache.put("other_1".to_string(), b"data", &meta).unwrap();
+        cache.put("other_2".to_string(), b"data", &meta).unwrap();
+
+        let mut route_keys = std::collections::HashSet::new();
+        route_keys.insert("route_1".to_string());
+        route_keys.insert("route_2".to_string());
+
+        // Evict enough for 3 more tiles
+        cache.evict_non_route_tiles(&route_keys, 60);
+
+        // Route tiles should survive
+        assert!(cache.contains("route_1"), "Route tile 1 should survive");
+        assert!(cache.contains("route_2"), "Route tile 2 should survive");
+        // Non-route tiles should be evicted
+        assert!(
+            !cache.contains("other_1") || !cache.contains("other_2"),
+            "Non-route tiles should be evicted"
+        );
     }
 }
