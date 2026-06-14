@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.39](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.38...autoortho-v0.8.39) (2026-06-14)
+
+
+### Bug Fixes
+
+* reverse promote order and evict non-route tiles ([#417](https://github.com/egeland/autoortho-rs/issues/417)) ([#429](https://github.com/egeland/autoortho-rs/issues/429)) ([626c035](https://github.com/egeland/autoortho-rs/commit/626c0358c0a61f055db5611485f97336a93697fc))
+
 ## [0.8.38](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.37...autoortho-v0.8.38) (2026-06-14)
 
 
