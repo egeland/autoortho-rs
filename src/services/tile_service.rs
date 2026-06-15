@@ -270,4 +270,31 @@ mod tile_service_impl_tests {
         let exists = service.tile_exists(coords, "ARC").await;
         assert!(exists);
     }
+
+    /// Test that TileServiceImpl.get_dds returns valid DDS data.
+    #[tokio::test]
+    async fn test_tile_service_impl_get_dds() {
+        let provider = Arc::new(MockProvider);
+        let fetcher = TileFetcher::new(provider, "ARC");
+        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher), "ARC"));
+
+        let service = TileServiceImpl::new(fs);
+        let coords = TileCoord::new(100, 200, 16).expect("Valid coords");
+
+        // Call get_dds - may return fallback or real data depending on mock
+        let result = service.get_dds(coords, "ARC", false).await;
+
+        // Should succeed (even if returning fallback)
+        assert!(result.is_ok(), "get_dds should succeed: {:?}", result);
+
+        let dds = result.unwrap();
+        // DDS file should start with magic bytes
+        assert_eq!(
+            &dds[0..4],
+            b"DDS ",
+            "DDS file should start with magic bytes"
+        );
+        // DDS header is at least 148 bytes
+        assert!(dds.len() >= 148, "DDS header should be at least 148 bytes");
+    }
 }
