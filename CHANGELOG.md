@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.40](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.39...autoortho-v0.8.40) (2026-06-16)
+
+
+### Features
+
+* **services:** Add TileService trait for dependency injection ([#432](https://github.com/egeland/autoortho-rs/issues/432)) ([494f6a9](https://github.com/egeland/autoortho-rs/commit/494f6a9983119e54000a941f706498efbe066fd2))
+
 ## [0.8.39](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.38...autoortho-v0.8.39) (2026-06-14)
 
 
