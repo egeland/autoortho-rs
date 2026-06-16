@@ -102,12 +102,15 @@ impl TileService for TileServiceImpl {
             coords.row, coords.col, provider, zoom_str
         );
 
-        // Use DdsFileSystem::read_dds with night_exclusion handling
-        // Note: We need to temporarily set night_exclusion on the fs
+        // Night exclusion: return solid-color fallback tile
         if night_exclusion {
-            // The night exclusion is handled inside read_dds based on atomic flag
-            // We can't easily override this from here, so we just call read_dds
-            // The caller should set the night_exclusion flag on the fs before calling
+            let dds = crate::pipeline::dds::build_fallback_dds(
+                4096,
+                4096,
+                self.fs.format(),
+                [20, 25, 15],
+            );
+            return Ok(dds);
         }
 
         self.fs
@@ -333,5 +336,51 @@ mod tile_service_impl_tests {
 
         // Now tile_exists should return true
         assert!(service.tile_exists(coords, "ARC").await);
+    }
+
+    /// Test that get_dds returns fallback when night_exclusion is true.
+    /// Fallback tiles are 4096x4096 solid color — much larger than real tiles
+    /// from MockProvider (1x1 JPEG → small DDS).
+    #[tokio::test]
+    async fn test_get_dds_night_exclusion_returns_fallback() {
+        let provider = Arc::new(MockProvider);
+        let fetcher = TileFetcher::new(provider, "ARC");
+        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher), "ARC"));
+        let service = TileServiceImpl::new(fs);
+        let coords = TileCoord::new(100, 200, 16).expect("Valid coords");
+
+        // Request with night exclusion enabled — should return fallback instantly
+        let dds = service
+            .get_dds(coords, "ARC", true)
+            .await
+            .expect("Should return fallback DDS");
+
+        // Fallback is 4096x4096 — much larger than MockProvider's output
+        // This distinguishes fallback from real data
+        assert!(
+            dds.len() > 100_000,
+            "Night exclusion should return 4096x4096 fallback, got {} bytes",
+            dds.len()
+        );
+    }
+
+    /// Test that get_dds returns real data when night_exclusion is false.
+    #[tokio::test]
+    async fn test_get_dds_no_night_exclusion_returns_data() {
+        let provider = Arc::new(MockProvider);
+        let fetcher = TileFetcher::new(provider, "ARC");
+        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher), "ARC"));
+        let service = TileServiceImpl::new(fs);
+        let coords = TileCoord::new(100, 200, 16).expect("Valid coords");
+
+        // Request without night exclusion
+        let dds = service
+            .get_dds(coords, "ARC", false)
+            .await
+            .expect("Should return real DDS");
+
+        // Should be valid DDS
+        assert_eq!(&dds[0..4], b"DDS ", "Real tile should be valid DDS");
+        assert!(dds.len() >= 148);
     }
 }
