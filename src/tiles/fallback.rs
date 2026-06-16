@@ -11,9 +11,9 @@ use std::path::PathBuf;
 pub enum FallbackLevel {
     #[default]
     Cache, // Check disk cache for lower-zoom tiles
-    Downserve, // Scale from lower-resolution tile
-    Network,   // Download on-demand
-    Solid,     // Solid color fallback
+    Blur,    // Blur scaled from lower-zoom tile
+    Network, // Download on-demand
+    Solid,   // Solid color fallback
 }
 
 // === FallbackConfig — moved from config.rs ===
@@ -107,7 +107,7 @@ impl FallbackSystem {
         requested_zoom: u32,
     ) -> Option<(Vec<u8>, u32)> {
         match self.config.level {
-            FallbackLevel::Cache | FallbackLevel::Downserve => {
+            FallbackLevel::Cache | FallbackLevel::Blur => {
                 self.find_cached_fallback(row, col, maptype, requested_zoom)
             }
             FallbackLevel::Solid => None,
@@ -182,7 +182,7 @@ impl FallbackSystem {
     pub fn needs_fallback(&self) -> bool {
         matches!(
             self.config.level,
-            FallbackLevel::Cache | FallbackLevel::Downserve | FallbackLevel::Network
+            FallbackLevel::Cache | FallbackLevel::Blur | FallbackLevel::Network
         ) && self.config.cache_fallback
     }
 }
@@ -308,8 +308,8 @@ mod tests {
     fn test_config_setters() {
         let mut fb = test_fallback_system();
 
-        fb.set_level(FallbackLevel::Downserve);
-        assert_eq!(fb.config.level, FallbackLevel::Downserve);
+        fb.set_level(FallbackLevel::Blur);
+        assert_eq!(fb.config.level, FallbackLevel::Blur);
 
         fb.set_solid_color([100, 150, 200]);
         assert_eq!(fb.config.solid_color, [100, 150, 200]);

@@ -21,11 +21,11 @@ const SEASON_LABELS: &[&str] = &["Disabled", "Spring", "Summer", "Autumn", "Wint
 
 const FALLBACK_LEVELS: &[FallbackLevel] = &[
     FallbackLevel::Cache,
-    FallbackLevel::Downserve,
+    FallbackLevel::Blur,
     FallbackLevel::Network,
     FallbackLevel::Solid,
 ];
-const FALLBACK_LABELS: &[&str] = &["Cache", "Downserve", "Network", "Solid"];
+const FALLBACK_LABELS: &[&str] = &["Cache", "Blur", "Network", "Solid"];
 
 /// Settings screen - full configuration management
 pub fn view(state: &AppState) -> Element<'_, Message> {
@@ -659,7 +659,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // -- Fallback section --
     let fallback_level_index = match state.config.fallback.level {
         FallbackLevel::Cache => 0,
-        FallbackLevel::Downserve => 1,
+        FallbackLevel::Blur => 1,
         FallbackLevel::Network => 2,
         FallbackLevel::Solid => 3,
     };
@@ -682,7 +682,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .spacing(12)
             .align_y(iced::Alignment::Center),
             container(
-                text("Cache: Use lower-zoom cached tiles. Downserve: Scale from lower-res tile. Network: Download on-demand. Solid: Solid color fallback.")
+                text("Cache: Use lower-zoom cached tiles. Blur: Scale from lower-res tile. Network: Download on-demand. Solid: Solid color fallback.")
                     .size(12),
             )
             .padding(8)
