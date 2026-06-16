@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.42](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.41...autoortho-v0.8.42) (2026-06-16)
+
+
+### Code Refactoring
+
+* **services:** move night exclusion from DdsFileSystem to TileServiceImpl ([#435](https://github.com/egeland/autoortho-rs/issues/435)) ([4f1c94c](https://github.com/egeland/autoortho-rs/commit/4f1c94ca54833707f1da7666b1921cab2ec86c4d))
+
 ## [0.8.41](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.40...autoortho-v0.8.41) (2026-06-16)
 
 
