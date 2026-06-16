@@ -16,6 +16,7 @@ pub mod fuse;
 pub mod pipeline;
 pub mod scenery;
 pub mod seasons;
+pub mod services;
 pub mod stats;
 pub mod tiles;
 pub mod time_exclusion;
