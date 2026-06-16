@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.44](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.43...autoortho-v0.8.44) (2026-06-16)
+
+
+### Code Refactoring
+
+* **fallback:** rename Downserve to Blur ([#440](https://github.com/egeland/autoortho-rs/issues/440)) ([d42858f](https://github.com/egeland/autoortho-rs/commit/d42858fa4ff898df8337834d04740f21b9512970))
+
 ## [0.8.43](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.42...autoortho-v0.8.43) (2026-06-16)
 
 
