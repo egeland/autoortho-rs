@@ -223,10 +223,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let config_section = column![
         text("Configuration").size(18),
         rule::horizontal(1),
-        config_row("Tile Provider:", state.config.tile_provider.clone()),
+        config_row("Tile Provider:", state.config.tile.provider.clone()),
         config_row(
             "Zoom Range:",
-            format!("{} – {}", state.config.min_zoom, state.config.max_zoom)
+            format!(
+                "{} – {}",
+                state.config.tile.min_zoom, state.config.tile.max_zoom
+            )
         ),
         config_row("X-Plane:", state.config.xplane_path.clone()),
         config_row("Cache Dir:", state.config.cache_dir.clone()),

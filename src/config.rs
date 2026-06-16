@@ -22,6 +22,57 @@ pub use crate::errors::RateLimitConfig;
 /// ConfigError — owned by `errors` module. Re-exported here for compat.
 pub use crate::errors::ConfigError;
 
+/// Tile configuration — provider, zoom levels, dynamic zoom rules.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TileConfig {
+    #[serde(default = "default_tile_provider")]
+    pub provider: String,
+    #[serde(default = "default_min_zoom")]
+    pub min_zoom: u32,
+    #[serde(default = "default_max_zoom")]
+    pub max_zoom: u32,
+    #[serde(default = "default_enable_dynamic_zoom")]
+    pub enable_dynamic_zoom: bool,
+    #[serde(default = "default_zoom_rules")]
+    pub zoom_rules: Vec<ZoomRule>,
+}
+
+impl TileConfig {
+    pub fn validate(&self) -> Result<(), crate::errors::ConfigError> {
+        if self.provider.is_empty() {
+            return Err(crate::errors::ConfigError::FieldOutOfRange {
+                field: "tile.provider".to_string(),
+                min: 1,
+                max: 0,
+                value: 0,
+            });
+        }
+        crate::errors::validate_range(self.min_zoom as u64, 1, 22, "tile.min_zoom")?;
+        crate::errors::validate_range(self.max_zoom as u64, 1, 22, "tile.max_zoom")?;
+        if self.min_zoom > self.max_zoom {
+            return Err(crate::errors::ConfigError::FieldOutOfRange {
+                field: "tile.min_zoom".to_string(),
+                min: self.min_zoom as u64,
+                max: self.max_zoom as u64,
+                value: self.min_zoom as u64,
+            });
+        }
+        Ok(())
+    }
+}
+
+fn default_tile_provider() -> String {
+    "ARC".to_string()
+}
+
+fn default_min_zoom() -> u32 {
+    10
+}
+
+fn default_max_zoom() -> u32 {
+    18
+}
+
 /// All persistent configuration for AutoOrtho.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AutoOrthoConfig {
@@ -30,9 +81,11 @@ pub struct AutoOrthoConfig {
     pub cache_dir: String,
     pub xplane_host: String,
     pub xplane_port: u16,
-    pub tile_provider: String,
-    pub min_zoom: u32,
-    pub max_zoom: u32,
+
+    /// Tile configuration (provider, zoom levels, dynamic zoom)
+    #[serde(flatten)]
+    pub tile: TileConfig,
+
     pub enable_night_exclusion: bool,
     pub night_threshold: f32,
     pub day_threshold: f32,
@@ -68,14 +121,10 @@ pub struct AutoOrthoConfig {
     pub airport_radius_nm: u32,
     #[serde(default = "default_near_airport_zoom")]
     pub near_airport_zoom: u32,
-    #[serde(default = "default_enable_dynamic_zoom")]
-    pub enable_dynamic_zoom: bool,
     #[serde(default = "default_use_simbrief_altitude")]
     pub use_simbrief_altitude: bool,
     #[serde(default = "default_simheaven_compat")]
     pub simheaven_compat: bool,
-    #[serde(default = "default_zoom_rules")]
-    pub zoom_rules: Vec<ZoomRule>,
     #[serde(default = "default_dds_memory_cache_mb")]
     pub dds_memory_cache_mb: u64,
     #[serde(default = "default_chunk_memory_cache_mb")]
@@ -224,19 +273,7 @@ impl AutoOrthoConfig {
     pub fn validate(&self) -> Result<(), ConfigError> {
         validate_range(self.xplane_port as u64, 1, 65535, "xplane_port")?;
 
-        let min_zoom = self.min_zoom as u64;
-        let max_zoom = self.max_zoom as u64;
-        validate_range(min_zoom, 0, 21, "min_zoom")?;
-        validate_range(max_zoom, 0, 21, "max_zoom")?;
-        if self.min_zoom > self.max_zoom {
-            return Err(ConfigError::FieldInvalid {
-                field: "min_zoom".to_string(),
-                message: format!(
-                    "min_zoom ({}) > max_zoom ({})",
-                    self.min_zoom, self.max_zoom
-                ),
-            });
-        }
+        self.tile.validate()?;
 
         // Night thresholds
         validate_f32_range(self.night_threshold, -90.0, 0.0, "night_threshold")?;
@@ -312,7 +349,7 @@ impl AutoOrthoConfig {
         validate_log_rotation(&self.log_rotation)?;
 
         // Zoom rules
-        for (i, rule) in self.zoom_rules.iter().enumerate() {
+        for (i, rule) in self.tile.zoom_rules.iter().enumerate() {
             if rule.zoom_level > 21 {
                 return Err(ConfigError::FieldOutOfRange {
                     field: format!("zoom_rules[{}].zoom_level", i),
@@ -343,9 +380,13 @@ impl Default for AutoOrthoConfig {
             cache_dir,
             xplane_host: "127.0.0.1".to_string(),
             xplane_port: 49000,
-            tile_provider: "ARC".to_string(),
-            min_zoom: 10,
-            max_zoom: 18,
+            tile: TileConfig {
+                provider: "ARC".to_string(),
+                min_zoom: 10,
+                max_zoom: 18,
+                enable_dynamic_zoom: true,
+                zoom_rules: default_zoom_rules(),
+            },
             enable_night_exclusion: true,
             night_threshold: -12.0,
             day_threshold: -10.0,
@@ -365,10 +406,8 @@ impl Default for AutoOrthoConfig {
             prefetch_airports: true,
             airport_radius_nm: 60,
             near_airport_zoom: 19,
-            enable_dynamic_zoom: true,
             use_simbrief_altitude: true,
             simheaven_compat: false,
-            zoom_rules: default_zoom_rules(),
             dds_memory_cache_mb: default_dds_memory_cache_mb(),
             chunk_memory_cache_mb: default_chunk_memory_cache_mb(),
             season: Season::Disabled,
@@ -459,10 +498,7 @@ impl AutoOrthoConfig {
 /// Cloned once from `AutoOrthoConfig` to avoid repeated `config.read()` lock + clone.
 #[derive(Debug, Clone)]
 pub struct ConfigSnapshot {
-    pub tile_provider: String,
-    pub max_zoom: u32,
-    pub zoom_rules: Vec<ZoomRule>,
-    pub enable_dynamic_zoom: bool,
+    pub tile: TileConfig,
     pub enable_night_exclusion: bool,
     pub night_threshold: f32,
     pub day_threshold: f32,
@@ -494,10 +530,7 @@ impl ConfigSnapshot {
 impl From<&AutoOrthoConfig> for ConfigSnapshot {
     fn from(config: &AutoOrthoConfig) -> Self {
         Self {
-            tile_provider: config.tile_provider.clone(),
-            max_zoom: config.max_zoom,
-            zoom_rules: config.zoom_rules.clone(),
-            enable_dynamic_zoom: config.enable_dynamic_zoom,
+            tile: config.tile.clone(),
             enable_night_exclusion: config.enable_night_exclusion,
             night_threshold: config.night_threshold,
             day_threshold: config.day_threshold,
@@ -553,14 +586,14 @@ mod tests {
         let (mut config, _tmp) = test_config_in_temp();
         let path = std::path::Path::new(&config.cache_dir).join("config.toml");
 
-        config.tile_provider = "BI".to_string();
+        config.tile.provider = "BI".to_string();
         config.xplane_port = 12345;
         config.scenery_download_dir = "/my/downloads".to_string();
 
         config.save_to(&path).unwrap();
 
         let loaded = AutoOrthoConfig::from_file(&path).unwrap();
-        assert_eq!(loaded.tile_provider, "BI");
+        assert_eq!(loaded.tile.provider, "BI");
         assert_eq!(loaded.xplane_port, 12345);
         assert_eq!(loaded.scenery_download_dir, "/my/downloads");
     }
@@ -593,7 +626,7 @@ mod tests {
     #[test]
     fn test_config_validate_invalid_zoom() {
         let mut config = AutoOrthoConfig::default();
-        config.min_zoom = 25;
+        config.tile.min_zoom = 25;
         assert!(config.validate().is_err());
     }
 
@@ -623,8 +656,8 @@ mod tests {
     #[test]
     fn test_config_validate_zoom_order() {
         let mut config = AutoOrthoConfig::default();
-        config.min_zoom = 15;
-        config.max_zoom = 10;
+        config.tile.min_zoom = 15;
+        config.tile.max_zoom = 10;
         assert!(config.validate().is_err());
     }
 
@@ -669,10 +702,13 @@ mod tests {
     fn test_config_snapshot_from_config() {
         let config = AutoOrthoConfig::default();
         let snapshot: ConfigSnapshot = (&config).into();
-        assert_eq!(snapshot.tile_provider, config.tile_provider);
-        assert_eq!(snapshot.max_zoom, config.max_zoom);
-        assert_eq!(snapshot.zoom_rules.len(), config.zoom_rules.len());
-        assert_eq!(snapshot.enable_dynamic_zoom, config.enable_dynamic_zoom);
+        assert_eq!(snapshot.tile.provider, config.tile.provider);
+        assert_eq!(snapshot.tile.max_zoom, config.tile.max_zoom);
+        assert_eq!(snapshot.tile.zoom_rules.len(), config.tile.zoom_rules.len());
+        assert_eq!(
+            snapshot.tile.enable_dynamic_zoom,
+            config.tile.enable_dynamic_zoom
+        );
         assert_eq!(
             snapshot.enable_night_exclusion,
             config.enable_night_exclusion
@@ -690,3 +726,54 @@ mod tests {
     }
 }
 // Test comment
+
+#[cfg(test)]
+mod tile_config_tests {
+    use super::*;
+
+    #[test]
+    fn test_tile_config_defaults() {
+        let config = AutoOrthoConfig::default();
+        let tile = &config.tile;
+        assert_eq!(tile.provider, "ARC");
+        assert!(tile.min_zoom >= 1);
+        assert!(tile.max_zoom <= 22);
+        assert!(tile.min_zoom <= tile.max_zoom);
+    }
+
+    #[test]
+    fn test_tile_config_validate_valid() {
+        let tile = TileConfig {
+            provider: "ARC".to_string(),
+            min_zoom: 10,
+            max_zoom: 18,
+            enable_dynamic_zoom: false,
+            zoom_rules: vec![],
+        };
+        assert!(tile.validate().is_ok());
+    }
+
+    #[test]
+    fn test_tile_config_validate_invalid_zoom_order() {
+        let tile = TileConfig {
+            provider: "ARC".to_string(),
+            min_zoom: 18,
+            max_zoom: 10,
+            enable_dynamic_zoom: false,
+            zoom_rules: vec![],
+        };
+        assert!(tile.validate().is_err());
+    }
+
+    #[test]
+    fn test_tile_config_validate_empty_provider() {
+        let tile = TileConfig {
+            provider: "".to_string(),
+            min_zoom: 10,
+            max_zoom: 18,
+            enable_dynamic_zoom: false,
+            zoom_rules: vec![],
+        };
+        assert!(tile.validate().is_err());
+    }
+}

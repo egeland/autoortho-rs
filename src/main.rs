@@ -365,10 +365,10 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     let config_snapshot: ConfigSnapshot = (&*context.config.read()).into();
 
     let dynamic_zoom = DynamicZoom::new(
-        config_snapshot.zoom_rules.clone(),
-        &config_snapshot.tile_provider,
+        config_snapshot.tile.zoom_rules.clone(),
+        &config_snapshot.tile.provider,
     );
-    if config_snapshot.enable_dynamic_zoom {
+    if config_snapshot.tile.enable_dynamic_zoom {
         info!(
             "Dynamic zoom enabled with {} rules",
             dynamic_zoom.zoom_rules().len()
@@ -387,7 +387,7 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
         chunk_cache_entries, dds_cache_entries
     );
 
-    let provider_name = config_snapshot.tile_provider.clone();
+    let provider_name = config_snapshot.tile.provider.clone();
     info!("Provider: {} ({})", provider_name, provider_name);
 
     // Start web server
@@ -535,10 +535,10 @@ async fn run_simbrief_prefetch(
         config_snapshot.route_prefetch_radius_nm,
         config_snapshot.airport_radius_nm,
         config_snapshot.prefetch_airports,
-        config_snapshot.max_zoom,
-        config_snapshot.zoom_rules.clone(),
-        config_snapshot.tile_provider.clone(),
-        config_snapshot.enable_dynamic_zoom,
+        config_snapshot.tile.max_zoom,
+        config_snapshot.tile.zoom_rules.clone(),
+        config_snapshot.tile.provider.clone(),
+        config_snapshot.tile.enable_dynamic_zoom,
         config_snapshot.use_simbrief_altitude,
         config_snapshot.route_consideration_radius_nm as f64,
     );

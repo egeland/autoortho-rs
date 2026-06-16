@@ -511,7 +511,7 @@ impl AppState {
             return false;
         }
 
-        if self.config.min_zoom >= self.config.max_zoom {
+        if self.config.tile.min_zoom >= self.config.tile.max_zoom {
             self.set_error("Min zoom must be less than max zoom".to_string());
             return false;
         }
@@ -573,8 +573,8 @@ mod tests {
     #[test]
     fn test_validate_zoom_levels() {
         let mut state = AppState::new();
-        state.config.min_zoom = 18;
-        state.config.max_zoom = 10;
+        state.config.tile.min_zoom = 18;
+        state.config.tile.max_zoom = 10;
         assert!(!state.validate_config());
     }
 
@@ -589,8 +589,8 @@ mod tests {
     fn test_validate_config_success() {
         let mut state = AppState::new();
         state.config.xplane_path = "/home/user/X-Plane 12".to_string();
-        state.config.min_zoom = 10;
-        state.config.max_zoom = 18;
+        state.config.tile.min_zoom = 10;
+        state.config.tile.max_zoom = 18;
         state.config.xplane_port = 49000;
         assert!(state.validate_config());
         assert_eq!(state.error_message, None);
