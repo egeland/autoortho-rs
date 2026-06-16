@@ -552,6 +552,29 @@ impl DdsFileSystem {
         Ok(slice_range(&dds_arc, offset, size).into_owned())
     }
 
+    /// Check if a DDS tile exists in memory or disk cache.
+    pub fn has_dds(&self, path: &str) -> bool {
+        let (row, col, maptype, zoom) = match self.parser.parse(path) {
+            Ok(r) => r,
+            Err(_) => return false,
+        };
+        let tile_key = format!("{}_{}_{}_{}", row, col, maptype, zoom);
+
+        // Check memory cache
+        if self.dds_cache.read().peek(&tile_key).is_some() {
+            return true;
+        }
+
+        // Check disk cache
+        if let Some(ref dc) = self.disk_cache
+            && dc.lock().get(&tile_key).is_ok()
+        {
+            return true;
+        }
+
+        false
+    }
+
     /// Generate a complete DDS tile by fetching and assembling chunks.
     async fn generate_tile(
         &self,

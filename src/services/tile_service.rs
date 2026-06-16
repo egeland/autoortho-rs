@@ -118,10 +118,14 @@ impl TileService for TileServiceImpl {
             })
     }
 
-    async fn tile_exists(&self, _coords: TileCoord, _provider: &str) -> bool {
-        // Would need implementation that checks caches
-        // For now, return true as a best-effort
-        true
+    async fn tile_exists(&self, coords: TileCoord, provider: &str) -> bool {
+        // Build path: /textures/{row}_{col}_{provider}{zoom}.dds
+        let zoom_str = format!("{:02}", coords.zoom);
+        let path = format!(
+            "/textures/{}_{}_{}{}.dds",
+            coords.row, coords.col, provider, zoom_str
+        );
+        self.fs.has_dds(&path)
     }
 }
 
@@ -266,9 +270,11 @@ mod tile_service_impl_tests {
         let service: Box<dyn TileService> = Box::new(TileServiceImpl::new(fs));
         let coords = TileCoord::new(100, 200, 16).expect("Valid coords");
 
-        // Verify it implements the trait
-        let exists = service.tile_exists(coords, "ARC").await;
-        assert!(exists);
+        // Verify trait works — tile not cached yet
+        assert!(!service.tile_exists(coords, "ARC").await);
+        // Populate cache, then verify
+        let _ = service.get_dds(coords, "ARC", false).await;
+        assert!(service.tile_exists(coords, "ARC").await);
     }
 
     /// Test that TileServiceImpl.get_dds returns valid DDS data.
@@ -296,5 +302,34 @@ mod tile_service_impl_tests {
         );
         // DDS header is at least 148 bytes
         assert!(dds.len() >= 148, "DDS header should be at least 148 bytes");
+    }
+
+    /// Test that tile_exists returns false when tile is not cached.
+    #[tokio::test]
+    async fn test_tile_exists_uncached() {
+        let provider = Arc::new(MockProvider);
+        let fetcher = TileFetcher::new(provider, "ARC");
+        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher), "ARC"));
+        let service = TileServiceImpl::new(fs);
+
+        // Tile that has never been fetched
+        let coords = TileCoord::new(999, 999, 16).expect("Valid coords");
+        assert!(!service.tile_exists(coords, "ARC").await);
+    }
+
+    /// Test that tile_exists returns true after tile is cached.
+    #[tokio::test]
+    async fn test_tile_exists_cached() {
+        let provider = Arc::new(MockProvider);
+        let fetcher = TileFetcher::new(provider, "ARC");
+        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher), "ARC"));
+        let service = TileServiceImpl::new(fs);
+        let coords = TileCoord::new(100, 200, 16).expect("Valid coords");
+
+        // Populate the cache
+        let _ = service.get_dds(coords, "ARC", false).await;
+
+        // Now tile_exists should return true
+        assert!(service.tile_exists(coords, "ARC").await);
     }
 }
