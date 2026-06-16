@@ -428,6 +428,7 @@ name = "autoortho"
 version = "0.8.39"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum",
  "cargo-dist",
  "chrono",
