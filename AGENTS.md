@@ -102,7 +102,7 @@ NOTE: local development happens on a MacOS machine, and some features for other 
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **autoortho-rs** (2542 symbols, 5404 relationships, 223 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **autoortho-rs** (2864 symbols, 6028 relationships, 234 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -231,6 +231,7 @@ When the user requests a durable behavior change, record it here or in the relev
 | `src/pipeline/AGENTS.md` | Image processing: JPEG decode, DDS gen, cache, budget |
 | `src/tiles/AGENTS.md` | Tile engine: coords, chunks, assembly, prefetch, providers, fetcher, fallback |
 | `src/fuse/AGENTS.md` | FUSE/Dokan virtual filesystem, DDS path parsing |
+| `src/services/AGENTS.md` | Service traits for DI: TileService, FakeTileService |
 | `src/xplane/AGENTS.md` | X-Plane integration: dataref, simbrief, UDP |
 | `src/webui/AGENTS.md` | Web UI: axum server, WebSocket, REST API, custom map |
 | `src/ui/AGENTS.md` | Desktop UI (iced MVU): app lifecycle, state, handlers |
