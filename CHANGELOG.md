@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.43](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.42...autoortho-v0.8.43) (2026-06-16)
+
+
+### Code Refactoring
+
+* **config:** extract TileConfig from AutoOrthoConfig ([#438](https://github.com/egeland/autoortho-rs/issues/438)) ([aabd0cb](https://github.com/egeland/autoortho-rs/commit/aabd0cb054a4ecf0965443370eb8fbe61b90e519))
+
 ## [0.8.42](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.41...autoortho-v0.8.42) (2026-06-16)
 
 
