@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.41](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.40...autoortho-v0.8.41) (2026-06-16)
+
+
+### Features
+
+* **services:** implement tile_exists with cache check ([#434](https://github.com/egeland/autoortho-rs/issues/434)) ([beb5693](https://github.com/egeland/autoortho-rs/commit/beb5693bf9124d8c3991b71ae3bc3a4c6b9f1f61))
+
 ## [0.8.40](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.39...autoortho-v0.8.40) (2026-06-16)
 
 
