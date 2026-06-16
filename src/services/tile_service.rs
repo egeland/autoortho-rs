@@ -69,11 +69,13 @@ pub trait TileService: Send + Sync {
 ///
 /// This is the production implementation that wraps the existing
 /// FUSE filesystem logic for non-FUSE use cases.
+#[cfg(feature = "fuse")]
 #[allow(dead_code)]
 pub struct TileServiceImpl {
     fs: Arc<crate::fuse::filesystem::DdsFileSystem>,
 }
 
+#[cfg(feature = "fuse")]
 impl TileServiceImpl {
     /// Create a new TileServiceImpl wrapping a DdsFileSystem.
     #[allow(dead_code)]
