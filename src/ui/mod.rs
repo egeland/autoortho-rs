@@ -493,7 +493,7 @@ impl AutoOrthoApp {
                 self.state.simbrief_flight_plan = flight_plan_opt;
 
                 // Check provider coverage for the flight route
-                let provider = self.state.config.tile_provider.clone();
+                let provider = self.state.config.tile.provider.clone();
                 let zoom = self.state.config.near_airport_zoom;
 
                 // Load custom map to check for cell overrides
@@ -974,7 +974,7 @@ impl AutoOrthoApp {
                 let lat = self.state.test_tile_lat.parse::<f64>().unwrap_or(-33.86);
                 let lon = self.state.test_tile_lon.parse::<f64>().unwrap_or(151.21);
                 let zoom = self.state.test_tile_zoom;
-                let provider_name = self.state.config.tile_provider.clone();
+                let provider_name = self.state.config.tile.provider.clone();
                 let rate_limit = self.state.config.rate_limit.requests_per_second;
 
                 let (tx, rx) = oneshot::channel();
@@ -1304,7 +1304,7 @@ impl AutoOrthoApp {
                 .color(xp_color)
                 .into(),
             text("  ·  ").size(11).into(),
-            text(format!("Provider: {}", self.state.config.tile_provider))
+            text(format!("Provider: {}", self.state.config.tile.provider))
                 .size(11)
                 .into(),
         ];
@@ -2034,11 +2034,11 @@ async fn prefetch_route_impl(
     }
 
     // Create TileFetcher
-    let provider = ProviderFactory::create(&config.tile_provider)
-        .ok_or_else(|| format!("Unknown provider: {}", config.tile_provider))?;
+    let provider = ProviderFactory::create(&config.tile.provider)
+        .ok_or_else(|| format!("Unknown provider: {}", config.tile.provider))?;
     let fetcher = TileFetcher::with_rate_limit(
         provider,
-        &config.tile_provider,
+        &config.tile.provider,
         config.rate_limit.requests_per_second,
     );
 
@@ -2063,7 +2063,7 @@ async fn prefetch_route_impl(
             dds_col,
             dds_row,
             config.near_airport_zoom,
-            &config.tile_provider,
+            &config.tile.provider,
         );
 
         if cache.promote(&key) {
@@ -2081,7 +2081,7 @@ async fn prefetch_route_impl(
     let route_key_set: std::collections::HashSet<String> = route_tiles
         .iter()
         .map(|&(row, col)| {
-            DdsCache::tile_key(col, row, config.near_airport_zoom, &config.tile_provider)
+            DdsCache::tile_key(col, row, config.near_airport_zoom, &config.tile.provider)
         })
         .collect();
     let tiles_to_fetch = route_tiles.len() as u32 - promoted_count;
@@ -2182,7 +2182,7 @@ async fn prefetch_route_impl(
                         .get_chunk_data(
                             chunk_row,
                             chunk_col,
-                            &config.tile_provider,
+                            &config.tile.provider,
                             config.near_airport_zoom,
                         )
                         .await
@@ -2197,7 +2197,7 @@ async fn prefetch_route_impl(
             let assembly_config = AssemblyConfig {
                 chunks_per_side: 16,
                 chunk_size: 256,
-                format: if config.max_zoom >= 18 {
+                format: if config.tile.max_zoom >= 18 {
                     DdsFormat::BC3
                 } else {
                     DdsFormat::BC1
@@ -2217,7 +2217,7 @@ async fn prefetch_route_impl(
                 dds_col,
                 dds_row,
                 config.near_airport_zoom,
-                &config.tile_provider,
+                &config.tile.provider,
             );
             let metadata = crate::pipeline::cache::DdsCacheMetadata {
                 v: 3,
@@ -2226,12 +2226,12 @@ async fn prefetch_route_impl(
                 mm: result.mipmap_count,
                 zl: config.near_airport_zoom,
                 max_zl: config.near_airport_zoom,
-                fmt: if config.max_zoom >= 18 {
+                fmt: if config.tile.max_zoom >= 18 {
                     "BC3".to_string()
                 } else {
                     "BC1".to_string()
                 },
-                map: config.tile_provider.clone(),
+                map: config.tile.provider.clone(),
                 built: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap()

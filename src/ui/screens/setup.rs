@@ -60,7 +60,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         text("Tile Provider:").width(Length::Fixed(140.0)),
         pick_list(
             PROVIDER_IDS,
-            Some(state.config.tile_provider.as_str()),
+            Some(state.config.tile.provider.as_str()),
             |s: &str| Message::SetTileProvider(s.to_string()),
         )
         .width(Length::Fixed(120.0)),
@@ -73,7 +73,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         text("Zoom Range:").width(Length::Fixed(140.0)),
         text(format!(
             "{} – {}",
-            state.config.min_zoom, state.config.max_zoom
+            state.config.tile.min_zoom, state.config.tile.max_zoom
         ))
         .size(16),
     ]

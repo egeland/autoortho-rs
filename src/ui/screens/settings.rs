@@ -303,7 +303,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             text("Tile Provider:").width(Length::Fixed(160.0)),
             pick_list(
                 PROVIDER_IDS,
-                Some(state.config.tile_provider.as_str()),
+                Some(state.config.tile.provider.as_str()),
                 |s: &str| Message::SetTileProvider(s.to_string()),
             )
             .width(Length::Fixed(120.0)),
@@ -311,26 +311,31 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         .spacing(12)
         .align_y(iced::Alignment::Center),
         row![
-            text(format!("Min Zoom: {}", state.config.min_zoom)).width(Length::Fixed(160.0)),
-            slider(0..=20, state.config.min_zoom, Message::SetMinZoom).width(Length::Fixed(200.0)),
+            text(format!("Min Zoom: {}", state.config.tile.min_zoom)).width(Length::Fixed(160.0)),
+            slider(0..=20, state.config.tile.min_zoom, Message::SetMinZoom)
+                .width(Length::Fixed(200.0)),
         ]
         .spacing(12)
         .align_y(iced::Alignment::Center),
         row![
-            text(format!("Max Zoom: {}", state.config.max_zoom)).width(Length::Fixed(160.0)),
-            slider(0..=20, state.config.max_zoom, Message::SetMaxZoom).width(Length::Fixed(200.0)),
+            text(format!("Max Zoom: {}", state.config.tile.max_zoom)).width(Length::Fixed(160.0)),
+            slider(0..=20, state.config.tile.max_zoom, Message::SetMaxZoom)
+                .width(Length::Fixed(200.0)),
         ]
         .spacing(12)
         .align_y(iced::Alignment::Center),
         // Dynamic Zoom section
         {
-            let dz = DynamicZoom::new(state.config.zoom_rules.clone(), &state.config.tile_provider);
+            let dz = DynamicZoom::new(
+                state.config.tile.zoom_rules.clone(),
+                &state.config.tile.provider,
+            );
             let provider_max = dz.provider_max_zoom();
             let provider_name = PROVIDER_INFO
                 .iter()
-                .find(|p| p.id == state.config.tile_provider)
+                .find(|p| p.id == state.config.tile.provider)
                 .map(|p| p.display_name)
-                .unwrap_or(&state.config.tile_provider);
+                .unwrap_or(&state.config.tile.provider);
 
             column![
                 text("").size(8),
@@ -338,13 +343,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 rule::horizontal(1),
                 row![
                     text("Enable:").width(Length::Fixed(80.0)),
-                    button(text(if state.config.enable_dynamic_zoom {
+                    button(text(if state.config.tile.enable_dynamic_zoom {
                         "Enabled"
                     } else {
                         "Disabled"
                     }))
                     .on_press(Message::SetEnableDynamicZoom(
-                        !state.config.enable_dynamic_zoom
+                        !state.config.tile.enable_dynamic_zoom
                     )),
                     text(format!(
                         "  Provider: {} (max zoom: {})",
@@ -354,13 +359,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 ]
                 .spacing(12)
                 .align_y(iced::Alignment::Center),
-                if !state.config.enable_dynamic_zoom {
+                if !state.config.tile.enable_dynamic_zoom {
                     column![text("Dynamic zoom is disabled").size(13)]
                 } else {
                     column![
                         text(format!(
                             "{} zoom rule(s) configured",
-                            state.config.zoom_rules.len()
+                            state.config.tile.zoom_rules.len()
                         ))
                         .size(13),
                         text("").size(4),

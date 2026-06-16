@@ -35,20 +35,20 @@ pub fn handle_set_xplane_port(state: &mut AppState, port_str: &str) {
 }
 
 pub fn set_tile_provider(state: &mut AppState, provider: String) {
-    state.config.tile_provider = provider;
+    state.config.tile.provider = provider;
     state.simbrief_coverage_warning = None;
 }
 
 pub fn set_min_zoom(state: &mut AppState, zoom: u32) {
-    state.config.min_zoom = zoom;
+    state.config.tile.min_zoom = zoom;
 }
 
 pub fn set_max_zoom(state: &mut AppState, zoom: u32) {
-    state.config.max_zoom = zoom;
+    state.config.tile.max_zoom = zoom;
 }
 
 pub fn set_enable_dynamic_zoom(state: &mut AppState, enabled: bool) {
-    state.config.enable_dynamic_zoom = enabled;
+    state.config.tile.enable_dynamic_zoom = enabled;
 }
 
 pub fn set_use_simbrief_altitude(state: &mut AppState, enabled: bool) {

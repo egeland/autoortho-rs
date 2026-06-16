@@ -13,7 +13,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let title = text("Developer Tools").size(28);
 
     // Provider info for zoom limits
-    let info = provider::provider_info(&state.config.tile_provider);
+    let info = provider::provider_info(&state.config.tile.provider);
     let min_z = info.map_or(0, |p| p.min_zoom);
     let max_z = info.map_or(19, |p| p.max_zoom);
 
@@ -239,7 +239,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 }
 
 fn provider_row(state: &AppState) -> Element<'_, Message> {
-    let info = provider::provider_info(&state.config.tile_provider);
+    let info = provider::provider_info(&state.config.tile.provider);
     let auth_warning: Element<'_, Message> = if info.is_some_and(|p| p.requires_auth) {
         text("Requires auth")
             .size(12)
@@ -253,7 +253,7 @@ fn provider_row(state: &AppState) -> Element<'_, Message> {
         text("Provider:").width(Length::Fixed(80.0)),
         pick_list(
             PROVIDER_IDS,
-            Some(state.config.tile_provider.as_str()),
+            Some(state.config.tile.provider.as_str()),
             |s: &str| Message::SetTileProvider(s.to_string()),
         )
         .width(Length::Fixed(100.0)),

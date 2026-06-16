@@ -32,8 +32,8 @@ pub struct AppContext {
 
 impl AppContext {
     pub async fn init(config: AutoOrthoConfig) -> Result<Self, Box<dyn Error>> {
-        let _provider = ProviderFactory::create(&config.tile_provider)
-            .ok_or_else(|| format!("Unknown tile provider: {}", config.tile_provider))?;
+        let _provider = ProviderFactory::create(&config.tile.provider)
+            .ok_or_else(|| format!("Unknown tile provider: {}", config.tile.provider))?;
 
         let custom_map_path = dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
@@ -46,7 +46,7 @@ impl AppContext {
 
         let fetcher = Arc::new(TileFetcher::with_cache_size(
             chunk_cache_entries,
-            &config.tile_provider,
+            &config.tile.provider,
         ));
 
         let dds_cache = if config.enable_dds_cache {
@@ -67,7 +67,7 @@ impl AppContext {
         let fs = {
             #[cfg(feature = "fuse")]
             {
-                let mut builder = DdsFileSystem::builder(fetcher.clone(), &config.tile_provider)
+                let mut builder = DdsFileSystem::builder(fetcher.clone(), &config.tile.provider)
                     .cache_entries(dds_cache_entries)
                     .custom_map(custom_map.clone())
                     .root(scenery_data_dir(&config.cache_dir))
@@ -117,6 +117,6 @@ mod tests {
         let context = AppContext::init(config)
             .await
             .expect("Failed to init context");
-        assert_eq!(context.config.read().tile_provider, "ARC");
+        assert_eq!(context.config.read().tile.provider, "ARC");
     }
 }
