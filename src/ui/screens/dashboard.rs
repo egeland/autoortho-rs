@@ -97,7 +97,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             .spacing(8);
 
             if state.simbrief_route_summary.is_some() {
-                if state.prefetch_running {
+                if state.prefetch.running {
                     btn_row = btn_row.push(
                         button(text(format!("{} Stop Prefetch", ICON_STOP)).size(14))
                             .padding([8, 16])
@@ -117,11 +117,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             section = section.push(btn_row);
 
             // Prefetch progress / status
-            if state.prefetch_running {
-                let progress_text = if state.prefetch_total > 0 {
+            if state.prefetch.running {
+                let progress_text = if state.prefetch.total > 0 {
                     format!(
                         "{} Pre-caching tiles: {}/{}",
-                        ICON_MAP, state.prefetch_completed, state.prefetch_total
+                        ICON_MAP, state.prefetch.completed, state.prefetch.total
                     )
                 } else {
                     format!("{} Pre-caching route tiles…", ICON_MAP)
@@ -131,7 +131,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         .size(13)
                         .color(iced::Color::from_rgb(0.0, 0.6, 0.0)),
                 );
-            } else if let Some(ref status) = state.prefetch_status {
+            } else if let Some(ref status) = state.prefetch.status {
                 let color = if status.to_lowercase().contains("error")
                     || status.to_lowercase().contains("fail")
                 {
@@ -181,8 +181,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         iced::Color::from_rgb(0.5, 0.5, 0.5)
                     };
                     // Show prefetch progress emoji if available
-                    let emoji = if fix_idx < state.prefetch_waypoint_status.len() {
-                        state.prefetch_waypoint_status[fix_idx].emoji()
+                    let emoji = if fix_idx < state.prefetch.waypoint_status.len() {
+                        state.prefetch.waypoint_status[fix_idx].emoji()
                     } else {
                         ""
                     };

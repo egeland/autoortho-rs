@@ -13,6 +13,7 @@ use tokio::sync::{oneshot, watch};
 
 pub mod dev_test_state;
 pub mod handlers;
+pub mod prefetch_state;
 pub mod scenery_state;
 pub mod service_state;
 use crate::scenery::paths::mount_dir;
@@ -566,26 +567,26 @@ impl AutoOrthoApp {
             }
             Message::PrefetchRoute => {
                 let Some(flight_plan) = self.state.simbrief_flight_plan.clone() else {
-                    self.state.prefetch_status = Some("No flight plan loaded".to_string());
+                    self.state.prefetch.status = Some("No flight plan loaded".to_string());
                     return Task::none();
                 };
 
                 // Initialize per-waypoint progress tracker
                 let num_fixes = self.state.simbrief_fixes.len();
-                self.state.waypoint_prefetch_progress.init(num_fixes);
-                self.state.prefetch_waypoint_status =
+                self.state.prefetch.waypoint_progress.init(num_fixes);
+                self.state.prefetch.waypoint_status =
                     vec![crate::ui::state::WaypointPrefetchStatus::NotStarted; num_fixes];
 
-                self.state.prefetch_running = true;
-                self.state.prefetch_status = None;
-                self.state.prefetch_completed = 0;
-                self.state.prefetch_total = 0;
+                self.state.prefetch.running = true;
+                self.state.prefetch.status = None;
+                self.state.prefetch.completed = 0;
+                self.state.prefetch.total = 0;
 
                 let cancel = tokio_util::sync::CancellationToken::new();
-                self.state.prefetch_cancel = Some(cancel.clone());
+                self.state.prefetch.cancel = Some(cancel.clone());
 
                 let config = self.state.config.clone();
-                let waypoint_progress = self.state.waypoint_prefetch_progress.clone();
+                let waypoint_progress = self.state.prefetch.waypoint_progress.clone();
                 let (tx, rx) = oneshot::channel();
                 let rt = self.runtime.clone();
 
@@ -608,30 +609,30 @@ impl AutoOrthoApp {
                 );
             }
             Message::StopPrefetch => {
-                if let Some(cancel) = self.state.prefetch_cancel.take() {
+                if let Some(cancel) = self.state.prefetch.cancel.take() {
                     cancel.cancel();
                 }
-                self.state.prefetch_running = false;
-                self.state.prefetch_status = Some("Prefetch cancelled".to_string());
+                self.state.prefetch.running = false;
+                self.state.prefetch.status = Some("Prefetch cancelled".to_string());
             }
             Message::PrefetchProgress(completed, total) => {
-                self.state.prefetch_completed = completed;
-                self.state.prefetch_total = total;
+                self.state.prefetch.completed = completed;
+                self.state.prefetch.total = total;
             }
             Message::PrefetchComplete(msg) => {
-                self.state.prefetch_running = false;
-                self.state.prefetch_cancel = None;
-                self.state.prefetch_status = Some(msg);
+                self.state.prefetch.running = false;
+                self.state.prefetch.cancel = None;
+                self.state.prefetch.status = Some(msg);
             }
             Message::PrefetchCompleteCacheFull(msg) => {
-                self.state.prefetch_running = false;
-                self.state.prefetch_cancel = None;
-                self.state.prefetch_status = Some(msg);
+                self.state.prefetch.running = false;
+                self.state.prefetch.cancel = None;
+                self.state.prefetch.status = Some(msg);
             }
             Message::PrefetchFailed(err) => {
-                self.state.prefetch_running = false;
-                self.state.prefetch_cancel = None;
-                self.state.prefetch_status = Some(format!("Error: {}", err));
+                self.state.prefetch.running = false;
+                self.state.prefetch.cancel = None;
+                self.state.prefetch.status = Some(format!("Error: {}", err));
             }
             Message::SaveConfiguration => {
                 self.state.save_config();
@@ -1201,9 +1202,9 @@ impl AutoOrthoApp {
                 }
 
                 // Sync waypoint prefetch progress from shared state
-                if self.state.prefetch_running {
-                    self.state.prefetch_waypoint_status =
-                        self.state.waypoint_prefetch_progress.get_all();
+                if self.state.prefetch.running {
+                    self.state.prefetch.waypoint_status =
+                        self.state.prefetch.waypoint_progress.get_all();
                 }
             }
             Message::OpenMapInBrowser => {
@@ -1258,7 +1259,7 @@ impl AutoOrthoApp {
             .load(std::sync::atomic::Ordering::Relaxed);
         if !self.state.scenery.downloading.is_empty()
             || tile_progress_active
-            || self.state.prefetch_running
+            || self.state.prefetch.running
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_millis(500)).map(|_| Message::Tick),
