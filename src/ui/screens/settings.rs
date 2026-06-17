@@ -97,12 +97,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         rule::horizontal(1),
         labeled_input(
             "X-Plane Host:",
-            &state.config.xplane_host,
+            &state.config.network.xplane_host,
             Message::SetXPlaneHost
         ),
         row![
             text("X-Plane Port:").width(Length::Fixed(160.0)),
-            text_input("49000", &state.config.xplane_port.to_string())
+            text_input("49000", &state.config.network.xplane_port.to_string())
                 .on_input(Message::SetXPlanePort)
                 .width(Length::Fixed(100.0)),
         ]
@@ -118,7 +118,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         tooltip(
             labeled_input(
                 "User ID Number:",
-                &state.config.simbrief_user_id,
+                &state.config.flight.simbrief_user_id,
                 Message::SetSimbriefUserId
             ),
             container(
@@ -133,12 +133,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             row![
                 text(format!(
                     "Route Consideration: {} nm",
-                    state.config.route_consideration_radius_nm
+                    state.config.flight.route_consideration_radius_nm
                 ))
                 .width(Length::Fixed(260.0)),
                 slider(
                     10u32..=200,
-                    state.config.route_consideration_radius_nm,
+                    state.config.flight.route_consideration_radius_nm,
                     Message::SetRouteConsiderationRadius
                 )
                 .width(Length::Fixed(200.0)),
@@ -157,12 +157,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             row![
                 text(format!(
                     "Deviation Threshold: {} nm",
-                    state.config.route_deviation_threshold_nm
+                    state.config.flight.route_deviation_threshold_nm
                 ))
                 .width(Length::Fixed(260.0)),
                 slider(
                     5u32..=100,
-                    state.config.route_deviation_threshold_nm,
+                    state.config.flight.route_deviation_threshold_nm,
                     Message::SetRouteDeviationThreshold
                 )
                 .width(Length::Fixed(200.0)),
@@ -181,12 +181,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             row![
                 text(format!(
                     "Prefetch Radius: {} nm",
-                    state.config.route_prefetch_radius_nm
+                    state.config.flight.route_prefetch_radius_nm
                 ))
                 .width(Length::Fixed(260.0)),
                 slider(
                     10u32..=150,
-                    state.config.route_prefetch_radius_nm,
+                    state.config.flight.route_prefetch_radius_nm,
                     Message::SetRoutePrefetchRadius
                 )
                 .width(Length::Fixed(200.0)),
@@ -205,12 +205,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             row![
                 text(format!(
                     "Prefetch Route Distance: {}%",
-                    state.config.prefetch_route_percent
+                    state.config.flight.prefetch_route_percent
                 ))
                 .width(Length::Fixed(260.0)),
                 slider(
                     0u32..=100,
-                    state.config.prefetch_route_percent,
+                    state.config.flight.prefetch_route_percent,
                     Message::SetPrefetchRoutePercent
                 )
                 .width(Length::Fixed(200.0)),
@@ -229,7 +229,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             row![
                 text("Prefetch around airports:").width(Length::Fixed(260.0)),
                 button(
-                    text(if state.config.prefetch_airports {
+                    text(if state.config.flight.prefetch_airports {
                         "Enabled"
                     } else {
                         "Disabled"
@@ -237,12 +237,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     .size(14)
                 )
                 .padding([6, 16])
-                .style(if state.config.prefetch_airports {
+                .style(if state.config.flight.prefetch_airports {
                     button::success
                 } else {
                     button::secondary
                 })
-                .on_press(Message::SetPrefetchAirports(!state.config.prefetch_airports)),
+                .on_press(Message::SetPrefetchAirports(!state.config.flight.prefetch_airports)),
             ]
             .spacing(12)
             .align_y(iced::Alignment::Center),
@@ -258,12 +258,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             row![
                 text(format!(
                     "Airport Radius: {} nm",
-                    state.config.airport_radius_nm
+                    state.config.flight.airport_radius_nm
                 ))
                 .width(Length::Fixed(260.0)),
                 slider(
                     20u32..=150,
-                    state.config.airport_radius_nm,
+                    state.config.flight.airport_radius_nm,
                     Message::SetAirportRadius
                 )
                 .width(Length::Fixed(200.0)),
@@ -371,14 +371,14 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                         text("").size(4),
                         row![
                             text("Use SimBrief Altitude:").width(Length::Fixed(160.0)),
-                            button(text(if state.config.use_simbrief_altitude {
+                            button(text(if state.config.flight.use_simbrief_altitude {
                                 "Enabled"
                             } else {
                                 "Disabled"
                             }))
                             .on_press(
                                 Message::SetUseSimBriefAltitude(
-                                    !state.config.use_simbrief_altitude
+                                    !state.config.flight.use_simbrief_altitude
                                 )
                             ),
                         ]
@@ -423,17 +423,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         rule::horizontal(1),
         row![
             text("Enable Debug Logging:").width(Length::Fixed(100.0)),
-            button(text(if state.config.debug_mode {
+            button(text(if state.config.ui.debug_mode {
                 "Enabled"
             } else {
                 "Disabled"
             }))
-            .style(if state.config.debug_mode {
+            .style(if state.config.ui.debug_mode {
                 button::success
             } else {
                 button::secondary
             })
-            .on_press(Message::SetDebugMode(!state.config.debug_mode)),
+            .on_press(Message::SetDebugMode(!state.config.ui.debug_mode)),
         ]
         .spacing(12)
         .align_y(iced::Alignment::Center),
@@ -443,7 +443,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     // -- Cache section --
     let cache_size_mb = state.dds_cache_size_bytes / (1024 * 1024);
-    let cache_max_mb = state.config.dds_cache_size_mb;
+    let cache_max_mb = state.config.cache.dds_cache_size_mb;
     let cache_section = column![
         text("Cache").size(18),
         rule::horizontal(1),
@@ -463,10 +463,10 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         row![
             text(format!(
                 "Max Cache Size: {} GB",
-                state.config.dds_cache_size_mb / 1024
+                state.config.cache.dds_cache_size_mb / 1024
             ))
             .width(Length::Fixed(260.0)),
-            slider(256u32..=16384, state.config.dds_cache_size_mb as u32, |v| {
+            slider(256u32..=16384, state.config.cache.dds_cache_size_mb as u32, |v| {
                 Message::SetDdsCacheSizeMb(v as u64)
             })
             .width(Length::Fixed(200.0)),
@@ -476,7 +476,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         row![
             text("Enable DDS Cache:").width(Length::Fixed(160.0)),
             button(
-                text(if state.config.enable_dds_cache {
+                text(if state.config.cache.enable_dds_cache {
                     "Enabled"
                 } else {
                     "Disabled"
@@ -484,29 +484,29 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .size(14)
             )
             .padding([6, 16])
-            .style(if state.config.enable_dds_cache {
+            .style(if state.config.cache.enable_dds_cache {
                 button::success
             } else {
                 button::secondary
             })
-            .on_press(Message::SetEnableDdsCache(!state.config.enable_dds_cache)),
+            .on_press(Message::SetEnableDdsCache(!state.config.cache.enable_dds_cache)),
         ]
         .spacing(12)
         .align_y(iced::Alignment::Center),
         rule::horizontal(1),
         row![text(format!(
             "Memory: DDS {} MB, Chunks {} MB",
-            state.config.dds_memory_cache_mb, state.config.chunk_memory_cache_mb
+            state.config.cache.dds_memory_cache_mb, state.config.cache.chunk_memory_cache_mb
         ))]
         .spacing(12),
         tooltip(
             row![
                 text("DDS Memory:").width(Length::Fixed(100.0)),
-                slider(64u32..=2048, state.config.dds_memory_cache_mb as u32, |v| {
+                slider(64u32..=2048, state.config.cache.dds_memory_cache_mb as u32, |v| {
                     Message::SetDdsMemoryCacheMb(v as u64)
                 })
                 .width(Length::Fixed(150.0)),
-                text(format!("{} MB", state.config.dds_memory_cache_mb))
+                text(format!("{} MB", state.config.cache.dds_memory_cache_mb))
                     .width(Length::Fixed(60.0))
                     .size(12),
             ]
@@ -522,11 +522,11 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 text("Chunk Memory:").width(Length::Fixed(100.0)),
                 slider(
                     128u32..=4096,
-                    state.config.chunk_memory_cache_mb as u32,
+                    state.config.cache.chunk_memory_cache_mb as u32,
                     |v| { Message::SetChunkMemoryCacheMb(v as u64) }
                 )
                 .width(Length::Fixed(150.0)),
-                text(format!("{} MB", state.config.chunk_memory_cache_mb))
+                text(format!("{} MB", state.config.cache.chunk_memory_cache_mb))
                     .width(Length::Fixed(60.0))
                     .size(12),
             ]
@@ -541,8 +541,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .spacing(8);
 
     // -- Advanced section --
-    let night_threshold_i32 = state.config.night_threshold as i32;
-    let day_threshold_i32 = state.config.day_threshold as i32;
+    let night_threshold_i32 = state.config.night.night_threshold as i32;
+    let day_threshold_i32 = state.config.night.day_threshold as i32;
     let advanced = column![
         text("Advanced").size(18),
         rule::horizontal(1),
@@ -550,7 +550,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             row![
                 text("Night Exclusion:").width(Length::Fixed(160.0)),
                 button(
-                    text(if state.config.enable_night_exclusion {
+                    text(if state.config.night.enable_night_exclusion {
                         "Enabled"
                     } else {
                         "Disabled"
@@ -558,13 +558,13 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     .size(14)
                 )
                 .padding([6, 16])
-                .style(if state.config.enable_night_exclusion {
+                .style(if state.config.night.enable_night_exclusion {
                     button::success
                 } else {
                     button::secondary
                 })
                 .on_press(Message::SetEnableNightExclusion(
-                    !state.config.enable_night_exclusion
+                    !state.config.night.enable_night_exclusion
                 )),
             ]
             .spacing(12)
@@ -596,17 +596,17 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .spacing(8);
 
     // -- Seasonal section --
-    let season_index = match state.config.season {
+    let season_index = match state.config.season_cfg.season {
         Season::Disabled => 0,
         Season::Spring => 1,
         Season::Summer => 2,
         Season::Autumn => 3,
         Season::Winter => 4,
     };
-    let spring_pct = (state.config.spring_saturation * 100.0).round() as u32;
-    let summer_pct = (state.config.summer_saturation * 100.0).round() as u32;
-    let autumn_pct = (state.config.autumn_saturation * 100.0).round() as u32;
-    let winter_pct = (state.config.winter_saturation * 100.0).round() as u32;
+    let spring_pct = (state.config.season_cfg.spring_saturation * 100.0).round() as u32;
+    let summer_pct = (state.config.season_cfg.summer_saturation * 100.0).round() as u32;
+    let autumn_pct = (state.config.season_cfg.autumn_saturation * 100.0).round() as u32;
+    let winter_pct = (state.config.season_cfg.winter_saturation * 100.0).round() as u32;
 
     let seasonal = column![
         text("Seasonal Adjustment").size(18),
@@ -748,7 +748,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .spacing(8);
 
     // -- Rate Limiting section --
-    let rate_value = state.config.rate_limit.requests_per_second.round() as u32;
+    let rate_value = state.config.network.rate_limit.requests_per_second.round() as u32;
     let rate_limit = column![
         text("Rate Limiting").size(18),
         rule::horizontal(1),
@@ -774,7 +774,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // -- UI section --
     // Scale slider: 50% to 150%, stored as f64 (0.5 to 1.5)
     // Slider works with integers, so we use 50..150 and divide by 100
-    let scale_pct = (state.config.ui_scale * 100.0).round() as u32;
+    let scale_pct = (state.config.ui.ui_scale * 100.0).round() as u32;
     let ui_section = column![
         text("Interface").size(18),
         rule::horizontal(1),

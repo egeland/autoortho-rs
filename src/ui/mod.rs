@@ -264,7 +264,7 @@ impl AutoOrthoApp {
                     (None, None, None, None, String::new(), String::new())
                 };
 
-                let zoom = self.state.config.near_airport_zoom;
+                let zoom = self.state.config.flight.near_airport_zoom;
 
                 // Load custom map to check for cell overrides
                 let custom_map_path = dirs::config_dir()
@@ -423,7 +423,7 @@ impl AutoOrthoApp {
             Message::FetchSimbrief => {
                 self.state.simbrief_fetching = true;
                 self.state.simbrief_error = None;
-                let user_id = self.state.config.simbrief_user_id.clone();
+                let user_id = self.state.config.flight.simbrief_user_id.clone();
                 return iced::Task::perform(
                     async move { crate::xplane::simbrief::fetch_flight_plan(&user_id).await },
                     |result| match result {
@@ -498,7 +498,7 @@ impl AutoOrthoApp {
 
                 // Check provider coverage for the flight route
                 let provider = self.state.config.tile.provider.clone();
-                let zoom = self.state.config.near_airport_zoom;
+                let zoom = self.state.config.flight.near_airport_zoom;
 
                 // Load custom map to check for cell overrides
                 let custom_map_path = dirs::config_dir()
@@ -682,8 +682,8 @@ impl AutoOrthoApp {
                 let (shutdown_tx, shutdown_rx) = watch::channel(false);
                 self.shutdown_tx = Some(shutdown_tx);
 
-                let xplane_host = self.state.config.xplane_host.clone();
-                let xplane_port = self.state.config.xplane_port;
+                let xplane_host = self.state.config.network.xplane_host.clone();
+                let xplane_port = self.state.config.network.xplane_port;
                 let config = self.state.config.clone();
 
                 let (result_tx, result_rx) = oneshot::channel();
@@ -999,7 +999,7 @@ impl AutoOrthoApp {
                     .unwrap_or(151.21);
                 let zoom = self.state.dev_test.test_tile_zoom;
                 let provider_name = self.state.config.tile.provider.clone();
-                let rate_limit = self.state.config.rate_limit.requests_per_second;
+                let rate_limit = self.state.config.network.rate_limit.requests_per_second;
 
                 let (tx, rx) = oneshot::channel();
                 let rt = self.runtime.clone();
@@ -1150,8 +1150,8 @@ impl AutoOrthoApp {
                     return Task::none();
                 }
                 self.window_events_locked_until = None;
-                self.state.config.window_x = Some(pos.x);
-                self.state.config.window_y = Some(pos.y);
+                self.state.config.ui.window_x = Some(pos.x);
+                self.state.config.ui.window_y = Some(pos.y);
                 let _ = self.state.config.save();
             }
             Message::WindowResized(size) => {
@@ -1163,18 +1163,18 @@ impl AutoOrthoApp {
                 }
                 self.window_events_locked_until = None;
                 // Save size divided by UI scale so resize() can apply it cleanly
-                let scale = self.state.config.ui_scale as f32;
-                self.state.config.window_width = Some(size.width / scale);
-                self.state.config.window_height = Some(size.height / scale);
+                let scale = self.state.config.ui.ui_scale as f32;
+                self.state.config.ui.window_width = Some(size.width / scale);
+                self.state.config.ui.window_height = Some(size.height / scale);
                 let _ = self.state.config.save();
             }
             Message::WindowCloseRequested => {
                 log::info!(
                     "Window close: saving config with x={:?} y={:?} w={:?} h={:?}",
-                    self.state.config.window_x,
-                    self.state.config.window_y,
-                    self.state.config.window_width,
-                    self.state.config.window_height
+                    self.state.config.ui.window_x,
+                    self.state.config.ui.window_y,
+                    self.state.config.ui.window_width,
+                    self.state.config.ui.window_height
                 );
                 let _ = self.state.config.save();
                 if let Some(tx) = self.shutdown_tx.take() {
@@ -1235,7 +1235,7 @@ impl AutoOrthoApp {
     }
 
     fn scale_factor(&self) -> f32 {
-        (self.state.config.ui_scale as f32).clamp(0.5, 2.0)
+        (self.state.config.ui.ui_scale as f32).clamp(0.5, 2.0)
     }
 
     fn subscription(&self) -> Subscription<Message> {
@@ -1921,26 +1921,26 @@ pub fn run(runtime: tokio::runtime::Runtime) -> iced::Result {
     let config = crate::config::AutoOrthoConfig::load();
 
     let _size = iced::Size::new(
-        config.window_width.unwrap_or(900.0),
-        config.window_height.unwrap_or(900.0),
+        config.ui.window_width.unwrap_or(900.0),
+        config.ui.window_height.unwrap_or(900.0),
     );
 
-    let has_saved = config.window_x.is_some() && config.window_y.is_some();
+    let has_saved = config.ui.window_x.is_some() && config.ui.window_y.is_some();
     log::debug!(
         "Window config: x={:?} y={:?} w={:?} h={:?} has_saved={}",
-        config.window_x,
-        config.window_y,
-        config.window_width,
-        config.window_height,
+        config.ui.window_x,
+        config.ui.window_y,
+        config.ui.window_width,
+        config.ui.window_height,
         has_saved
     );
 
     // Store geometry for the Opened event handler to apply
     SAVED_WINDOW_GEOM.lock().replace((
-        config.window_x,
-        config.window_y,
-        config.window_width,
-        config.window_height,
+        config.ui.window_x,
+        config.ui.window_y,
+        config.ui.window_width,
+        config.ui.window_height,
     ));
     HAS_SAVED_GEOM.store(has_saved, std::sync::atomic::Ordering::Relaxed);
 
@@ -2010,16 +2010,16 @@ fn generate_route_tiles(
 
     for (fix_idx, fix) in fixes.iter().enumerate() {
         let is_airport = fix_idx == 0 || fix_idx == fixes.len() - 1;
-        let radius_nm = if is_airport && config.prefetch_airports {
-            config.airport_radius_nm as f64
+        let radius_nm = if is_airport && config.flight.prefetch_airports {
+            config.flight.airport_radius_nm as f64
         } else {
-            config.route_prefetch_radius_nm as f64
+            config.flight.route_prefetch_radius_nm as f64
         };
 
         if let Ok((center_col, center_row)) =
-            TileCoords::latlng_to_tile(fix.lat, fix.lon, config.near_airport_zoom)
+            TileCoords::latlng_to_tile(fix.lat, fix.lon, config.flight.near_airport_zoom)
         {
-            let tiles_per_nm = 2_f64.powi(config.near_airport_zoom as i32) / 360.0 / 60.0;
+            let tiles_per_nm = 2_f64.powi(config.flight.near_airport_zoom as i32) / 360.0 / 60.0;
             let radius_tiles = (radius_nm * tiles_per_nm).ceil() as i32;
 
             for dr in -radius_tiles..=radius_tiles {
@@ -2077,13 +2077,16 @@ async fn prefetch_route_impl(
     let fetcher = TileFetcher::with_rate_limit(
         provider,
         &config.tile.provider,
-        config.rate_limit.requests_per_second,
+        config.network.rate_limit.requests_per_second,
     );
 
     // Create DDS cache
     let cache_dir = std::path::PathBuf::from(&config.cache_dir).join("dds");
-    let mut cache = DdsCache::open(cache_dir.clone(), config.dds_cache_size_mb * 1024 * 1024)
-        .map_err(|e| format!("Failed to open DDS cache: {}", e))?;
+    let mut cache = DdsCache::open(
+        cache_dir.clone(),
+        config.cache.dds_cache_size_mb * 1024 * 1024,
+    )
+    .map_err(|e| format!("Failed to open DDS cache: {}", e))?;
 
     // Track which tiles we've handled (promoted or fetched)
     let mut promoted_count = 0u32;
@@ -2100,7 +2103,7 @@ async fn prefetch_route_impl(
         let key = DdsCache::tile_key(
             dds_col,
             dds_row,
-            config.near_airport_zoom,
+            config.flight.near_airport_zoom,
             &config.tile.provider,
         );
 
@@ -2119,14 +2122,19 @@ async fn prefetch_route_impl(
     let route_key_set: std::collections::HashSet<String> = route_tiles
         .iter()
         .map(|&(row, col)| {
-            DdsCache::tile_key(col, row, config.near_airport_zoom, &config.tile.provider)
+            DdsCache::tile_key(
+                col,
+                row,
+                config.flight.near_airport_zoom,
+                &config.tile.provider,
+            )
         })
         .collect();
     let tiles_to_fetch = route_tiles.len() as u32 - promoted_count;
     // Estimate ~10MB per tile (conservative), ensure space for at least some tiles
-    let bytes_needed =
-        (tiles_to_fetch as u64 * 10 * 1024 * 1024).min(config.dds_cache_size_mb * 1024 * 1024 / 2);
-    let free_bytes = config.dds_cache_size_mb * 1024 * 1024 - cache.size_bytes();
+    let bytes_needed = (tiles_to_fetch as u64 * 10 * 1024 * 1024)
+        .min(config.cache.dds_cache_size_mb * 1024 * 1024 / 2);
+    let free_bytes = config.cache.dds_cache_size_mb * 1024 * 1024 - cache.size_bytes();
     if free_bytes < bytes_needed {
         let evicted = cache.evict_non_route_tiles(&route_key_set, bytes_needed - free_bytes);
         log::info!("Evicted {} non-route tiles to make space", evicted);
@@ -2145,17 +2153,17 @@ async fn prefetch_route_impl(
 
         // Determine radius: airport radius for origin/destination, waypoint radius for others
         let is_airport = fix_idx == 0 || fix_idx == fixes.len() - 1;
-        let radius_nm = if is_airport && config.prefetch_airports {
-            config.airport_radius_nm as f64
+        let radius_nm = if is_airport && config.flight.prefetch_airports {
+            config.flight.airport_radius_nm as f64
         } else {
-            config.route_prefetch_radius_nm as f64
+            config.flight.route_prefetch_radius_nm as f64
         };
 
         // Convert fix position to tile coordinates
         let (center_col, center_row) = match crate::tiles::coords::TileCoords::latlng_to_tile(
             fix.lat,
             fix.lon,
-            config.near_airport_zoom,
+            config.flight.near_airport_zoom,
         ) {
             Ok(coords) => coords,
             Err(_) => {
@@ -2165,7 +2173,7 @@ async fn prefetch_route_impl(
         };
 
         // Calculate radius in tiles
-        let tiles_per_nm = 2_f64.powi(config.near_airport_zoom as i32) / 360.0 / 60.0;
+        let tiles_per_nm = 2_f64.powi(config.flight.near_airport_zoom as i32) / 360.0 / 60.0;
         let radius_tiles = (radius_nm * tiles_per_nm).ceil() as i32;
 
         // Generate DDS tiles in this radius
@@ -2221,7 +2229,7 @@ async fn prefetch_route_impl(
                             chunk_row,
                             chunk_col,
                             &config.tile.provider,
-                            config.near_airport_zoom,
+                            config.flight.near_airport_zoom,
                         )
                         .await
                     {
@@ -2254,7 +2262,7 @@ async fn prefetch_route_impl(
             let key = DdsCache::tile_key(
                 dds_col,
                 dds_row,
-                config.near_airport_zoom,
+                config.flight.near_airport_zoom,
                 &config.tile.provider,
             );
             let metadata = crate::pipeline::cache::DdsCacheMetadata {
@@ -2262,8 +2270,8 @@ async fn prefetch_route_impl(
                 w: 4096,
                 h: 4096,
                 mm: result.mipmap_count,
-                zl: config.near_airport_zoom,
-                max_zl: config.near_airport_zoom,
+                zl: config.flight.near_airport_zoom,
+                max_zl: config.flight.near_airport_zoom,
                 fmt: if config.tile.max_zoom >= 18 {
                     "BC3".to_string()
                 } else {
@@ -2430,7 +2438,7 @@ mod tests {
         // Use temp directory for cache to avoid polluting user environment
         config.cache_dir = TempDir::new().unwrap().path().to_string_lossy().to_string();
         // Disable DDS cache for test to avoid filesystem operations
-        config.enable_dds_cache = false;
+        config.cache.enable_dds_cache = false;
 
         let (_shutdown_tx, shutdown_rx) = watch::channel(false);
 
@@ -2455,7 +2463,7 @@ mod tests {
         // Use temp directory for cache to avoid polluting user environment
         config.cache_dir = TempDir::new().unwrap().path().to_string_lossy().to_string();
         // Disable DDS cache for test to avoid filesystem operations
-        config.enable_dds_cache = false;
+        config.cache.enable_dds_cache = false;
 
         let (_shutdown_tx, shutdown_rx) = watch::channel(false);
 
@@ -2581,10 +2589,10 @@ mod tests {
         use crate::xplane::simbrief::{FlightFix, FlightPlan};
 
         let mut config = AutoOrthoConfig::default();
-        config.near_airport_zoom = 14;
-        config.route_prefetch_radius_nm = 10;
-        config.airport_radius_nm = 10;
-        config.prefetch_airports = true;
+        config.flight.near_airport_zoom = 14;
+        config.flight.route_prefetch_radius_nm = 10;
+        config.flight.airport_radius_nm = 10;
+        config.flight.prefetch_airports = true;
 
         // Two fixes very close together — should produce overlapping tiles
         let flight_plan = FlightPlan {
@@ -2638,10 +2646,10 @@ mod tests {
         use crate::xplane::simbrief::{FlightFix, FlightPlan};
 
         let mut config = AutoOrthoConfig::default();
-        config.near_airport_zoom = 14;
-        config.route_prefetch_radius_nm = 5;
-        config.airport_radius_nm = 20;
-        config.prefetch_airports = true;
+        config.flight.near_airport_zoom = 14;
+        config.flight.route_prefetch_radius_nm = 5;
+        config.flight.airport_radius_nm = 20;
+        config.flight.prefetch_airports = true;
 
         let flight_plan = FlightPlan {
             origin: "KLAX".to_string(),

@@ -282,7 +282,7 @@ impl AppState {
             return false;
         }
 
-        if self.config.xplane_port == 0 {
+        if self.config.network.xplane_port == 0 {
             self.set_error("X-Plane port must be greater than 0".to_string());
             return false;
         }
@@ -347,7 +347,7 @@ mod tests {
     #[test]
     fn test_validate_xplane_port() {
         let mut state = AppState::new();
-        state.config.xplane_port = 0;
+        state.config.network.xplane_port = 0;
         assert!(!state.validate_config());
     }
 
@@ -357,7 +357,7 @@ mod tests {
         state.config.xplane_path = "/home/user/X-Plane 12".to_string();
         state.config.tile.min_zoom = 10;
         state.config.tile.max_zoom = 18;
-        state.config.xplane_port = 49000;
+        state.config.network.xplane_port = 49000;
         assert!(state.validate_config());
         assert_eq!(state.error_message, None);
     }

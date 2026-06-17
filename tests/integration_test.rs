@@ -13,7 +13,7 @@ use tempfile::TempDir;
 fn test_full_pipeline_config() {
     let config = AutoOrthoConfig::default();
     assert_eq!(config.tile.provider, "ARC");
-    assert!(config.enable_night_exclusion);
+    assert!(config.night.enable_night_exclusion);
 }
 
 #[test]
