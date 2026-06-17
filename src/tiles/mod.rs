@@ -11,6 +11,7 @@ pub mod prefetch;
 pub mod provider;
 pub mod rate_limiter;
 pub mod tile;
+pub mod tile_cache;
 pub mod zoom;
 
 pub use zoom::ZoomRule;
