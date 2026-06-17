@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.51](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.50...autoortho-v0.8.51) (2026-06-17)
+
+
+### Code Refactoring
+
+* **tiles:** add TileFetcherBuilder for TileFetcher construction ([#454](https://github.com/egeland/autoortho-rs/issues/454)) ([b86bcd3](https://github.com/egeland/autoortho-rs/commit/b86bcd3ad0a4c38cd2f686584aa0724e4e6567ae))
+
 ## [0.8.50](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.49...autoortho-v0.8.50) (2026-06-17)
 
 
