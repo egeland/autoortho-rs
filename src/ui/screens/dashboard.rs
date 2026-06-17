@@ -79,7 +79,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     let flight_plan_section = {
         let mut section = column![text("Flight Plan").size(18), rule::horizontal(1),].spacing(6);
 
-        if state.config.simbrief_user_id.is_empty() {
+        if state.config.flight.simbrief_user_id.is_empty() {
             section = section.push(
                 text("Set SimBrief User ID in Settings to fetch flight plans.")
                     .size(13)
@@ -239,7 +239,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         config_row("Cache Dir:", state.config.cache_dir.clone()),
         config_row(
             "Night Exclusion:",
-            if state.config.enable_night_exclusion {
+            if state.config.night.enable_night_exclusion {
                 "Enabled".into()
             } else {
                 "Disabled".into()
@@ -247,7 +247,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         ),
         config_row(
             "Season:",
-            match state.config.season {
+            match state.config.season_cfg.season {
                 crate::config::Season::Disabled => "Disabled".into(),
                 crate::config::Season::Spring => "Spring".into(),
                 crate::config::Season::Summer => "Summer".into(),

@@ -38,7 +38,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // X-Plane host
     let host_row = row![
         text("X-Plane Host:").width(Length::Fixed(140.0)),
-        text_input("127.0.0.1", &state.config.xplane_host)
+        text_input("127.0.0.1", &state.config.network.xplane_host)
             .on_input(Message::SetXPlaneHost)
             .width(Length::Fixed(200.0)),
     ]
@@ -48,7 +48,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     // X-Plane port
     let port_row = row![
         text("X-Plane Port:").width(Length::Fixed(140.0)),
-        text_input("49000", &state.config.xplane_port.to_string())
+        text_input("49000", &state.config.network.xplane_port.to_string())
             .on_input(Message::SetXPlanePort)
             .width(Length::Fixed(100.0)),
     ]

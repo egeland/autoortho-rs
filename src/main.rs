@@ -41,7 +41,7 @@ fn init_logger(
     std::fs::create_dir_all(&log_dir)?;
 
     let file_appender: tracing_appender::rolling::RollingFileAppender =
-        match config.log_rotation.as_str() {
+        match config.ui.log_rotation.as_str() {
             "hourly" => rolling::hourly(log_dir, "autoortho"),
             "never" => rolling::never(log_dir, "autoortho"),
             _ => rolling::daily(log_dir, "autoortho"),
@@ -49,7 +49,7 @@ fn init_logger(
 
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
 
-    let level = if config.debug_mode {
+    let level = if config.ui.debug_mode {
         tracing::Level::DEBUG
     } else {
         tracing::Level::INFO
@@ -63,7 +63,10 @@ fn init_logger(
 
     tracing::subscriber::set_global_default(subscriber)?;
 
-    tracing::info!("Logger initialized, log_rotation={}", config.log_rotation);
+    tracing::info!(
+        "Logger initialized, log_rotation={}",
+        config.ui.log_rotation
+    );
     Ok(guard)
 }
 
@@ -411,21 +414,21 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     // Night exclusion: poll sun_pitch from the dataref tracker and update the
     // filesystem's night exclusion flag accordingly.
     let fs = context.fs.clone();
-    if config_snapshot.enable_night_exclusion {
+    if config_snapshot.night.enable_night_exclusion {
         let night_flag = fs.night_exclusion_flag();
         let tracker_for_night = tracker.clone();
         start_night_exclusion_monitor(
             night_flag,
             tracker_for_night,
-            config_snapshot.night_threshold,
-            config_snapshot.day_threshold,
+            config_snapshot.night.night_threshold,
+            config_snapshot.night.day_threshold,
         );
     } else {
         info!("Night exclusion disabled");
     }
 
     // SimBrief route prefetch: if user_id is configured, fetch flight plan and start prefetch
-    let simbrief_user_id = config_snapshot.simbrief_user_id.clone();
+    let simbrief_user_id = config_snapshot.flight.simbrief_user_id.clone();
     if !simbrief_user_id.is_empty() {
         let config = context.config.clone();
         let fetcher = context.fetcher.clone();
@@ -531,16 +534,16 @@ async fn run_simbrief_prefetch(
         use_simbrief_altitude,
         route_consideration_radius_nm,
     ) = (
-        config_snapshot.prefetch_route_percent,
-        config_snapshot.route_prefetch_radius_nm,
-        config_snapshot.airport_radius_nm,
-        config_snapshot.prefetch_airports,
+        config_snapshot.flight.prefetch_route_percent,
+        config_snapshot.flight.route_prefetch_radius_nm,
+        config_snapshot.flight.airport_radius_nm,
+        config_snapshot.flight.prefetch_airports,
         config_snapshot.tile.max_zoom,
         config_snapshot.tile.zoom_rules.clone(),
         config_snapshot.tile.provider.clone(),
         config_snapshot.tile.enable_dynamic_zoom,
-        config_snapshot.use_simbrief_altitude,
-        config_snapshot.route_consideration_radius_nm as f64,
+        config_snapshot.flight.use_simbrief_altitude,
+        config_snapshot.flight.route_consideration_radius_nm as f64,
     );
 
     let mut prefetcher = SpatialPrefetcher::new();

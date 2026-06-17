@@ -49,9 +49,9 @@ impl AppContext {
             &config.tile.provider,
         ));
 
-        let dds_cache = if config.enable_dds_cache {
+        let dds_cache = if config.cache.enable_dds_cache {
             let cache_dir = PathBuf::from(&config.cache_dir).join("dds");
-            match DdsCache::open(cache_dir, config.dds_cache_size_mb * 1024 * 1024) {
+            match DdsCache::open(cache_dir, config.cache.dds_cache_size_mb * 1024 * 1024) {
                 Ok(cache) => Some(Arc::new(ParkMutex::new(cache))),
                 Err(_) => None,
             }
