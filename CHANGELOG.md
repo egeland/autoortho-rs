@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.52](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.51...autoortho-v0.8.52) (2026-06-17)
+
+
+### Code Refactoring
+
+* **tiles:** add AssemblyPipeline trait for tile assembly ([#456](https://github.com/egeland/autoortho-rs/issues/456)) ([1cfe4e5](https://github.com/egeland/autoortho-rs/commit/1cfe4e5a467d7abe918cb288f9f1b2263df36894))
+
 ## [0.8.51](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.50...autoortho-v0.8.51) (2026-06-17)
 
 
