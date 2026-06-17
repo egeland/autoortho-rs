@@ -1,53 +1,11 @@
+pub use super::prefetch_state::{WaypointPrefetchProgress, WaypointPrefetchStatus};
+
 use crate::config::AutoOrthoConfig;
 use crate::scenery::paths::{
     custom_scenery_path, mount_dir, scenery_data_dir, scenery_install_dir,
 };
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-
-/// Prefetch status for a single waypoint/fix in the flight plan.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum WaypointPrefetchStatus {
-    NotStarted,
-    InProgress,
-    Completed,
-    Failed,
-}
-
-impl WaypointPrefetchStatus {
-    pub fn emoji(&self) -> &'static str {
-        match self {
-            Self::NotStarted => "⏳",
-            Self::InProgress => "🔄",
-            Self::Completed => "✅",
-            Self::Failed => "❌",
-        }
-    }
-}
-
-/// Shared waypoint prefetch progress (read by UI, written by background task).
-#[derive(Debug, Default)]
-pub struct WaypointPrefetchProgress {
-    statuses: parking_lot::Mutex<Vec<WaypointPrefetchStatus>>,
-}
-
-impl WaypointPrefetchProgress {
-    pub fn new() -> Self {
-        Self::default()
-    }
-    pub fn init(&self, count: usize) {
-        *self.statuses.lock() = vec![WaypointPrefetchStatus::NotStarted; count];
-    }
-    pub fn set(&self, index: usize, status: WaypointPrefetchStatus) {
-        let mut s = self.statuses.lock();
-        if index < s.len() {
-            s[index] = status;
-        }
-    }
-    pub fn get_all(&self) -> Vec<WaypointPrefetchStatus> {
-        self.statuses.lock().clone()
-    }
-}
 
 /// Shared tile progress state for the status bar.
 /// Updated by DdsFileSystem during tile generation, read by UI.
@@ -178,15 +136,7 @@ pub struct AppState {
     pub dev_test: crate::ui::dev_test_state::DevTestState,
 
     // Route prefetch state
-    pub prefetch_running: bool,
-    pub prefetch_status: Option<String>,
-    pub prefetch_completed: u32,
-    pub prefetch_total: u32,
-    pub prefetch_cancel: Option<tokio_util::sync::CancellationToken>,
-    /// Shared progress tracker (written by background task, read by Tick)
-    pub waypoint_prefetch_progress: Arc<WaypointPrefetchProgress>,
-    /// Snapshot of per-waypoint status for display in view
-    pub prefetch_waypoint_status: Vec<WaypointPrefetchStatus>,
+    pub prefetch: crate::ui::prefetch_state::PrefetchState,
 
     // Tile progress (shared with DdsFileSystem)
     pub tile_progress: Arc<TileProgress>,
@@ -239,13 +189,7 @@ impl AppState {
             simbrief_flight_plan: None,
             simbrief_coverage_warning: None,
             dev_test: crate::ui::dev_test_state::DevTestState::new(),
-            prefetch_running: false,
-            prefetch_status: None,
-            prefetch_completed: 0,
-            prefetch_total: 0,
-            prefetch_cancel: None,
-            waypoint_prefetch_progress: Arc::new(WaypointPrefetchProgress::new()),
-            prefetch_waypoint_status: Vec::new(),
+            prefetch: crate::ui::prefetch_state::PrefetchState::new(),
             tile_progress: Arc::new(TileProgress::new()),
         }
     }
@@ -437,9 +381,9 @@ mod tests {
     #[test]
     fn test_prefetch_state_defaults() {
         let state = AppState::new();
-        assert!(!state.prefetch_running);
-        assert!(state.prefetch_status.is_none());
-        assert_eq!(state.prefetch_completed, 0);
-        assert_eq!(state.prefetch_total, 0);
+        assert!(!state.prefetch.running);
+        assert!(state.prefetch.status.is_none());
+        assert_eq!(state.prefetch.completed, 0);
+        assert_eq!(state.prefetch.total, 0);
     }
 }
