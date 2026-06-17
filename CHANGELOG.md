@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.46](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.45...autoortho-v0.8.46) (2026-06-17)
+
+
+### Code Refactoring
+
+* **fuse:** extract TileCache from DdsFileSystem ([#444](https://github.com/egeland/autoortho-rs/issues/444)) ([479f318](https://github.com/egeland/autoortho-rs/commit/479f31882af5ba2d9c28c9550b10a13c1e545b3c))
+
 ## [0.8.45](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.44...autoortho-v0.8.45) (2026-06-17)
 
 
