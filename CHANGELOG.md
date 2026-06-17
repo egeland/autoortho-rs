@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.53](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.52...autoortho-v0.8.53) (2026-06-17)
+
+
+### Code Refactoring
+
+* **config:** split AutoOrthoConfig into sub-configs ([#458](https://github.com/egeland/autoortho-rs/issues/458)) ([6646b81](https://github.com/egeland/autoortho-rs/commit/6646b81646f3cf50072d96fa935cd7309605a772))
+
 ## [0.8.52](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.51...autoortho-v0.8.52) (2026-06-17)
 
 
