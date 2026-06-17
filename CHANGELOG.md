@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.49](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.48...autoortho-v0.8.49) (2026-06-17)
+
+
+### Code Refactoring
+
+* **ui:** extract SceneryState from AppState ([#450](https://github.com/egeland/autoortho-rs/issues/450)) ([2933795](https://github.com/egeland/autoortho-rs/commit/29337958ce14735ee1920bc415d7f0300948c8a7))
+
 ## [0.8.48](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.47...autoortho-v0.8.48) (2026-06-17)
 
 
