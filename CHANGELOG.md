@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.50](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.49...autoortho-v0.8.50) (2026-06-17)
+
+
+### Code Refactoring
+
+* **ui:** extract PrefetchState from AppState ([#452](https://github.com/egeland/autoortho-rs/issues/452)) ([50e4ce7](https://github.com/egeland/autoortho-rs/commit/50e4ce76ffed92983de5804cac16564cbde0fe77))
+
 ## [0.8.49](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.48...autoortho-v0.8.49) (2026-06-17)
 
 
