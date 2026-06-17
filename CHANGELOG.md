@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.45](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.44...autoortho-v0.8.45) (2026-06-17)
+
+
+### Features
+
+* **services:** add CacheService, FallbackService, and StatsService traits ([#442](https://github.com/egeland/autoortho-rs/issues/442)) ([d443639](https://github.com/egeland/autoortho-rs/commit/d443639c31120ba645e4e0cea0152a61d4449c81))
+
 ## [0.8.44](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.43...autoortho-v0.8.44) (2026-06-16)
 
 
