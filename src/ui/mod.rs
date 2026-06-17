@@ -13,6 +13,7 @@ use tokio::sync::{oneshot, watch};
 
 pub mod dev_test_state;
 pub mod handlers;
+pub mod service_state;
 use crate::scenery::paths::mount_dir;
 use crate::tiles::provider;
 use crate::webui::custommap::CustomMapStore;
@@ -670,8 +671,8 @@ impl AutoOrthoApp {
                 handlers::set_debug_mode(&mut self.state, v);
             }
             Message::StartServices => {
-                self.state.web_server = ServiceStatus::Starting;
-                self.state.xplane_tracker = ServiceStatus::Starting;
+                self.state.services.web_server = ServiceStatus::Starting;
+                self.state.services.xplane_tracker = ServiceStatus::Starting;
                 self.state.clear_error();
 
                 // Create shutdown channel
@@ -716,21 +717,21 @@ impl AutoOrthoApp {
                 if let Some(tx) = self.shutdown_tx.take() {
                     let _ = tx.send(true);
                 }
-                self.state.web_server = ServiceStatus::Stopped;
-                self.state.web_server_url = None;
-                self.state.xplane_tracker = ServiceStatus::Stopped;
+                self.state.services.web_server = ServiceStatus::Stopped;
+                self.state.services.web_server_url = None;
+                self.state.services.xplane_tracker = ServiceStatus::Stopped;
             }
             Message::ServicesStarted(url, tracker, tile_progress, dds_cache) => {
-                self.state.web_server = ServiceStatus::Running;
-                self.state.web_server_url = Some(url);
-                self.state.xplane_tracker = ServiceStatus::Running;
+                self.state.services.web_server = ServiceStatus::Running;
+                self.state.services.web_server_url = Some(url);
+                self.state.services.xplane_tracker = ServiceStatus::Running;
                 self.state.tracker = tracker;
                 self.state.tile_progress = tile_progress;
                 self.state.dds_cache = dds_cache;
             }
             Message::ServicesFailed(err) => {
-                self.state.web_server = ServiceStatus::Error;
-                self.state.xplane_tracker = ServiceStatus::Error;
+                self.state.services.web_server = ServiceStatus::Error;
+                self.state.services.xplane_tracker = ServiceStatus::Error;
                 self.state.set_error(format!("Failed to start: {}", err));
             }
             Message::SetSceneryDownloadDir(v) => {
@@ -1180,9 +1181,9 @@ impl AutoOrthoApp {
                 if let Some(tracker) = &self.state.tracker {
                     let flight_data = tracker.get_flight_data();
                     if flight_data.connected && flight_data.data_valid {
-                        self.state.xplane_tracker = ServiceStatus::Running;
+                        self.state.services.xplane_tracker = ServiceStatus::Running;
                     } else {
-                        self.state.xplane_tracker = ServiceStatus::Stopped;
+                        self.state.services.xplane_tracker = ServiceStatus::Stopped;
                     }
                 }
 
@@ -1199,19 +1200,19 @@ impl AutoOrthoApp {
                 }
             }
             Message::OpenMapInBrowser => {
-                if let Some(ref url) = self.state.web_server_url {
+                if let Some(ref url) = self.state.services.web_server_url {
                     let map_url = format!("{}/map", url);
                     let _ = open::that(&map_url);
                 }
             }
             Message::OpenCustomMapEditor => {
-                if let Some(ref url) = self.state.web_server_url {
+                if let Some(ref url) = self.state.services.web_server_url {
                     let editor_url = format!("{}/custommap", url);
                     let _ = open::that(&editor_url);
                 }
             }
             Message::OpenWebUI => {
-                if let Some(ref url) = self.state.web_server_url {
+                if let Some(ref url) = self.state.services.web_server_url {
                     let _ = open::that(url);
                 }
             }
@@ -1306,12 +1307,12 @@ impl AutoOrthoApp {
         .width(Length::Fill);
 
         // --- Status bar ---
-        let web_color = if self.state.web_server.is_running() {
+        let web_color = if self.state.services.web_server.is_running() {
             iced::Color::from_rgb(0.3, 0.7, 0.3)
         } else {
             iced::Color::from_rgb(0.5, 0.5, 0.5)
         };
-        let xp_color = if self.state.xplane_tracker.is_running() {
+        let xp_color = if self.state.services.xplane_tracker.is_running() {
             iced::Color::from_rgb(0.3, 0.7, 0.3)
         } else {
             iced::Color::from_rgb(0.5, 0.5, 0.5)
@@ -1320,15 +1321,18 @@ impl AutoOrthoApp {
         let downloads_active = self.state.downloading_regions.len();
 
         let mut status_items = vec![
-            text(format!("Web: {}", self.state.web_server.label()))
+            text(format!("Web: {}", self.state.services.web_server.label()))
                 .size(11)
                 .color(web_color)
                 .into(),
             text("  ·  ").size(11).into(),
-            text(format!("X-Plane: {}", self.state.xplane_tracker.label()))
-                .size(11)
-                .color(xp_color)
-                .into(),
+            text(format!(
+                "X-Plane: {}",
+                self.state.services.xplane_tracker.label()
+            ))
+            .size(11)
+            .color(xp_color)
+            .into(),
             text("  ·  ").size(11).into(),
             text(format!("Provider: {}", self.state.config.tile.provider))
                 .size(11)
@@ -1395,7 +1399,7 @@ impl AutoOrthoApp {
             );
         }
 
-        if let Some(ref url) = self.state.web_server_url {
+        if let Some(ref url) = self.state.services.web_server_url {
             status_items.push(text("  ·  ").size(11).into());
             status_items.push(text(url.clone()).size(11).into());
         }
@@ -2345,9 +2349,9 @@ mod tests {
             std::sync::Arc::new(crate::ui::state::TileProgress::new()),
             None,
         ));
-        assert_eq!(app.state.web_server, ServiceStatus::Running);
-        assert_eq!(app.state.xplane_tracker, ServiceStatus::Running);
-        assert_eq!(app.state.web_server_url, Some(url));
+        assert_eq!(app.state.services.web_server, ServiceStatus::Running);
+        assert_eq!(app.state.services.xplane_tracker, ServiceStatus::Running);
+        assert_eq!(app.state.services.web_server_url, Some(url));
     }
 
     #[test]
@@ -2355,7 +2359,7 @@ mod tests {
         setup_test_runtime();
         let mut app = AutoOrthoApp::new();
         let _ = app.update(Message::ServicesFailed("port in use".to_string()));
-        assert_eq!(app.state.web_server, ServiceStatus::Error);
+        assert_eq!(app.state.services.web_server, ServiceStatus::Error);
         assert!(app.state.error_message.is_some());
     }
 
@@ -2374,7 +2378,7 @@ mod tests {
 
         let _ = app.update(Message::StopServices);
         assert!(!app.state.any_service_running());
-        assert_eq!(app.state.web_server_url, None);
+        assert_eq!(app.state.services.web_server_url, None);
     }
 
     #[test]

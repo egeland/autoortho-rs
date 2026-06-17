@@ -18,7 +18,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         ]
         .spacing(8);
 
-        if state.web_server.is_running() {
+        if state.services.web_server.is_running() {
             btns = btns.push(
                 button(text(format!("{} Web UI", ICON_GLOBE)).size(13))
                     .padding([8, 16])
@@ -60,8 +60,12 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     };
 
     // --- Service status section ---
-    let web_status = status_indicator("Web Server", state.web_server, &state.web_server_url);
-    let xp_status = status_indicator("X-Plane Tracker", state.xplane_tracker, &None);
+    let web_status = status_indicator(
+        "Web Server",
+        state.services.web_server,
+        &state.services.web_server_url,
+    );
+    let xp_status = status_indicator("X-Plane Tracker", state.services.xplane_tracker, &None);
 
     let status_section = column![
         text("Services").size(18),

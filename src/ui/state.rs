@@ -139,29 +139,7 @@ pub enum Screen {
     Scenery,
 }
 
-/// Runtime service status
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ServiceStatus {
-    Stopped,
-    Starting,
-    Running,
-    Error,
-}
-
-impl ServiceStatus {
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::Stopped => "Stopped",
-            Self::Starting => "Starting...",
-            Self::Running => "Running",
-            Self::Error => "Error",
-        }
-    }
-
-    pub fn is_running(&self) -> bool {
-        matches!(self, Self::Running)
-    }
-}
+pub use super::service_state::ServiceStatus;
 
 /// Scenery region available for download (UI-friendly clone).
 #[derive(Debug, Clone)]
@@ -292,10 +270,8 @@ pub struct AppState {
     pub is_configured: bool,
     pub error_message: Option<String>,
 
-    // Runtime service status
-    pub web_server: ServiceStatus,
-    pub web_server_url: Option<String>,
-    pub xplane_tracker: ServiceStatus,
+    // Backend service status
+    pub services: crate::ui::service_state::ServiceState,
 
     // X-Plane dataref tracker for checking connection status
     pub tracker: Option<std::sync::Arc<crate::xplane::dataref::DatarefTracker>>,
@@ -380,9 +356,7 @@ impl AppState {
             scenery_status: None,
             scenery_refreshing: false,
             downloading_regions: Default::default(),
-            web_server: ServiceStatus::Stopped,
-            web_server_url: None,
-            xplane_tracker: ServiceStatus::Stopped,
+            services: crate::ui::service_state::ServiceState::new(),
             tracker: None,
             dds_cache_size_bytes: 0,
             dds_cache: None,
@@ -430,7 +404,7 @@ impl AppState {
 
     /// Whether any backend service is running
     pub fn any_service_running(&self) -> bool {
-        self.web_server.is_running() || self.xplane_tracker.is_running()
+        self.services.any_running()
     }
 
     /// Whether the scenery install directory looks like X-Plane's Custom Scenery folder
@@ -515,8 +489,8 @@ mod tests {
         assert!(
             state.current_screen == Screen::Dashboard || state.current_screen == Screen::Welcome
         );
-        assert_eq!(state.web_server, ServiceStatus::Stopped);
-        assert_eq!(state.xplane_tracker, ServiceStatus::Stopped);
+        assert_eq!(state.services.web_server, ServiceStatus::Stopped);
+        assert_eq!(state.services.xplane_tracker, ServiceStatus::Stopped);
     }
 
     #[test]
@@ -582,7 +556,7 @@ mod tests {
         let mut state = AppState::new();
         assert!(!state.any_service_running());
 
-        state.web_server = ServiceStatus::Running;
+        state.services.set_web_server(ServiceStatus::Running);
         assert!(state.any_service_running());
     }
 
