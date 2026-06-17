@@ -3,6 +3,7 @@
 
 pub mod apple_token;
 pub mod assembler;
+pub mod assembly_pipeline;
 pub mod chunk;
 pub mod coords;
 pub mod fallback;
