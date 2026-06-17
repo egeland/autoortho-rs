@@ -324,18 +324,8 @@ pub struct AppState {
     pub simbrief_flight_plan: Option<crate::xplane::simbrief::FlightPlan>,
     pub simbrief_coverage_warning: Option<String>,
 
-    // Developer test tile state
-    pub test_tile_lat: String,
-    pub test_tile_lon: String,
-    pub test_tile_zoom: u32,
-    pub test_tile_status: Option<String>,
-    pub test_tile_running: bool,
-    /// RGBA pixel data for the test tile preview (width, height, data)
-    pub test_tile_image: Option<(u32, u32, Vec<u8>)>,
-
-    // Developer fallback test state
-    pub test_fallback_running: bool,
-    pub test_fallback_result: Option<FallbackTestResult>,
+    // Developer test tile and fallback test state
+    pub dev_test: crate::ui::dev_test_state::DevTestState,
 
     // Route prefetch state
     pub prefetch_running: bool,
@@ -350,15 +340,6 @@ pub struct AppState {
 
     // Tile progress (shared with DdsFileSystem)
     pub tile_progress: Arc<TileProgress>,
-}
-
-#[derive(Debug, Clone)]
-pub struct FallbackTestResult {
-    pub found: bool,
-    pub fallback_zoom: Option<u32>,
-    pub requested_zoom: u32,
-    pub tile_key: String,
-    pub message: String,
 }
 
 impl AppState {
@@ -412,14 +393,7 @@ impl AppState {
             simbrief_error: None,
             simbrief_flight_plan: None,
             simbrief_coverage_warning: None,
-            test_tile_lat: String::new(),
-            test_tile_lon: String::new(),
-            test_tile_zoom: 10,
-            test_tile_status: None,
-            test_tile_running: false,
-            test_tile_image: None,
-            test_fallback_running: false,
-            test_fallback_result: None,
+            dev_test: crate::ui::dev_test_state::DevTestState::new(),
             prefetch_running: false,
             prefetch_status: None,
             prefetch_completed: 0,

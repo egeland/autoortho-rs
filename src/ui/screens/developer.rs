@@ -26,20 +26,24 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         provider_row(state),
         row![
             text("Latitude:").width(Length::Fixed(80.0)),
-            text_input("-33.86", &state.test_tile_lat)
+            text_input("-33.86", &state.dev_test.test_tile_lat)
                 .on_input(Message::SetTestLat)
                 .width(Length::Fixed(120.0)),
             text("Longitude:").width(Length::Fixed(80.0)),
-            text_input("151.21", &state.test_tile_lon)
+            text_input("151.21", &state.dev_test.test_tile_lon)
                 .on_input(Message::SetTestLon)
                 .width(Length::Fixed(120.0)),
         ]
         .spacing(6)
         .align_y(iced::Alignment::Center),
         row![
-            text(format!("Zoom: {}", state.test_tile_zoom)).width(Length::Fixed(80.0)),
-            slider(min_z..=max_z, state.test_tile_zoom, Message::SetTestZoom)
-                .width(Length::Fixed(300.0)),
+            text(format!("Zoom: {}", state.dev_test.test_tile_zoom)).width(Length::Fixed(80.0)),
+            slider(
+                min_z..=max_z,
+                state.dev_test.test_tile_zoom,
+                Message::SetTestZoom
+            )
+            .width(Length::Fixed(300.0)),
             text(format!("{}", min_z)).size(12),
             text("—").size(12),
             text(format!("{}", max_z)).size(12),
@@ -50,7 +54,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     ]
     .spacing(6);
 
-    let fetch_button = if state.test_tile_running {
+    let fetch_button = if state.dev_test.test_tile_running {
         button(text("Fetching...").size(14)).padding([10, 24])
     } else {
         button(text("Fetch Test Tile").size(14))
@@ -60,38 +64,40 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     let action_row = row![fetch_button].spacing(12);
 
-    let status_text: Element<'_, Message> = if let Some(ref status) = state.test_tile_status {
-        let color = if status.starts_with("Error") || status.contains("failed") {
-            iced::Color::from_rgb(0.8, 0.1, 0.1)
-        } else if status.starts_with("Fetching") {
-            iced::Color::from_rgb(0.4, 0.4, 0.4)
+    let status_text: Element<'_, Message> =
+        if let Some(ref status) = state.dev_test.test_tile_status {
+            let color = if status.starts_with("Error") || status.contains("failed") {
+                iced::Color::from_rgb(0.8, 0.1, 0.1)
+            } else if status.starts_with("Fetching") {
+                iced::Color::from_rgb(0.4, 0.4, 0.4)
+            } else {
+                iced::Color::from_rgb(0.0, 0.5, 0.0)
+            };
+            text(status.clone()).size(13).color(color).into()
         } else {
-            iced::Color::from_rgb(0.0, 0.5, 0.0)
+            text("No test run yet.").size(13).into()
         };
-        text(status.clone()).size(13).color(color).into()
-    } else {
-        text("No test run yet.").size(13).into()
-    };
 
     // --- Image preview (constrained to fit) ---
-    let preview: Element<'_, Message> = if let Some((w, h, ref rgba)) = state.test_tile_image {
-        let handle = iced_image::Handle::from_rgba(w, h, rgba.clone());
-        let display_size = 400.0f32.min(w as f32);
-        column![
-            space::vertical().height(8),
-            text(format!("Preview ({}×{})", w, h)).size(14),
-            iced_image(handle)
-                .width(Length::Fixed(display_size))
-                .height(Length::Fixed(display_size)),
-        ]
-        .spacing(4)
-        .into()
-    } else {
-        space::vertical().height(0).into()
-    };
+    let preview: Element<'_, Message> =
+        if let Some((w, h, ref rgba)) = state.dev_test.test_tile_image {
+            let handle = iced_image::Handle::from_rgba(w, h, rgba.clone());
+            let display_size = 400.0f32.min(w as f32);
+            column![
+                space::vertical().height(8),
+                text(format!("Preview ({}×{})", w, h)).size(14),
+                iced_image(handle)
+                    .width(Length::Fixed(display_size))
+                    .height(Length::Fixed(display_size)),
+            ]
+            .spacing(4)
+            .into()
+        } else {
+            space::vertical().height(0).into()
+        };
 
     // --- Fallback Test Section ---
-    let fallback_button = if state.test_fallback_running {
+    let fallback_button = if state.dev_test.test_fallback_running {
         button(text("Testing...").size(14)).padding([10, 24])
     } else {
         button(text("Test Fallback Lookup").size(14))
@@ -100,7 +106,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     };
 
     let fallback_result_section: Element<'_, Message> =
-        if let Some(ref result) = state.test_fallback_result {
+        if let Some(ref result) = state.dev_test.test_fallback_result {
             let (found_color, found_text) = if result.found {
                 (iced::Color::from_rgb(0.0, 0.5, 0.0), "Found")
             } else {

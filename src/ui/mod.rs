@@ -11,6 +11,7 @@ use std::sync::atomic::Ordering;
 use tempfile::TempDir;
 use tokio::sync::{oneshot, watch};
 
+pub mod dev_test_state;
 pub mod handlers;
 use crate::scenery::paths::mount_dir;
 use crate::tiles::provider;
@@ -111,7 +112,7 @@ pub enum Message {
     TestTileComplete(String, Option<(u32, u32, Vec<u8>)>), // status, image RGBA
     TestTileFailed(String),
     TestFallbackLookup,
-    FallbackTestComplete(Option<crate::ui::state::FallbackTestResult>),
+    FallbackTestComplete(Option<crate::ui::dev_test_state::FallbackTestResult>),
 
     // Folder pickers
     BrowseXPlanePath,
@@ -949,31 +950,45 @@ impl AutoOrthoApp {
                 // Check for preset format: "lat|lon|keep" or "lat|lon|14"
                 if let Some((lat, rest)) = v.split_once('|') {
                     if let Some((lon, zoom_str)) = rest.split_once('|') {
-                        self.state.test_tile_lat = lat.to_string();
-                        self.state.test_tile_lon = lon.to_string();
+                        self.state
+                            .dev_test
+                            .set_tile_coords(lat.to_string(), lon.to_string());
                         // Only update zoom if it's a number (not "keep")
                         if let Ok(z) = zoom_str.parse::<u32>() {
-                            self.state.test_tile_zoom = z;
+                            self.state.dev_test.set_tile_zoom(z);
                         }
                     }
                 } else {
-                    self.state.test_tile_lat = v;
+                    self.state
+                        .dev_test
+                        .set_tile_coords(v, self.state.dev_test.test_tile_lon.clone());
                 }
             }
             Message::SetTestLon(v) => {
-                self.state.test_tile_lon = v;
+                self.state
+                    .dev_test
+                    .set_tile_coords(self.state.dev_test.test_tile_lat.clone(), v);
             }
             Message::SetTestZoom(v) => {
-                self.state.test_tile_zoom = v;
+                self.state.dev_test.set_tile_zoom(v);
             }
 
             Message::FetchTestTile => {
-                self.state.test_tile_running = true;
-                self.state.test_tile_status = Some("Fetching...".to_string());
+                self.state.dev_test.start_tile_test();
 
-                let lat = self.state.test_tile_lat.parse::<f64>().unwrap_or(-33.86);
-                let lon = self.state.test_tile_lon.parse::<f64>().unwrap_or(151.21);
-                let zoom = self.state.test_tile_zoom;
+                let lat = self
+                    .state
+                    .dev_test
+                    .test_tile_lat
+                    .parse::<f64>()
+                    .unwrap_or(-33.86);
+                let lon = self
+                    .state
+                    .dev_test
+                    .test_tile_lon
+                    .parse::<f64>()
+                    .unwrap_or(151.21);
+                let zoom = self.state.dev_test.test_tile_zoom;
                 let provider_name = self.state.config.tile.provider.clone();
                 let rate_limit = self.state.config.rate_limit.requests_per_second;
 
@@ -1012,20 +1027,26 @@ impl AutoOrthoApp {
                 );
             }
             Message::TestTileComplete(msg, image_data) => {
-                self.state.test_tile_running = false;
-                self.state.test_tile_status = Some(msg);
-                self.state.test_tile_image = image_data;
+                self.state.dev_test.complete_tile_test(msg, image_data);
             }
             Message::TestTileFailed(err) => {
-                self.state.test_tile_running = false;
-                self.state.test_tile_status = Some(format!("Error: {}", err));
-                self.state.test_tile_image = None;
+                self.state.dev_test.fail_tile_test(err);
             }
             Message::TestFallbackLookup => {
-                self.state.test_fallback_running = true;
-                let lat = self.state.test_tile_lat.parse::<f64>().unwrap_or(-33.86);
-                let lon = self.state.test_tile_lon.parse::<f64>().unwrap_or(151.21);
-                let zoom = self.state.test_tile_zoom;
+                self.state.dev_test.start_fallback_test();
+                let lat = self
+                    .state
+                    .dev_test
+                    .test_tile_lat
+                    .parse::<f64>()
+                    .unwrap_or(-33.86);
+                let lon = self
+                    .state
+                    .dev_test
+                    .test_tile_lon
+                    .parse::<f64>()
+                    .unwrap_or(151.21);
+                let zoom = self.state.dev_test.test_tile_zoom;
                 let cache_dir = std::path::PathBuf::from(&self.state.config.cache_dir);
                 let fallback_config = self.state.config.fallback.clone();
 
@@ -1044,8 +1065,13 @@ impl AutoOrthoApp {
                 );
             }
             Message::FallbackTestComplete(result) => {
-                self.state.test_fallback_running = false;
-                self.state.test_fallback_result = result;
+                if let Some(r) = result {
+                    self.state.dev_test.complete_fallback_test(r);
+                } else {
+                    self.state
+                        .dev_test
+                        .fail_fallback_test("No result".to_string());
+                }
             }
             Message::BrowseXPlanePath => {
                 return browse_folder("xplane_path", &self.state.config.xplane_path);
@@ -1651,7 +1677,7 @@ async fn test_fallback_lookup(
     zoom: u32,
     cache_dir: &std::path::Path,
     fallback_config: crate::config::FallbackConfig,
-) -> Option<crate::ui::state::FallbackTestResult> {
+) -> Option<crate::ui::dev_test_state::FallbackTestResult> {
     use crate::tiles::coords::TileCoords;
     use crate::tiles::fallback::FallbackSystem;
 
@@ -1662,7 +1688,7 @@ async fn test_fallback_lookup(
 
     let result = fb.find_fallback(row, col, maptype, zoom);
 
-    Some(crate::ui::state::FallbackTestResult {
+    Some(crate::ui::dev_test_state::FallbackTestResult {
         found: result.is_some(),
         fallback_zoom: result.as_ref().map(|r| r.1),
         requested_zoom: zoom,
