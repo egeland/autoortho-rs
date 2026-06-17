@@ -182,7 +182,7 @@ pub fn handle_download_progress(
 }
 
 pub fn handle_service_status(state: &AppState) -> ServiceStatus {
-    if state.web_server.is_running() {
+    if state.services.web_server.is_running() {
         return ServiceStatus::Running;
     }
     ServiceStatus::Stopped
