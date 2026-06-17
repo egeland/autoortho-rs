@@ -8,6 +8,60 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::RwLock;
 
+/// Default cache size (number of chunks).
+const DEFAULT_CACHE_SIZE: usize = 1024;
+
+/// Builder for creating `TileFetcher` instances with custom configuration.
+pub struct TileFetcherBuilder {
+    provider: Arc<dyn TileProvider>,
+    provider_id: String,
+    cache_size: usize,
+    rate_limit: Option<f64>,
+}
+
+impl TileFetcherBuilder {
+    /// Create a new builder with the given provider and ID.
+    pub fn new(provider: Arc<dyn TileProvider>, provider_id: &str) -> Self {
+        Self {
+            provider,
+            provider_id: provider_id.to_string(),
+            cache_size: DEFAULT_CACHE_SIZE,
+            rate_limit: None,
+        }
+    }
+
+    /// Set the cache size (number of chunks). Defaults to 1024.
+    pub fn cache_size(mut self, size: usize) -> Self {
+        self.cache_size = size;
+        self
+    }
+
+    /// Set the rate limit (requests per second). Defaults to system default.
+    pub fn rate_limit(mut self, rate: f64) -> Self {
+        self.rate_limit = Some(rate);
+        self
+    }
+
+    /// Build the `TileFetcher`.
+    pub fn build(self) -> TileFetcher {
+        let rate_limiter = match self.rate_limit {
+            Some(rate) => RateLimiter::new(rate),
+            None => RateLimiter::default_rate(),
+        };
+
+        TileFetcher {
+            chunks: Arc::new(RwLock::new(LruCache::new(
+                NonZero::new(self.cache_size.max(1)).unwrap(),
+            ))),
+            default_provider: self.provider,
+            default_provider_id: self.provider_id,
+            cache_hits: AtomicU64::new(0),
+            cache_misses: AtomicU64::new(0),
+            rate_limiter,
+        }
+    }
+}
+
 /// Manages concurrent tile fetching with per-chunk state tracking and bounded LRU cache.
 pub struct TileFetcher {
     chunks: Arc<RwLock<LruCache<String, Chunk>>>,
@@ -19,16 +73,14 @@ pub struct TileFetcher {
 }
 
 impl TileFetcher {
-    /// Create a new TileFetcher with default cache size (1024 entries).
+    /// Create a new TileFetcher with default settings.
     pub fn new(provider: Arc<dyn TileProvider>, default_provider_id: &str) -> Self {
-        Self {
-            chunks: Arc::new(RwLock::new(LruCache::new(NonZero::new(1024).unwrap()))),
-            default_provider: provider,
-            default_provider_id: default_provider_id.to_string(),
-            cache_hits: AtomicU64::new(0),
-            cache_misses: AtomicU64::new(0),
-            rate_limiter: RateLimiter::default_rate(),
-        }
+        TileFetcherBuilder::new(provider, default_provider_id).build()
+    }
+
+    /// Create a builder for custom configuration.
+    pub fn builder(provider: Arc<dyn TileProvider>, provider_id: &str) -> TileFetcherBuilder {
+        TileFetcherBuilder::new(provider, provider_id)
     }
 
     /// Create a new TileFetcher with a specific cache size and default provider ID.
@@ -71,14 +123,9 @@ impl TileFetcher {
         default_provider_id: &str,
         rate_per_second: f64,
     ) -> Self {
-        Self {
-            chunks: Arc::new(RwLock::new(LruCache::new(NonZero::new(1024).unwrap()))),
-            default_provider: provider,
-            default_provider_id: default_provider_id.to_string(),
-            cache_hits: AtomicU64::new(0),
-            cache_misses: AtomicU64::new(0),
-            rate_limiter: RateLimiter::new(rate_per_second),
-        }
+        TileFetcherBuilder::new(provider, default_provider_id)
+            .rate_limit(rate_per_second)
+            .build()
     }
 
     /// Get or create a chunk, returning its current data if cached.
@@ -365,5 +412,60 @@ mod tests {
         let stats = fetcher.cache_stats().await;
         assert_eq!(stats.hits, 1);
         assert_eq!(stats.misses, 1);
+    }
+
+    #[tokio::test]
+    async fn test_builder_default() {
+        let provider = Arc::new(MockProvider);
+        let fetcher = TileFetcher::builder(provider, "ARC").build();
+
+        let result = fetcher.get_chunk_data(0, 0, "BI", 16).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn test_builder_custom_cache_size() {
+        let provider = Arc::new(MockProvider);
+        let fetcher = TileFetcher::builder(provider, "ARC")
+            .cache_size(100)
+            .build();
+
+        assert_eq!(fetcher.cache_size().await, 0);
+
+        let _ = fetcher.get_chunk_data(0, 0, "BI", 16).await;
+        assert_eq!(fetcher.cache_size().await, 1);
+    }
+
+    #[tokio::test]
+    async fn test_builder_custom_rate_limit() {
+        let provider = Arc::new(MockProvider);
+        let fetcher = TileFetcher::builder(provider, "ARC")
+            .rate_limit(100.0)
+            .build();
+
+        let result = fetcher.get_chunk_data(0, 0, "BI", 16).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_builder_chaining() {
+        let provider = Arc::new(MockProvider);
+        let fetcher = TileFetcher::builder(provider, "ARC")
+            .cache_size(512)
+            .rate_limit(50.0)
+            .build();
+
+        let result = fetcher.get_chunk_data(100, 200, "GO2", 14).await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_with_rate_limit_uses_builder() {
+        let provider = Arc::new(MockProvider);
+        let fetcher = TileFetcher::with_rate_limit(provider, "ARC", 20.0);
+
+        let result = fetcher.get_chunk_data(0, 0, "BI", 16).await;
+        assert!(result.is_ok());
     }
 }
