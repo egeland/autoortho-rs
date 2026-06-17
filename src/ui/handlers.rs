@@ -13,15 +13,15 @@ use crate::ui::state::{AppState, DownloadState, ServiceStatus};
 
 pub fn handle_set_xplane_path(state: &mut AppState, path: String) {
     state.config.xplane_path = path.clone();
-    state.scenery_install_dir = scenery_install_dir(&path).to_string_lossy().into_owned();
-    state.scenery_data_dir = scenery_data_dir(&state.config.cache_dir)
+    state.scenery.install_dir = scenery_install_dir(&path).to_string_lossy().into_owned();
+    state.scenery.data_dir = scenery_data_dir(&state.config.cache_dir)
         .to_string_lossy()
         .into_owned();
 }
 
 pub fn handle_set_cache_dir(state: &mut AppState, dir: String) {
     state.config.cache_dir = dir.clone();
-    state.scenery_data_dir = scenery_data_dir(&dir).to_string_lossy().into_owned();
+    state.scenery.data_dir = scenery_data_dir(&dir).to_string_lossy().into_owned();
 }
 
 pub fn set_xplane_host(state: &mut AppState, host: String) {
@@ -164,7 +164,7 @@ pub fn set_scenery_download_dir(state: &mut AppState, v: String) {
 }
 
 pub fn set_scenery_download_dir_state(state: &mut AppState, v: String) {
-    state.scenery_download_dir = v;
+    state.scenery.download_dir = v;
 }
 
 pub fn handle_download_progress(
@@ -214,7 +214,7 @@ mod tests {
     #[test]
     fn test_set_xplane_path() {
         let mut state = AppState::new();
-        let old_data_dir = state.scenery_data_dir.clone();
+        let old_data_dir = state.scenery.data_dir.clone();
 
         let xplane_path = "/test/path";
         let expected_install = std::path::Path::new(xplane_path).join("Custom Scenery");
@@ -223,25 +223,25 @@ mod tests {
 
         assert_eq!(state.config.xplane_path, xplane_path);
         assert_eq!(
-            state.scenery_install_dir,
+            state.scenery.install_dir,
             expected_install.to_string_lossy()
         );
         // scenery_data_dir is based on cache_dir, not xplane_path
-        assert_eq!(state.scenery_data_dir, old_data_dir);
+        assert_eq!(state.scenery.data_dir, old_data_dir);
     }
 
     #[test]
     fn test_set_cache_dir_updates_scenery_data_dir() {
         let mut state = AppState::new();
-        let orig = state.scenery_data_dir.clone();
+        let orig = state.scenery.data_dir.clone();
         handle_set_cache_dir(&mut state, "/custom/cache".to_string());
         // scenery_data_dir should reflect new cache dir
         assert!(
-            state.scenery_data_dir.contains("/custom/cache"),
+            state.scenery.data_dir.contains("/custom/cache"),
             "scenery_data_dir should contain new cache dir, got: {}",
-            state.scenery_data_dir
+            state.scenery.data_dir
         );
-        assert_ne!(state.scenery_data_dir, orig);
+        assert_ne!(state.scenery.data_dir, orig);
     }
 
     #[test]

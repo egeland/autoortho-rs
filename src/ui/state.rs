@@ -139,128 +139,10 @@ pub enum Screen {
     Scenery,
 }
 
+pub use super::scenery_state::{
+    DownloadState, InstalledPackInfo, SceneryRegionInfo, SharedProgress,
+};
 pub use super::service_state::ServiceStatus;
-
-/// Scenery region available for download (UI-friendly clone).
-#[derive(Debug, Clone)]
-pub struct SceneryRegionInfo {
-    pub id: String,
-    pub name: String,
-    pub version: String,
-    pub package_count: usize,
-    pub total_size_bytes: u64,
-    /// Whether partial .tmp download files exist for this region
-    pub has_partial_download: bool,
-}
-
-/// Installed scenery pack info (UI-friendly clone).
-#[derive(Debug, Clone)]
-pub struct InstalledPackInfo {
-    pub id: String,
-    pub name: String,
-    pub version: String,
-}
-
-/// Shared progress counter for a download (thread-safe).
-pub type SharedProgress = std::sync::Arc<std::sync::atomic::AtomicU64>;
-
-/// State of an active download.
-#[derive(Debug, Clone)]
-pub struct DownloadState {
-    pub cancel: tokio_util::sync::CancellationToken,
-    /// Bytes downloaded so far (atomic, updated by download task)
-    pub bytes_downloaded: SharedProgress,
-    /// Total bytes expected
-    pub total_bytes: u64,
-    /// Current file being downloaded
-    pub current_file: std::sync::Arc<parking_lot::Mutex<String>>,
-    /// Number of files completed / total files
-    pub files_done: std::sync::Arc<std::sync::atomic::AtomicU32>,
-    pub files_total: u32,
-    /// Extraction progress - files extracted / total files in current zip
-    pub extract_files_done: std::sync::Arc<std::sync::atomic::AtomicU32>,
-    pub extract_files_total: std::sync::Arc<std::sync::atomic::AtomicU32>,
-    /// Whether extraction is in progress
-    pub extracting: std::sync::Arc<std::sync::atomic::AtomicBool>,
-    /// Pack progress - current pack number / total packs
-    pub pack_current: std::sync::Arc<std::sync::atomic::AtomicU32>,
-    pub pack_total: std::sync::Arc<std::sync::atomic::AtomicU32>,
-}
-
-impl DownloadState {
-    pub fn progress_percent(&self) -> f32 {
-        if self.total_bytes == 0 {
-            return 0.0;
-        }
-        let downloaded = self
-            .bytes_downloaded
-            .load(std::sync::atomic::Ordering::Relaxed);
-        (downloaded as f64 / self.total_bytes as f64 * 100.0) as f32
-    }
-
-    pub fn downloaded_mb(&self) -> f64 {
-        let downloaded = self
-            .bytes_downloaded
-            .load(std::sync::atomic::Ordering::Relaxed);
-        downloaded as f64 / 1_048_576.0
-    }
-
-    pub fn total_mb(&self) -> f64 {
-        self.total_bytes as f64 / 1_048_576.0
-    }
-
-    pub fn files_completed(&self) -> u32 {
-        self.files_done.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    pub fn extract_progress_percent(&self) -> f32 {
-        let total = self
-            .extract_files_total
-            .load(std::sync::atomic::Ordering::Relaxed);
-        if total == 0 {
-            return 0.0;
-        }
-        let done = self
-            .extract_files_done
-            .load(std::sync::atomic::Ordering::Relaxed);
-        (done as f32 / total as f32) * 100.0
-    }
-
-    pub fn is_extracting(&self) -> bool {
-        self.extracting.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    pub fn extract_files_completed(&self) -> u32 {
-        self.extract_files_done
-            .load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    pub fn extract_files_total(&self) -> u32 {
-        self.extract_files_total
-            .load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    pub fn pack_progress_percent(&self) -> f32 {
-        let total = self.pack_total.load(std::sync::atomic::Ordering::Relaxed);
-        if total == 0 {
-            return 0.0;
-        }
-        let current = self.pack_current.load(std::sync::atomic::Ordering::Relaxed);
-        (current as f32 / total as f32) * 100.0
-    }
-
-    pub fn pack_current(&self) -> u32 {
-        self.pack_current.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    pub fn pack_total(&self) -> u32 {
-        self.pack_total.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    pub fn current_filename(&self) -> String {
-        self.current_file.lock().clone()
-    }
-}
 
 /// Application state management (elm-inspired)
 #[derive(Debug, Clone)]
@@ -277,15 +159,7 @@ pub struct AppState {
     pub tracker: Option<std::sync::Arc<crate::xplane::dataref::DatarefTracker>>,
 
     // Scenery management
-    pub scenery_download_dir: String,
-    pub scenery_install_dir: String,
-    pub scenery_data_dir: String,
-    pub available_regions: Vec<SceneryRegionInfo>,
-    pub installed_packs: Vec<InstalledPackInfo>,
-    pub scenery_status: Option<String>,
-    pub scenery_refreshing: bool,
-    /// Region IDs currently being downloaded → (cancel token, progress)
-    pub downloading_regions: std::collections::HashMap<String, DownloadState>,
+    pub scenery: crate::ui::scenery_state::SceneryState,
 
     // Cache status
     pub dds_cache_size_bytes: u64,
@@ -348,14 +222,11 @@ impl AppState {
             config,
             is_configured,
             error_message: None,
-            scenery_download_dir,
-            scenery_install_dir,
-            scenery_data_dir,
-            available_regions: Vec::new(),
-            installed_packs: Vec::new(),
-            scenery_status: None,
-            scenery_refreshing: false,
-            downloading_regions: Default::default(),
+            scenery: crate::ui::scenery_state::SceneryState::with_dirs(
+                scenery_download_dir,
+                scenery_install_dir,
+                scenery_data_dir,
+            ),
             services: crate::ui::service_state::ServiceState::new(),
             tracker: None,
             dds_cache_size_bytes: 0,
@@ -386,13 +257,13 @@ impl AppState {
     pub fn run_startup_migration(&self) {
         let config = crate::config::AutoOrthoConfig::load();
         let old_dir = mount_dir(&config.xplane_path);
-        let new_dir = std::path::Path::new(&self.scenery_data_dir);
+        let new_dir = std::path::Path::new(&self.scenery.data_dir);
         match crate::scenery::installer::migrate_scenery(&old_dir, new_dir) {
             Ok(count) if count > 0 => {
                 log::info!(
                     "Migrated {} items from old scenery location to {}",
                     count,
-                    self.scenery_data_dir
+                    self.scenery.data_dir
                 );
             }
             Ok(_) => {}
@@ -420,7 +291,7 @@ impl AppState {
     /// Persist configuration to file
     pub fn save_config(&mut self) {
         // Sync scenery download dir into config before saving
-        self.config.scenery_download_dir = self.scenery_download_dir.clone();
+        self.config.scenery_download_dir = self.scenery.download_dir.clone();
 
         match self.config.save() {
             Ok(()) => {
@@ -436,10 +307,13 @@ impl AppState {
     /// Load configuration from file
     pub fn load_config(&mut self) {
         self.config = AutoOrthoConfig::load();
-        self.scenery_download_dir = self.config.scenery_download_dir.clone();
-        self.scenery_install_dir = scenery_install_dir(&self.config.xplane_path)
-            .to_string_lossy()
-            .into_owned();
+        self.scenery
+            .set_download_dir(self.config.scenery_download_dir.clone());
+        self.scenery.set_install_dir(
+            scenery_install_dir(&self.config.xplane_path)
+                .to_string_lossy()
+                .into_owned(),
+        );
         self.is_configured = true;
     }
 
