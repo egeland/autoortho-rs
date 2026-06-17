@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.48](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.47...autoortho-v0.8.48) (2026-06-17)
+
+
+### Code Refactoring
+
+* **ui:** extract ServiceState from AppState ([#448](https://github.com/egeland/autoortho-rs/issues/448)) ([5bcbaf2](https://github.com/egeland/autoortho-rs/commit/5bcbaf2629ef84f8770a0667957348b7b56616dc))
+
 ## [0.8.47](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.46...autoortho-v0.8.47) (2026-06-17)
 
 
