@@ -10,7 +10,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
 
     // --- Refresh + status ---
     let refresh_row = {
-        let btn = if state.scenery_refreshing {
+        let btn = if state.scenery.refreshing {
             button(text(format!("{} Refreshing...", helpers::ICON_REFRESH)).size(13))
                 .padding([8, 14])
         } else {
@@ -19,7 +19,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .on_press(Message::RefreshAvailableRegions)
         };
 
-        let status: Element<'_, Message> = match &state.scenery_status {
+        let status: Element<'_, Message> = match &state.scenery.status {
             Some(s) => {
                 let color = if s.starts_with("Error") {
                     iced::Color::from_rgb(0.8, 0.1, 0.1)
@@ -39,7 +39,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     };
 
     // --- Region list ---
-    let region_list = if state.available_regions.is_empty() && !state.scenery_refreshing {
+    let region_list = if state.scenery.available_regions.is_empty() && !state.scenery.refreshing {
         column![text("Click Refresh to check for available scenery packs.").size(14)]
     } else {
         let mut col = column![].spacing(2);
@@ -56,7 +56,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         );
         col = col.push(rule::horizontal(1));
 
-        for region in &state.available_regions {
+        for region in &state.scenery.available_regions {
             col = col.push(region_row(state, region));
         }
 
@@ -92,13 +92,14 @@ fn region_row<'a>(
     };
 
     let installed_ver = state
+        .scenery
         .installed_packs
         .iter()
         .find(|p| p.id == region.id)
         .map(|p| p.version.clone());
     let installed = installed_ver.is_some();
     let update_available = installed_ver.as_ref().is_some_and(|v| v != &region.version);
-    let downloading = state.downloading_regions.get(&region.id);
+    let downloading = state.scenery.downloading.get(&region.id);
 
     // Name column
     let name_col: Element<'a, Message> = column![

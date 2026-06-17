@@ -13,6 +13,7 @@ use tokio::sync::{oneshot, watch};
 
 pub mod dev_test_state;
 pub mod handlers;
+pub mod scenery_state;
 pub mod service_state;
 use crate::scenery::paths::mount_dir;
 use crate::tiles::provider;
@@ -639,6 +640,7 @@ impl AutoOrthoApp {
                 let xplane_dir = std::path::Path::new(&self.state.config.xplane_path);
                 let active_regions: Vec<String> = self
                     .state
+                    .scenery
                     .installed_packs
                     .iter()
                     .filter_map(|p| {
@@ -738,11 +740,11 @@ impl AutoOrthoApp {
                 handlers::set_scenery_download_dir_state(&mut self.state, v);
             }
             Message::RefreshAvailableRegions => {
-                self.state.scenery_refreshing = true;
-                self.state.scenery_status = Some("Fetching available regions...".to_string());
+                self.state.scenery.refreshing = true;
+                self.state.scenery.status = Some("Fetching available regions...".to_string());
 
-                let data_dir = self.state.scenery_data_dir.clone();
-                let download_dir = self.state.scenery_download_dir.clone();
+                let data_dir = self.state.scenery.data_dir.clone();
+                let download_dir = self.state.scenery.download_dir.clone();
                 let (tx, rx) = oneshot::channel();
                 let rt = self.runtime.clone();
 
@@ -760,17 +762,17 @@ impl AutoOrthoApp {
                 );
             }
             Message::RegionsLoaded(regions) => {
-                self.state.scenery_refreshing = false;
-                self.state.available_regions = regions;
-                self.state.scenery_status = Some(format!(
+                self.state.scenery.refreshing = false;
+                self.state.scenery.available_regions = regions;
+                self.state.scenery.status = Some(format!(
                     "Found {} regions available for download",
-                    self.state.available_regions.len()
+                    self.state.scenery.available_regions.len()
                 ));
                 // Also refresh installed packs
                 let packs = crate::scenery::installer::list_installed_packs(std::path::Path::new(
-                    &self.state.scenery_data_dir,
+                    &self.state.scenery.data_dir,
                 ));
-                self.state.installed_packs = packs
+                self.state.scenery.installed_packs = packs
                     .into_iter()
                     .map(|p| state::InstalledPackInfo {
                         id: p.id,
@@ -780,13 +782,14 @@ impl AutoOrthoApp {
                     .collect();
             }
             Message::RegionsLoadFailed(err) => {
-                self.state.scenery_refreshing = false;
-                self.state.scenery_status = Some(format!("Error: {}", err));
+                self.state.scenery.refreshing = false;
+                self.state.scenery.status = Some(format!("Error: {}", err));
             }
             Message::DownloadRegion(region_id) => {
                 // Calculate total size from available regions
                 let total_bytes = self
                     .state
+                    .scenery
                     .available_regions
                     .iter()
                     .find(|r| r.id == region_id)
@@ -794,6 +797,7 @@ impl AutoOrthoApp {
                     .unwrap_or(0);
                 let files_total = self
                     .state
+                    .scenery
                     .available_regions
                     .iter()
                     .find(|r| r.id == region_id)
@@ -815,12 +819,13 @@ impl AutoOrthoApp {
                     pack_total: Arc::new(std::sync::atomic::AtomicU32::new(0)),
                 };
                 self.state
-                    .downloading_regions
+                    .scenery
+                    .downloading
                     .insert(region_id.clone(), dl_state.clone());
-                self.state.scenery_status = Some(format!("Downloading {}...", region_id));
+                self.state.scenery.status = Some(format!("Downloading {}...", region_id));
 
-                let download_dir = self.state.scenery_download_dir.clone();
-                let data_dir = self.state.scenery_data_dir.clone();
+                let download_dir = self.state.scenery.download_dir.clone();
+                let data_dir = self.state.scenery.data_dir.clone();
                 let rid = region_id.clone();
                 let progress_bytes = dl_state.bytes_downloaded.clone();
                 let progress_file = dl_state.current_file.clone();
@@ -859,45 +864,46 @@ impl AutoOrthoApp {
                 );
             }
             Message::CancelDownload(region_id) => {
-                if let Some(dl) = self.state.downloading_regions.get(&region_id) {
+                if let Some(dl) = self.state.scenery.downloading.get(&region_id) {
                     dl.cancel.cancel();
                 }
-                self.state.scenery_status = Some(format!(
+                self.state.scenery.status = Some(format!(
                     "Cancelling {}... (partial files kept for resume)",
                     region_id
                 ));
             }
             Message::CleanRegionDownloads(region_id) => {
-                let download_dir = std::path::Path::new(&self.state.scenery_download_dir);
+                let download_dir = std::path::Path::new(&self.state.scenery.download_dir);
                 match crate::scenery::installer::clean_downloads(download_dir, &region_id) {
                     Ok(bytes) => {
                         if let Some(r) = self
                             .state
+                            .scenery
                             .available_regions
                             .iter_mut()
                             .find(|r| r.id == region_id)
                         {
                             r.has_partial_download = false;
                         }
-                        self.state.scenery_status = Some(format!(
+                        self.state.scenery.status = Some(format!(
                             "Cleaned {:.1} MB of downloads for {}",
                             bytes as f64 / 1_048_576.0,
                             region_id
                         ));
                     }
                     Err(e) => {
-                        self.state.scenery_status = Some(format!("Clean failed: {}", e));
+                        self.state.scenery.status = Some(format!("Clean failed: {}", e));
                     }
                 }
             }
             Message::UninstallRegion(region_id) => {
-                let data_dir = std::path::Path::new(&self.state.scenery_data_dir);
+                let data_dir = std::path::Path::new(&self.state.scenery.data_dir);
                 match crate::scenery::installer::uninstall_region(&region_id, data_dir) {
                     Ok(()) => {
-                        self.state.scenery_status = Some(format!("Uninstalled {}", region_id));
+                        self.state.scenery.status = Some(format!("Uninstalled {}", region_id));
                         // Refresh installed list
                         let packs = crate::scenery::installer::list_installed_packs(data_dir);
-                        self.state.installed_packs = packs
+                        self.state.scenery.installed_packs = packs
                             .into_iter()
                             .map(|p| state::InstalledPackInfo {
                                 id: p.id,
@@ -907,17 +913,17 @@ impl AutoOrthoApp {
                             .collect();
                     }
                     Err(e) => {
-                        self.state.scenery_status = Some(format!("Uninstall failed: {}", e));
+                        self.state.scenery.status = Some(format!("Uninstall failed: {}", e));
                     }
                 }
             }
             Message::DownloadComplete(region_id, msg) => {
-                self.state.downloading_regions.remove(&region_id);
-                self.state.scenery_status = Some(msg);
+                self.state.scenery.downloading.remove(&region_id);
+                self.state.scenery.status = Some(msg);
                 let packs = crate::scenery::installer::list_installed_packs(std::path::Path::new(
-                    &self.state.scenery_data_dir,
+                    &self.state.scenery.data_dir,
                 ));
-                self.state.installed_packs = packs
+                self.state.scenery.installed_packs = packs
                     .into_iter()
                     .map(|p| state::InstalledPackInfo {
                         id: p.id,
@@ -927,23 +933,24 @@ impl AutoOrthoApp {
                     .collect();
             }
             Message::DownloadFailed(region_id, err) => {
-                self.state.downloading_regions.remove(&region_id);
+                self.state.scenery.downloading.remove(&region_id);
                 if err.contains("Cancelled") {
                     // Mark as having partial download for Resume button
                     if let Some(r) = self
                         .state
+                        .scenery
                         .available_regions
                         .iter_mut()
                         .find(|r| r.id == region_id)
                     {
                         r.has_partial_download = true;
                     }
-                    self.state.scenery_status = Some(format!(
+                    self.state.scenery.status = Some(format!(
                         "{} cancelled. Click Resume to continue, or Clean for a fresh start.",
                         region_id
                     ));
                 } else {
-                    self.state.scenery_status =
+                    self.state.scenery.status =
                         Some(format!("Error downloading {}: {}", region_id, err));
                 }
             }
@@ -1081,7 +1088,7 @@ impl AutoOrthoApp {
                 return browse_folder("cache_dir", &self.state.config.cache_dir);
             }
             Message::BrowseSceneryDownloadDir => {
-                return browse_folder("scenery_download_dir", &self.state.scenery_download_dir);
+                return browse_folder("scenery_download_dir", &self.state.scenery.download_dir);
             }
             Message::FolderPicked(field, path) => match field.as_str() {
                 "xplane_path" => {
@@ -1090,7 +1097,7 @@ impl AutoOrthoApp {
                 "cache_dir" => {
                     handlers::handle_set_cache_dir(&mut self.state, path);
                 }
-                "scenery_download_dir" => self.state.scenery_download_dir = path,
+                "scenery_download_dir" => self.state.scenery.download_dir = path,
                 _ => {}
             },
             Message::WindowOpened(id) => {
@@ -1249,7 +1256,7 @@ impl AutoOrthoApp {
             .tile_progress
             .active
             .load(std::sync::atomic::Ordering::Relaxed);
-        if !self.state.downloading_regions.is_empty()
+        if !self.state.scenery.downloading.is_empty()
             || tile_progress_active
             || self.state.prefetch_running
         {
@@ -1318,7 +1325,7 @@ impl AutoOrthoApp {
             iced::Color::from_rgb(0.5, 0.5, 0.5)
         };
 
-        let downloads_active = self.state.downloading_regions.len();
+        let downloads_active = self.state.scenery.downloading.len();
 
         let mut status_items = vec![
             text(format!("Web: {}", self.state.services.web_server.label()))
@@ -1960,11 +1967,11 @@ fn boot() -> (AutoOrthoApp, Task<Message>) {
     app.state.run_startup_migration();
 
     // Auto-refresh scenery list on startup
-    app.state.scenery_refreshing = true;
-    app.state.scenery_status = Some("Loading available scenery packs...".to_string());
+    app.state.scenery.refreshing = true;
+    app.state.scenery.status = Some("Loading available scenery packs...".to_string());
 
-    let data_dir = app.state.scenery_data_dir.clone();
-    let download_dir = app.state.scenery_download_dir.clone();
+    let data_dir = app.state.scenery.data_dir.clone();
+    let download_dir = app.state.scenery.download_dir.clone();
     let (tx, rx) = oneshot::channel();
     let rt = app.runtime.clone();
 

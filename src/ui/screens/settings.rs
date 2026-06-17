@@ -79,7 +79,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
         tooltip(
             labeled_path_input(
                 "Scenery Downloads:",
-                &state.scenery_download_dir,
+                &state.scenery.download_dir,
                 Message::SetSceneryDownloadDir,
                 Message::BrowseSceneryDownloadDir
             ),
