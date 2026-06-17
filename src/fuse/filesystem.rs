@@ -13,16 +13,14 @@ use crate::tiles::coords::TileCoords;
 use crate::tiles::fallback::FallbackConfig;
 use crate::tiles::fallback::FallbackSystem;
 use crate::tiles::fetcher::TileFetcher;
+use crate::tiles::tile_cache::TileCache;
 use crate::tiles::zoom::ChunkGrid;
 use crate::ui::state::TileProgress;
 use crate::webui::custommap::CustomMapStore;
 use log::{debug, warn};
-use lru::LruCache;
-use parking_lot::RwLock;
 use std::borrow::Cow;
-use std::num::NonZero;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64};
+use std::sync::atomic::AtomicBool;
 use std::time::Instant;
 
 /// Virtual DDS filesystem implementation.
@@ -34,12 +32,8 @@ pub struct DdsFileSystem {
     parser: DdsPathParser,
     fetcher: Arc<TileFetcher>,
     format: DdsFormat,
-    /// In-memory LRU cache of generated DDS tiles (tile_key → DDS bytes)
-    /// Bounded by max_entries to prevent memory exhaustion
-    /// Uses RwLock for concurrent reads with exclusive writes
-    dds_cache: RwLock<LruCache<String, Arc<Vec<u8>>>>,
-    /// Persistent disk cache for DDS tiles (compressed with zstd)
-    disk_cache: Option<Arc<parking_lot::Mutex<DdsCache>>>,
+    /// Two-layer tile cache: memory LRU + disk (zstd-compressed)
+    tile_cache: Arc<TileCache>,
     /// Scenery root directory (for pass-through of real files)
     root: Option<std::path::PathBuf>,
     /// Night exclusion: when true, read_dds returns a solid-color fallback tile
@@ -51,10 +45,6 @@ pub struct DdsFileSystem {
     default_provider: String,
     /// Fallback system for missing tiles
     fallback: Option<Arc<FallbackSystem>>,
-    /// Cache statistics
-    cache_hits: AtomicU64,
-    cache_misses: AtomicU64,
-    cache_evictions: AtomicU64,
     /// Shared tile progress tracker for UI status bar
     tile_progress: Option<Arc<TileProgress>>,
     /// Shared stats store for web UI
@@ -135,22 +125,20 @@ impl DdsFileSystemBuilder {
     }
 
     pub fn build(self) -> DdsFileSystem {
+        let tile_cache = match self.disk_cache {
+            Some(dc) => Arc::new(TileCache::from_disk_arc(self.cache_entries, dc)),
+            None => Arc::new(TileCache::new(self.cache_entries)),
+        };
         DdsFileSystem {
             parser: self.parser,
             fetcher: self.fetcher,
             format: self.format,
-            dds_cache: RwLock::new(LruCache::new(
-                NonZero::new(self.cache_entries.max(1)).unwrap(),
-            )),
-            disk_cache: self.disk_cache,
+            tile_cache,
             root: self.root,
             night_exclusion: self.night_exclusion,
             custom_map: self.custom_map,
             default_provider: self.default_provider,
             fallback: self.fallback,
-            cache_hits: AtomicU64::new(0),
-            cache_misses: AtomicU64::new(0),
-            cache_evictions: AtomicU64::new(0),
             tile_progress: self.tile_progress,
             stats: self.stats,
         }
@@ -375,65 +363,18 @@ impl DdsFileSystem {
         let (row, col, maptype, zoom) = self.parser.parse(path)?;
         let tile_key = format!("{}_{}_{}_{}", row, col, maptype, zoom);
 
-        // Check in-memory cache first
-        {
-            let mut cache = self.dds_cache.write();
-            if let Some(dds) = cache.get(&tile_key) {
-                self.cache_hits
-                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                if let Some(ref stats) = self.stats {
-                    stats.record_cache_hit();
-                }
-                return Ok(slice_range(dds, offset, size).into_owned());
-            }
-            self.cache_misses
-                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        // Check tile cache (memory → disk → upserving)
+        if let Some(dds_arc) = self.tile_cache.get(&tile_key) {
             if let Some(ref stats) = self.stats {
-                stats.record_cache_miss();
+                stats.record_cache_hit();
             }
+            return Ok(slice_range(&dds_arc, offset, size).into_owned());
+        }
+        if let Some(ref stats) = self.stats {
+            stats.record_cache_miss();
         }
 
-        // Check disk cache for requested zoom
-        if let Some(ref dc) = self.disk_cache
-            && let Some((dds_data, _meta)) = dc.lock().get(&tile_key).ok()
-        {
-            debug!("DDS disk cache hit: {}", tile_key);
-            let arc = Arc::new(dds_data);
-            let mut mem_cache = self.dds_cache.write();
-            let was_full = mem_cache.len() >= mem_cache.cap().get();
-            mem_cache.push(tile_key, arc.clone());
-            if was_full {
-                self.cache_evictions
-                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            }
-            return Ok(slice_range(&arc, offset, size).into_owned());
-        }
-
-        // Try upserving: check if higher-zoom DDS is cached
-        if let Some(ref dc) = self.disk_cache {
-            let mut cache = dc.lock();
-            for higher_zoom in (zoom + 1)..=22 {
-                let upserve_key = format!("{}_{}_{}_{}", row, col, maptype, higher_zoom);
-                if let Ok((dds_data, _meta)) = cache.get(&upserve_key) {
-                    debug!(
-                        "DDS upserving from zoom {} to {}: {}",
-                        higher_zoom, zoom, upserve_key
-                    );
-                    let arc: Arc<Vec<u8>> = Arc::new(dds_data);
-                    let mut mem_cache = self.dds_cache.write();
-                    let was_full = mem_cache.len() >= mem_cache.cap().get();
-                    // Store at the requested zoom key so future requests work
-                    mem_cache.push(tile_key, arc.clone());
-                    if was_full {
-                        self.cache_evictions
-                            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-                    }
-                    return Ok(slice_range(&arc, offset, size).into_owned());
-                }
-            }
-        }
-
-        // Try fallback (downserve) if configured and no cache hit
+        // Try fallback if configured and no cache hit
         if let Some(fb) = &self.fallback
             && let Some((fallback_data, fallback_zoom)) = fb.find_fallback(row, col, &maptype, zoom)
         {
@@ -441,16 +382,9 @@ impl DdsFileSystem {
                 "DDS fallback from zoom {} to {}: {}_{}_{}_{}",
                 fallback_zoom, zoom, row, col, maptype, zoom
             );
-            let dds = fallback_data;
-            let arc = Arc::new(dds);
-            let mut mem_cache = self.dds_cache.write();
-            let was_full = mem_cache.len() >= mem_cache.cap().get();
-            mem_cache.push(tile_key, arc.clone());
-            if was_full {
-                self.cache_evictions
-                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            }
-            return Ok(slice_range(&arc, offset, size).into_owned());
+            self.tile_cache
+                .put_memory_only(tile_key, fallback_data.clone());
+            return Ok(slice_range(&fallback_data, offset, size).into_owned());
         }
 
         // Not cached — generate the DDS tile
@@ -471,69 +405,44 @@ impl DdsFileSystem {
                 row, col, maptype, zoom, result.chunks_failed
             );
             let fallback_dds = fb.solid_fallback(4096, self.format);
-            let arc = Arc::new(fallback_dds);
-            let mut mem_cache = self.dds_cache.write();
-            let was_full = mem_cache.len() >= mem_cache.cap().get();
-            mem_cache.push(tile_key, arc.clone());
-            if was_full {
-                self.cache_evictions
-                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            }
-            return Ok(slice_range(&arc, offset, size).into_owned());
+            self.tile_cache
+                .put_memory_only(tile_key, fallback_dds.clone());
+            return Ok(slice_range(&fallback_dds, offset, size).into_owned());
         }
 
-        // Write to disk cache
-        if let Some(ref dc) = self.disk_cache {
-            let mut cache = dc.lock();
-            let config = AssemblyConfig {
-                chunks_per_side: 16,
-                chunk_size: 256,
-                format: self.format,
-                missing_color: [66, 77, 55],
-                seasonal_saturation: 1.0,
-            };
-            let metadata = DdsCacheMetadata {
-                v: 3,
-                w: config.tile_size(),
-                h: config.tile_size(),
-                mm: result.mipmap_count,
-                zl: zoom,
-                max_zl: zoom,
-                fmt: format!("{:?}", self.format),
-                map: maptype.to_string(),
-                built: std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs_f64(),
-                tile_row: row,
-                tile_col: col,
-                populated_mipmaps: (0..result.mipmap_count).collect(),
-                missing_indices: vec![],
-                fallback_indices: vec![],
-                disk_compression: "zstd".to_string(),
-            };
-            if let Err(e) = cache.put(tile_key.clone(), &dds_data, &metadata) {
-                warn!("Failed to write DDS disk cache: {}", e);
-            } else {
-                debug!("DDS disk cache write: {}", tile_key);
-            }
-        }
-
-        // Cache it in memory (LRU will evict oldest entries when full)
-        let dds_arc = {
-            let mut cache = self.dds_cache.write();
-            let was_full = cache.len() >= cache.cap().get();
-            let arc = Arc::new(dds_data);
-            cache.push(tile_key, arc.clone());
-            if was_full {
-                // An entry was evicted to make room
-                self.cache_evictions
-                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-            }
-            arc
+        // Write to disk cache and store in memory
+        let config = AssemblyConfig {
+            chunks_per_side: 16,
+            chunk_size: 256,
+            format: self.format,
+            missing_color: [66, 77, 55],
+            seasonal_saturation: 1.0,
         };
+        let metadata = DdsCacheMetadata {
+            v: 3,
+            w: config.tile_size(),
+            h: config.tile_size(),
+            mm: result.mipmap_count,
+            zl: zoom,
+            max_zl: zoom,
+            fmt: format!("{:?}", self.format),
+            map: maptype.to_string(),
+            built: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs_f64(),
+            tile_row: row,
+            tile_col: col,
+            populated_mipmaps: (0..result.mipmap_count).collect(),
+            missing_indices: vec![],
+            fallback_indices: vec![],
+            disk_compression: "zstd".to_string(),
+        };
+        if let Err(e) = self.tile_cache.put(tile_key, dds_data.clone(), &metadata) {
+            warn!("Failed to write DDS disk cache: {}", e);
+        }
 
-        Ok(slice_range(&dds_arc, offset, size).into_owned())
+        Ok(slice_range(&dds_data, offset, size).into_owned())
     }
 
     /// Check if a DDS tile exists in memory or disk cache.
@@ -543,20 +452,7 @@ impl DdsFileSystem {
             Err(_) => return false,
         };
         let tile_key = format!("{}_{}_{}_{}", row, col, maptype, zoom);
-
-        // Check memory cache
-        if self.dds_cache.read().peek(&tile_key).is_some() {
-            return true;
-        }
-
-        // Check disk cache
-        if let Some(ref dc) = self.disk_cache
-            && dc.lock().get(&tile_key).is_ok()
-        {
-            return true;
-        }
-
-        false
+        self.tile_cache.has(&tile_key)
     }
 
     /// Generate a complete DDS tile by fetching and assembling chunks.
@@ -651,10 +547,7 @@ impl DdsFileSystem {
 
     /// Get the current size of the disk cache in bytes.
     pub fn disk_cache_size_bytes(&self) -> u64 {
-        self.disk_cache
-            .as_ref()
-            .map(|dc| dc.lock().size_bytes())
-            .unwrap_or(0)
+        self.tile_cache.disk_size_bytes()
     }
 
     /// Check if an entry in a directory path exists as a real directory in the pass-through root.
@@ -724,29 +617,24 @@ impl DdsFileSystem {
 
     /// Clear the in-memory DDS cache and the disk cache.
     pub fn clear_cache(&self) {
-        self.dds_cache.write().clear();
-        if let Some(ref dc) = self.disk_cache {
-            let mut cache = dc.lock();
-            if let Err(e) = cache.clear() {
-                warn!("Failed to clear DDS disk cache: {}", e);
-            }
+        if let Err(e) = self.tile_cache.clear() {
+            warn!("Failed to clear tile cache: {}", e);
         }
     }
 
     /// Number of DDS tiles currently cached in memory.
     pub fn cache_len(&self) -> usize {
-        self.dds_cache.read().len()
+        self.tile_cache.memory_len()
     }
 
     /// Get cache statistics.
     pub fn cache_stats(&self) -> DdsCacheStats {
+        let stats = self.tile_cache.stats();
         DdsCacheStats {
-            hits: self.cache_hits.load(std::sync::atomic::Ordering::Relaxed),
-            misses: self.cache_misses.load(std::sync::atomic::Ordering::Relaxed),
-            evictions: self
-                .cache_evictions
-                .load(std::sync::atomic::Ordering::Relaxed),
-            entries: self.cache_len(),
+            hits: stats.hits,
+            misses: stats.misses,
+            evictions: stats.evictions,
+            entries: stats.memory_entries,
         }
     }
 }
