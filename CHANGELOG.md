@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.54](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.53...autoortho-v0.8.54) (2026-06-18)
+
+
+### Features
+
+* add X‑Plane trait seams (Architectural Item [#3](https://github.com/egeland/autoortho-rs/issues/3)) ([#460](https://github.com/egeland/autoortho-rs/issues/460)) ([fd6236d](https://github.com/egeland/autoortho-rs/commit/fd6236d59749dad9bd393db1ff0682438ba7dc82))
+
 ## [0.8.53](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.52...autoortho-v0.8.53) (2026-06-17)
 
 
