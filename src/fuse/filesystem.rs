@@ -51,6 +51,7 @@ pub struct DdsFileSystem {
     stats: Option<Arc<StatsStore>>,
 }
 
+#[must_use]
 pub struct DdsFileSystemBuilder {
     parser: DdsPathParser,
     fetcher: Arc<TileFetcher>,
@@ -146,45 +147,8 @@ impl DdsFileSystemBuilder {
 }
 
 impl DdsFileSystem {
-    pub fn new(fetcher: Arc<TileFetcher>, provider_id: &str) -> Self {
-        Self::builder(fetcher, provider_id).build()
-    }
-
     pub fn builder(fetcher: Arc<TileFetcher>, provider_id: &str) -> DdsFileSystemBuilder {
         DdsFileSystemBuilder::new(fetcher, provider_id)
-    }
-
-    /// Create with a specific in-memory cache size (number of tiles).
-    pub fn with_cache_size(
-        fetcher: Arc<TileFetcher>,
-        provider_id: &str,
-        cache_entries: usize,
-    ) -> Self {
-        Self::builder(fetcher, provider_id)
-            .cache_entries(cache_entries)
-            .build()
-    }
-
-    /// Create with a scenery root for real file pass-through.
-    pub fn with_root(
-        fetcher: Arc<TileFetcher>,
-        root: std::path::PathBuf,
-        provider_id: &str,
-    ) -> Self {
-        Self::builder(fetcher, provider_id).root(root).build()
-    }
-
-    /// Create with a persistent disk cache for DDS tiles.
-    pub fn with_disk_cache(
-        fetcher: Arc<TileFetcher>,
-        disk_cache: Arc<parking_lot::Mutex<DdsCache>>,
-        provider_id: &str,
-        cache_entries: usize,
-    ) -> Self {
-        Self::builder(fetcher, provider_id)
-            .cache_entries(cache_entries)
-            .disk_cache(disk_cache)
-            .build()
     }
 
     /// Set the custom map store for per-cell provider overrides.
@@ -205,64 +169,6 @@ impl DdsFileSystem {
     /// Get a reference to the fallback system if available.
     pub fn fallback_system(&self) -> Option<&Arc<FallbackSystem>> {
         self.fallback.as_ref()
-    }
-
-    /// Create a new filesystem with custom map support.
-    pub fn new_with_custom_map(
-        fetcher: Arc<TileFetcher>,
-        custom_map: Arc<CustomMapStore>,
-        provider_id: &str,
-        cache_entries: usize,
-    ) -> Self {
-        Self::builder(fetcher, provider_id)
-            .cache_entries(cache_entries)
-            .custom_map(custom_map)
-            .build()
-    }
-
-    /// Create with a scenery root and custom map support.
-    pub fn with_root_and_custom_map(
-        fetcher: Arc<TileFetcher>,
-        root: std::path::PathBuf,
-        custom_map: Arc<CustomMapStore>,
-        provider_id: &str,
-        cache_entries: usize,
-    ) -> Self {
-        Self::builder(fetcher, provider_id)
-            .cache_entries(cache_entries)
-            .root(root)
-            .custom_map(custom_map)
-            .build()
-    }
-
-    /// Create with a persistent disk cache and custom map support.
-    pub fn with_disk_cache_and_custom_map(
-        fetcher: Arc<TileFetcher>,
-        disk_cache: Arc<parking_lot::Mutex<DdsCache>>,
-        custom_map: Arc<CustomMapStore>,
-        provider_id: &str,
-        cache_entries: usize,
-    ) -> Self {
-        Self::builder(fetcher, provider_id)
-            .cache_entries(cache_entries)
-            .disk_cache(disk_cache)
-            .custom_map(custom_map)
-            .build()
-    }
-
-    /// Create with a fallback system for missing tiles.
-    pub fn with_fallback(
-        fetcher: Arc<TileFetcher>,
-        disk_cache: Arc<parking_lot::Mutex<DdsCache>>,
-        provider_id: &str,
-        fallback_config: FallbackConfig,
-        cache_entries: usize,
-    ) -> Self {
-        Self::builder(fetcher, provider_id)
-            .cache_entries(cache_entries)
-            .disk_cache(disk_cache)
-            .fallback_config(fallback_config)
-            .build()
     }
 
     /// Get the provider for a given tile based on custom map overrides.
@@ -725,7 +631,7 @@ mod tests {
     fn make_fs() -> DdsFileSystem {
         let provider = Arc::new(MockProvider);
         let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
-        DdsFileSystem::new(Arc::new(fetcher), "ARC")
+        DdsFileSystem::builder(Arc::new(fetcher), "ARC").build()
     }
 
     #[tokio::test]
@@ -790,7 +696,9 @@ mod tests {
 
         let provider = Arc::new(MockProvider);
         let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
-        let fs = DdsFileSystem::with_root(Arc::new(fetcher), tmp.path().to_path_buf(), "ARC");
+        let fs = DdsFileSystem::builder(Arc::new(fetcher), "ARC")
+            .root(tmp.path().to_path_buf())
+            .build();
 
         let entries = fs.list_dir("/").unwrap();
         assert!(
@@ -839,7 +747,9 @@ mod tests {
 
         let provider = Arc::new(MockProvider);
         let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
-        let fs = DdsFileSystem::with_root(Arc::new(fetcher), root.to_path_buf(), "ARC");
+        let fs = DdsFileSystem::builder(Arc::new(fetcher), "ARC")
+            .root(root.to_path_buf())
+            .build();
 
         // list_dir("/") should return virtual dirs + pass-through entries
         let root_entries = fs.list_dir("/").unwrap();
@@ -971,7 +881,9 @@ mod tests {
 
         let provider = Arc::new(MockProvider);
         let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
-        let fs = DdsFileSystem::with_root(Arc::new(fetcher), tmp.path().to_path_buf(), "ARC");
+        let fs = DdsFileSystem::builder(Arc::new(fetcher), "ARC")
+            .root(tmp.path().to_path_buf())
+            .build();
 
         // Real file should be accessible
         let attr = fs.get_attr("/test.dsf").await.unwrap();
@@ -991,7 +903,9 @@ mod tests {
 
         let provider = Arc::new(MockProvider);
         let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
-        let fs = DdsFileSystem::with_root(Arc::new(fetcher), tmp.path().to_path_buf(), "ARC");
+        let fs = DdsFileSystem::builder(Arc::new(fetcher), "ARC")
+            .root(tmp.path().to_path_buf())
+            .build();
 
         let entries = fs.list_dir("/").unwrap();
         assert!(entries.contains(&"textures".to_string()));

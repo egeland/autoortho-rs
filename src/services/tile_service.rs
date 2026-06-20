@@ -256,7 +256,7 @@ mod tile_service_impl_tests {
     async fn test_tile_service_impl_creation() {
         let provider = Arc::new(MockProvider);
         let fetcher = TileFetcher::new(provider, "ARC");
-        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher), "ARC"));
+        let fs = Arc::new(DdsFileSystem::builder(Arc::new(fetcher), "ARC").build());
 
         let service = TileServiceImpl::new(fs.clone());
         let coords = TileCoord::new(100, 200, 16).expect("Valid coords");
@@ -270,7 +270,7 @@ mod tile_service_impl_tests {
     async fn test_tile_service_impl_as_trait() {
         let provider = Arc::new(MockProvider);
         let fetcher = TileFetcher::new(provider, "ARC");
-        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher), "ARC"));
+        let fs = Arc::new(DdsFileSystem::builder(Arc::new(fetcher), "ARC").build());
 
         let service: Box<dyn TileService> = Box::new(TileServiceImpl::new(fs));
         let coords = TileCoord::new(100, 200, 16).expect("Valid coords");
@@ -287,7 +287,7 @@ mod tile_service_impl_tests {
     async fn test_tile_service_impl_get_dds() {
         let provider = Arc::new(MockProvider);
         let fetcher = TileFetcher::new(provider, "ARC");
-        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher), "ARC"));
+        let fs = Arc::new(DdsFileSystem::builder(Arc::new(fetcher), "ARC").build());
 
         let service = TileServiceImpl::new(fs);
         let coords = TileCoord::new(100, 200, 16).expect("Valid coords");
@@ -314,7 +314,7 @@ mod tile_service_impl_tests {
     async fn test_tile_exists_uncached() {
         let provider = Arc::new(MockProvider);
         let fetcher = TileFetcher::new(provider, "ARC");
-        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher), "ARC"));
+        let fs = Arc::new(DdsFileSystem::builder(Arc::new(fetcher), "ARC").build());
         let service = TileServiceImpl::new(fs);
 
         // Tile that has never been fetched
@@ -327,7 +327,7 @@ mod tile_service_impl_tests {
     async fn test_tile_exists_cached() {
         let provider = Arc::new(MockProvider);
         let fetcher = TileFetcher::new(provider, "ARC");
-        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher), "ARC"));
+        let fs = Arc::new(DdsFileSystem::builder(Arc::new(fetcher), "ARC").build());
         let service = TileServiceImpl::new(fs);
         let coords = TileCoord::new(100, 200, 16).expect("Valid coords");
 
@@ -345,7 +345,7 @@ mod tile_service_impl_tests {
     async fn test_get_dds_night_exclusion_returns_fallback() {
         let provider = Arc::new(MockProvider);
         let fetcher = TileFetcher::new(provider, "ARC");
-        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher), "ARC"));
+        let fs = Arc::new(DdsFileSystem::builder(Arc::new(fetcher), "ARC").build());
         let service = TileServiceImpl::new(fs);
         let coords = TileCoord::new(100, 200, 16).expect("Valid coords");
 
@@ -369,7 +369,7 @@ mod tile_service_impl_tests {
     async fn test_get_dds_no_night_exclusion_returns_data() {
         let provider = Arc::new(MockProvider);
         let fetcher = TileFetcher::new(provider, "ARC");
-        let fs = Arc::new(DdsFileSystem::new(Arc::new(fetcher), "ARC"));
+        let fs = Arc::new(DdsFileSystem::builder(Arc::new(fetcher), "ARC").build());
         let service = TileServiceImpl::new(fs);
         let coords = TileCoord::new(100, 200, 16).expect("Valid coords");
 
