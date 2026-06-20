@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.56](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.55...autoortho-v0.8.56) (2026-06-20)
+
+
+### Reverts
+
+* undo config consolidation, add config DOX ([#464](https://github.com/egeland/autoortho-rs/issues/464)) ([6fc0d9e](https://github.com/egeland/autoortho-rs/commit/6fc0d9e5d935a85afa90812d3729ff950e46814c))
+
 ## [0.8.55](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.54...autoortho-v0.8.55) (2026-06-20)
 
 
