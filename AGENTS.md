@@ -39,7 +39,7 @@
   - `src/webui/`: Web UI: axum, WebSocket, REST API
   - `src/ui/`: Desktop UI (iced): setup, settings, dashboard, dev tools
   - `src/scenery/`: Scenery management: discovery, packs.ini, installer, SimHeaven
-- **Config**: `src/config.rs`, `config.toml` (platform-specific paths)
+- **Config**: `src/config/` — split by domain concern (see `src/config/AGENTS.md`)
 - **Tests**: Unit tests in module files, integration tests in `tests/`, benches in `benches/`
 
 ## Platform-Specific Notes
@@ -236,4 +236,5 @@ When the user requests a durable behavior change, record it here or in the relev
 | `src/webui/AGENTS.md` | Web UI: axum server, WebSocket, REST API, custom map |
 | `src/ui/AGENTS.md` | Desktop UI (iced MVU): app lifecycle, state, handlers |
 | `src/ui/screens/AGENTS.md` | Screen implementations (welcome, setup, settings, dashboard, etc.) |
+| `src/config/AGENTS.md` | Configuration: sub-configs, defaults, validation, env overrides |
 | `src/scenery/AGENTS.md` | Scenery pack discovery, download, installation, SimHeaven |
