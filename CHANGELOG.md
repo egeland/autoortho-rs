@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.55](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.54...autoortho-v0.8.55) (2026-06-20)
+
+
+### Features
+
+* **config:** consolidate sub-modules and add env var overrides ([#462](https://github.com/egeland/autoortho-rs/issues/462)) ([f49f116](https://github.com/egeland/autoortho-rs/commit/f49f11642786ba0a3372b7750883f18d66ef6ba2))
+
 ## [0.8.54](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.53...autoortho-v0.8.54) (2026-06-18)
 
 
