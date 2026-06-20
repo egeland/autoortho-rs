@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.57](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.56...autoortho-v0.8.57) (2026-06-20)
+
+
+### Code Refactoring
+
+* migrate DdsFileSystem callers to builder, delete redundant constructors ([#466](https://github.com/egeland/autoortho-rs/issues/466)) ([286b6b9](https://github.com/egeland/autoortho-rs/commit/286b6b9e04ef1c969ad1bd3da5e52c8015ff0890))
+
 ## [0.8.56](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.55...autoortho-v0.8.56) (2026-06-20)
 
 
