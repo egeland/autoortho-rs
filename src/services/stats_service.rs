@@ -120,7 +120,7 @@ impl StatsService for StatsServiceImpl {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use std::sync::Arc;
     use tokio::sync::Mutex;

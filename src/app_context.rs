@@ -11,6 +11,7 @@ use crate::config::AutoOrthoConfig;
 use crate::fuse::filesystem::DdsFileSystem;
 use crate::pipeline::cache::DdsCache;
 use crate::scenery::paths::scenery_data_dir;
+use crate::services::{StatsService, StatsServiceImpl};
 use crate::stats::StatsStore;
 use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::provider::ProviderFactory;
@@ -68,12 +69,14 @@ impl AppContext {
         let fs = {
             #[cfg(feature = "fuse")]
             {
+                let stats_service: Arc<dyn StatsService> =
+                    Arc::new(StatsServiceImpl::new(stats.clone()));
                 let mut builder = DdsFileSystem::builder(fetcher.clone(), &config.tile.provider)
                     .cache_entries(dds_cache_entries)
                     .custom_map(custom_map.clone())
                     .root(scenery_data_dir(&config.cache_dir))
                     .tile_progress(tile_progress.clone())
-                    .stats(stats.clone());
+                    .stats(stats_service);
 
                 if let Some(dc) = dds_cache.clone() {
                     builder = builder.disk_cache(dc);
