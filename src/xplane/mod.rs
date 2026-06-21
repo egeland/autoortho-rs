@@ -2,6 +2,7 @@
 // Copyright (c) 2026 the AutoOrtho contributors
 
 use std::collections::VecDeque;
+use std::sync::Arc;
 use thiserror::Error;
 
 pub mod dataref;
@@ -256,5 +257,24 @@ mod tests {
         let mut avg = HeadingAverager::new(1);
         let result = avg.add(45.0);
         assert!((result - 45.0).abs() < 1.0);
+    }
+}
+
+/// Wrapper around `Arc<dyn FlightDataTracker>` that implements `Debug`.
+#[derive(Clone)]
+pub struct Tracker(pub Arc<dyn FlightDataTracker>);
+
+impl std::fmt::Debug for Tracker {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Tracker")
+            .field(&"<dyn FlightDataTracker>")
+            .finish()
+    }
+}
+
+impl std::ops::Deref for Tracker {
+    type Target = dyn FlightDataTracker;
+    fn deref(&self) -> &Self::Target {
+        &*self.0
     }
 }

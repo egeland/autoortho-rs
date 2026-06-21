@@ -15,13 +15,14 @@ use crate::stats::StatsStore;
 use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::provider::ProviderFactory;
 use crate::webui::custommap::CustomMapStore;
+use crate::xplane::FlightDataTracker;
 use crate::xplane::dataref::DatarefTracker;
 
 #[derive(Clone)]
 pub struct AppContext {
     pub config: Arc<RwLock<AutoOrthoConfig>>,
     pub stats: Arc<StatsStore>,
-    pub tracker: Arc<DatarefTracker>,
+    pub tracker: Arc<dyn FlightDataTracker>,
     pub fetcher: Arc<TileFetcher>,
     pub dds_cache: Option<Arc<ParkMutex<DdsCache>>>,
     #[cfg(feature = "fuse")]

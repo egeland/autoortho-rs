@@ -676,13 +676,14 @@ mod tests {
     use super::*;
     use crate::stats::StatsStore;
     use crate::webui::custommap::CustomMapStore;
+    use crate::xplane::FlightDataTracker;
     use crate::xplane::dataref::DatarefTracker;
 
     fn make_state() -> Arc<WebState> {
         let tmp = std::env::temp_dir().join("autoortho_test_custommap.json");
         Arc::new(WebState::new(
             Arc::new(StatsStore::new()),
-            Arc::new(DatarefTracker::new()),
+            Arc::new(DatarefTracker::new()) as Arc<dyn FlightDataTracker>,
             CustomMapStore::load(tmp),
             Arc::new(parking_lot::RwLock::new(
                 crate::config::AutoOrthoConfig::default(),
@@ -788,7 +789,7 @@ mod tests {
 
         let state = Arc::new(WebState::new(
             Arc::new(StatsStore::new()),
-            Arc::new(DatarefTracker::new()),
+            Arc::new(DatarefTracker::new()) as Arc<dyn FlightDataTracker>,
             CustomMapStore::load(tmp.path().join("custom_map.json")),
             Arc::new(RwLock::new(config)),
         ));
@@ -870,7 +871,7 @@ mod tests {
         };
         let state = Arc::new(WebState::new(
             Arc::new(StatsStore::new()),
-            Arc::new(DatarefTracker::new()),
+            Arc::new(DatarefTracker::new()) as Arc<dyn FlightDataTracker>,
             CustomMapStore::load(tmp.path().join("custom_map.json")),
             Arc::new(RwLock::new(config)),
         ));
@@ -969,7 +970,7 @@ mod tests {
         };
         let state = Arc::new(WebState::new(
             Arc::new(StatsStore::new()),
-            Arc::new(DatarefTracker::new()),
+            Arc::new(DatarefTracker::new()) as Arc<dyn FlightDataTracker>,
             CustomMapStore::load(tmp.path().join("custom_map.json")),
             Arc::new(RwLock::new(config)),
         ));
@@ -1036,7 +1037,7 @@ mod tests {
         };
         let state = Arc::new(WebState::new(
             Arc::new(StatsStore::new()),
-            Arc::new(DatarefTracker::new()),
+            Arc::new(DatarefTracker::new()) as Arc<dyn FlightDataTracker>,
             CustomMapStore::load(tmp.path().join("custom_map.json")),
             Arc::new(RwLock::new(config)),
         ));

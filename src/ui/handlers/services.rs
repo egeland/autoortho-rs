@@ -42,9 +42,12 @@ pub fn handle_start_services(app: &mut AutoOrthoApp) -> Task<Message> {
                 .unwrap_or(Err("Runtime channel closed".into()))
         },
         |result| match result {
-            Ok((url, tracker, tile_progress, dds_cache)) => {
-                Message::ServicesStarted(url, Some(tracker), tile_progress, dds_cache)
-            }
+            Ok((url, tracker, tile_progress, dds_cache)) => Message::ServicesStarted(
+                url,
+                Some(crate::xplane::Tracker(tracker)),
+                tile_progress,
+                dds_cache,
+            ),
             Err(e) => Message::ServicesFailed(e),
         },
     )
@@ -62,7 +65,7 @@ pub fn handle_stop_services(app: &mut AutoOrthoApp) {
 pub fn handle_services_started(
     app: &mut AutoOrthoApp,
     url: String,
-    tracker: Option<std::sync::Arc<crate::xplane::dataref::DatarefTracker>>,
+    tracker: Option<crate::xplane::Tracker>,
     tile_progress: std::sync::Arc<crate::ui::state::TileProgress>,
     dds_cache: Option<std::sync::Arc<parking_lot::Mutex<crate::pipeline::cache::DdsCache>>>,
 ) {

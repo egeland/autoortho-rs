@@ -14,7 +14,7 @@ pub trait FlightPlanSource {
 }
 
 /// Abstract tracker for X‑Plane telemetry updates.
-pub trait FlightDataTracker {
+pub trait FlightDataTracker: Send + Sync {
     /// Process a batch of telemetry updates (e.g. from UDP).
     fn update_from_response(&self, values: &[(i32, f32)]);
 
@@ -23,4 +23,7 @@ pub trait FlightDataTracker {
 
     /// Mark the tracker as disconnected (e.g. lost telemetry).
     fn mark_disconnected(&self);
+
+    /// Clear averaged data (e.g. on reconnect).
+    fn clear_averages(&self);
 }

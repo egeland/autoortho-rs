@@ -328,7 +328,7 @@ async fn test_tile_generation(provider_name: &str) -> Result<(), Box<dyn Error>>
 /// based on sun pitch from the dataref tracker.
 fn start_night_exclusion_monitor(
     night_flag: Arc<std::sync::atomic::AtomicBool>,
-    tracker: Arc<autoortho_lib::xplane::dataref::DatarefTracker>,
+    tracker: Arc<dyn autoortho_lib::xplane::FlightDataTracker>,
     night_threshold: f32,
     day_threshold: f32,
 ) {
@@ -504,7 +504,7 @@ async fn run_simbrief_prefetch(
     simbrief_user_id: &str,
     config: Arc<RwLock<AutoOrthoConfig>>,
     fetcher: Arc<TileFetcher>,
-    tracker: Arc<autoortho_lib::xplane::dataref::DatarefTracker>,
+    tracker: Arc<dyn autoortho_lib::xplane::FlightDataTracker>,
     _fs: Arc<autoortho_lib::fuse::filesystem::DdsFileSystem>,
     mut shutdown_rx: broadcast::Receiver<()>,
 ) -> Result<(), Box<dyn Error>> {

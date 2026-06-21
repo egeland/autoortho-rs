@@ -238,12 +238,30 @@ impl Default for DatarefTracker {
     }
 }
 
+impl super::traits::FlightDataTracker for DatarefTracker {
+    fn update_from_response(&self, values: &[(i32, f32)]) {
+        DatarefTracker::update_from_response(self, values)
+    }
+
+    fn get_flight_data(&self) -> FlightData {
+        DatarefTracker::get_flight_data(self)
+    }
+
+    fn mark_disconnected(&self) {
+        DatarefTracker::mark_disconnected(self)
+    }
+
+    fn clear_averages(&self) {
+        DatarefTracker::clear_averages(self)
+    }
+}
+
 /// Run the dataref tracker loop. Connects to X-Plane, subscribes to datarefs,
 /// and continuously updates the tracker with received values.
 ///
 /// This function runs until the `shutdown` token is cancelled.
 pub async fn run_tracker(
-    tracker: Arc<DatarefTracker>,
+    tracker: Arc<dyn super::FlightDataTracker>,
     xplane_addr: SocketAddr,
     shutdown: tokio::sync::watch::Receiver<bool>,
 ) {
@@ -255,7 +273,7 @@ pub async fn run_tracker(
 
         info!("Connecting to X-Plane at {}", xplane_addr);
 
-        match connect_and_track(&tracker, xplane_addr, &shutdown).await {
+        match connect_and_track(tracker.as_ref(), xplane_addr, &shutdown).await {
             Ok(()) => {
                 info!("Dataref tracker disconnected cleanly");
                 return;
@@ -274,7 +292,7 @@ pub async fn run_tracker(
 }
 
 async fn connect_and_track(
-    tracker: &DatarefTracker,
+    tracker: &dyn super::FlightDataTracker,
     addr: SocketAddr,
     shutdown: &tokio::sync::watch::Receiver<bool>,
 ) -> Result<(), XPlaneError> {
