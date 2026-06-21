@@ -7,7 +7,7 @@
 use crate::fuse::tile_generator::TileGenerator;
 use crate::fuse::{DdsPathParser, FuseError, MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
 use crate::pipeline::cache::{DdsCache, DdsCacheMetadata};
-use crate::stats::StatsStore;
+use crate::services::{FallbackService, StatsService};
 use crate::tiles::fallback::FallbackConfig;
 use crate::tiles::fallback::FallbackSystem;
 use crate::tiles::fetcher::TileFetcher;
@@ -35,9 +35,11 @@ pub struct DdsFileSystem {
     /// instead of fetching satellite imagery. Updated externally via the Arc.
     night_exclusion: Arc<AtomicBool>,
     /// Fallback system for missing tiles
-    fallback: Option<Arc<FallbackSystem>>,
-    /// Shared stats store for web UI
-    stats: Option<Arc<StatsStore>>,
+    fallback: Option<Arc<dyn FallbackService>>,
+    /// Stats telemetry (trait object for testability)
+    stats: Option<Arc<dyn StatsService>>,
+    /// Solid fallback color from FallbackConfig
+    solid_color: [u8; 3],
 }
 
 #[must_use]
@@ -47,8 +49,9 @@ pub struct DdsFileSystemBuilder {
     disk_cache: Option<Arc<parking_lot::Mutex<DdsCache>>>,
     root: Option<std::path::PathBuf>,
     night_exclusion: Arc<AtomicBool>,
-    fallback: Option<Arc<FallbackSystem>>,
-    stats: Option<Arc<StatsStore>>,
+    fallback: Option<Arc<dyn FallbackService>>,
+    stats: Option<Arc<dyn StatsService>>,
+    solid_color: [u8; 3],
 }
 
 impl DdsFileSystemBuilder {
@@ -61,6 +64,7 @@ impl DdsFileSystemBuilder {
             night_exclusion: Arc::new(AtomicBool::new(false)),
             fallback: None,
             stats: None,
+            solid_color: FallbackConfig::default().solid_color,
         }
     }
 
@@ -69,7 +73,7 @@ impl DdsFileSystemBuilder {
         self
     }
 
-    pub fn stats(mut self, stats: Arc<StatsStore>) -> Self {
+    pub fn stats(mut self, stats: Arc<dyn StatsService>) -> Self {
         self.stats = Some(stats);
         self
     }
@@ -95,12 +99,19 @@ impl DdsFileSystemBuilder {
     }
 
     pub fn fallback_config(mut self, config: FallbackConfig) -> Self {
+        self.solid_color = config.solid_color;
         if let Some(ref disk_cache) = self.disk_cache {
-            self.fallback = Some(Arc::new(FallbackSystem::new(
+            use crate::services::FallbackServiceImpl;
+            self.fallback = Some(Arc::new(FallbackServiceImpl::new(FallbackSystem::new(
                 disk_cache.lock().cache_dir().clone(),
                 config,
-            )));
+            ))));
         }
+        self
+    }
+
+    pub fn fallback_service(mut self, fallback: Arc<dyn FallbackService>) -> Self {
+        self.fallback = Some(fallback);
         self
     }
 
@@ -117,6 +128,7 @@ impl DdsFileSystemBuilder {
             night_exclusion: self.night_exclusion,
             fallback: self.fallback,
             stats: self.stats,
+            solid_color: self.solid_color,
         }
     }
 }
@@ -127,17 +139,20 @@ impl DdsFileSystem {
     }
 
     /// Set the fallback system for missing tiles.
-    pub fn set_fallback(&mut self, fallback: Arc<FallbackSystem>) {
+    pub fn set_fallback(&mut self, fallback: Arc<dyn FallbackService>) {
         self.fallback = Some(fallback);
     }
 
     /// Set the fallback system from configuration.
     pub fn set_fallback_from_config(&mut self, disk_cache: &DdsCache, config: FallbackConfig) {
-        self.fallback = Some(Arc::new(FallbackSystem::from_dds_cache(disk_cache, config)));
+        use crate::services::FallbackServiceImpl;
+        self.fallback = Some(Arc::new(FallbackServiceImpl::new(
+            FallbackSystem::from_dds_cache(disk_cache, config),
+        )));
     }
 
     /// Get a reference to the fallback system if available.
-    pub fn fallback_system(&self) -> Option<&Arc<FallbackSystem>> {
+    pub fn fallback_system(&self) -> Option<&Arc<dyn FallbackService>> {
         self.fallback.as_ref()
     }
 
@@ -210,17 +225,18 @@ impl DdsFileSystem {
         // Check tile cache (memory → disk → upserving)
         if let Some(dds_arc) = self.tile_cache.get(&tile_key) {
             if let Some(ref stats) = self.stats {
-                stats.record_cache_hit();
+                stats.record_cache_hit().await;
             }
             return Ok(slice_range(&dds_arc, offset, size).into_owned());
         }
         if let Some(ref stats) = self.stats {
-            stats.record_cache_miss();
+            stats.record_cache_miss().await;
         }
 
         // Try fallback if configured and no cache hit
         if let Some(fb) = &self.fallback
-            && let Some((fallback_data, fallback_zoom)) = fb.find_fallback(row, col, &maptype, zoom)
+            && let Some((fallback_data, fallback_zoom)) =
+                fb.find_fallback(row, col, &maptype, zoom).await
         {
             debug!(
                 "DDS fallback from zoom {} to {}: {}_{}_{}_{}",
@@ -240,7 +256,7 @@ impl DdsFileSystem {
 
         // Record download in stats store
         if let Some(ref stats) = self.stats {
-            stats.record_download(dds_data.len() as u64);
+            stats.record_download(dds_data.len() as u64).await;
         }
 
         // Check if tile has missing chunks and fallback is configured
@@ -251,7 +267,9 @@ impl DdsFileSystem {
                 "Tile {}_{}_{}_{} has {} missing chunks, using fallback",
                 row, col, maptype, zoom, result.chunks_failed
             );
-            let fallback_dds = fb.solid_fallback(4096, self.tile_generator.dds_format());
+            let fallback_dds = fb
+                .solid_fallback(4096, self.tile_generator.dds_format(), self.solid_color)
+                .await;
             self.tile_cache
                 .put_memory_only(tile_key, fallback_dds.clone());
             return Ok(slice_range(&fallback_dds, offset, size).into_owned());
@@ -757,5 +775,83 @@ mod tests {
         assert!(entries.contains(&"terrain".to_string()));
         assert!(entries.contains(&"test.dsf".to_string()));
         assert!(entries.contains(&"Earth nav data".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_stats_records_cache_hit_via_trait() {
+        use crate::services::StatsService;
+        use crate::services::stats_service::tests::FakeStatsService;
+
+        let provider = Arc::new(MockProvider);
+        let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
+        let fake_stats = Arc::new(FakeStatsService::new());
+        let stats_ref = fake_stats.clone();
+
+        let fs = DdsFileSystem::builder(Arc::new(fetcher), "ARC")
+            .stats(fake_stats as Arc<dyn StatsService>)
+            .build();
+
+        // First read: cache miss
+        let _ = fs.read_dds("/textures/100_200_BI16.dds", 0, u32::MAX).await;
+        let snap = stats_ref.snapshot().await;
+        assert_eq!(snap.cache_misses, 1, "should record one cache miss");
+        assert_eq!(snap.cache_hits, 0, "no hits yet");
+
+        // Second read: cache hit
+        let _ = fs.read_dds("/textures/100_200_BI16.dds", 0, u32::MAX).await;
+        let snap = stats_ref.snapshot().await;
+        assert_eq!(snap.cache_hits, 1, "should record one cache hit");
+        assert_eq!(snap.cache_misses, 1, "misses unchanged");
+    }
+
+    struct FailingProvider;
+
+    impl crate::tiles::provider::TileProvider for FailingProvider {
+        fn fetch(
+            &self,
+            _row: u32,
+            _col: u32,
+            _zoom: u32,
+        ) -> Pin<
+            Box<
+                dyn Future<Output = Result<Vec<u8>, crate::tiles::provider::TileProviderError>>
+                    + Send
+                    + '_,
+            >,
+        > {
+            Box::pin(async {
+                Err(crate::tiles::provider::TileProviderError::NetworkError(
+                    "test failure".into(),
+                ))
+            })
+        }
+
+        fn name(&self) -> &str {
+            "Failing"
+        }
+    }
+
+    #[tokio::test]
+    async fn test_fallback_used_on_provider_failure() {
+        use crate::services::FallbackService;
+        use crate::services::fallback_service::tests::FakeFallbackService;
+
+        let provider = Arc::new(FailingProvider);
+        let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
+        let fake_fallback = Arc::new(FakeFallbackService::new(true));
+        let fallback_ref = fake_fallback.clone();
+
+        let fs = DdsFileSystem::builder(Arc::new(fetcher), "ARC")
+            .fallback_service(fake_fallback as Arc<dyn FallbackService>)
+            .build();
+
+        // Read a tile — provider fails, fallback should be used
+        let result = fs.read_dds("/textures/100_200_BI16.dds", 0, u32::MAX).await;
+        assert!(result.is_ok(), "should return fallback data, not error");
+
+        let data = result.unwrap();
+        // FakeFallbackService::solid_fallback returns DDS header with color bytes at 144-147
+        assert_eq!(&data[0..4], b"DDS ", "should be valid DDS header");
+        assert_eq!(data.len(), 148, "fake fallback returns 148 bytes");
     }
 }
