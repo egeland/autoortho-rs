@@ -47,7 +47,7 @@ parking_lot = "0.12"
 # Web
 axum = { version = "0.8", features = ["ws"] }
 tower = "0.5"
-tower-http = { version = "0.6", features = ["cors", "trace"] }
+tower-http = { version = "0.7", features = ["cors", "trace"] }
 tokio-tungstenite = "0.29"
 hyper = "1.10"
 hyper-util = "0.1"
@@ -104,7 +104,6 @@ fuse = [
 [dev-dependencies]
 tempfile = "3"
 criterion = "0.8"
-cargo-dist = "0.31"
 
 
 [lib]
