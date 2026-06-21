@@ -17,14 +17,13 @@ pub mod prefetch_state;
 pub mod scenery_state;
 pub mod service_state;
 use crate::scenery::paths::mount_dir;
-use crate::tiles::provider;
-use crate::webui::custommap::CustomMapStore;
-use crate::xplane::simbrief::{FlightFix, FlightPlan};
+use crate::xplane::simbrief::FlightPlan;
 
 /// Saved window geometry to restore on boot: (x, y, width, height)
 #[allow(clippy::type_complexity)]
-static SAVED_WINDOW_GEOM: Mutex<Option<(Option<f32>, Option<f32>, Option<f32>, Option<f32>)>> =
-    Mutex::new(None);
+pub(crate) static SAVED_WINDOW_GEOM: Mutex<
+    Option<(Option<f32>, Option<f32>, Option<f32>, Option<f32>)>,
+> = Mutex::new(None);
 
 /// Whether saved geometry exists (checked by new() before GEOM is consumed)
 static HAS_SAVED_GEOM: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -52,13 +51,13 @@ use state::{AppState, Screen, ServiceStatus};
 
 /// Desktop UI application using iced (elm-inspired MVU architecture)
 pub struct AutoOrthoApp {
-    state: AppState,
+    pub(crate) state: AppState,
     /// Tokio runtime handle for backend services (shared with main)
-    runtime: Arc<tokio::runtime::Runtime>,
+    pub(crate) runtime: Arc<tokio::runtime::Runtime>,
     /// Shutdown signal sender — drop or send true to stop services
-    shutdown_tx: Option<watch::Sender<bool>>,
+    pub(crate) shutdown_tx: Option<watch::Sender<bool>>,
     /// Ignore window move/resize events until this instant has passed
-    window_events_locked_until: Option<std::time::Instant>,
+    pub(crate) window_events_locked_until: Option<std::time::Instant>,
 }
 
 #[derive(Debug, Clone)]
@@ -239,82 +238,7 @@ impl AutoOrthoApp {
                 handlers::handle_set_xplane_port(&mut self.state, &port_str);
             }
             Message::SetTileProvider(provider) => {
-                handlers::set_tile_provider(&mut self.state, provider.clone());
-
-                // Re-check coverage with new provider if we have an active flight plan
-                let (olat, olon, dlat, dlon, origin_code, dest_code): (
-                    Option<f64>,
-                    Option<f64>,
-                    Option<f64>,
-                    Option<f64>,
-                    String,
-                    String,
-                ) = if let Some(ref fp) = self.state.simbrief_flight_plan {
-                    let ofix = FlightPlan::origin_fix(fp);
-                    let dfix = FlightPlan::destination_fix(fp);
-                    (
-                        ofix.map(|f| f.lat),
-                        ofix.map(|f| f.lon),
-                        dfix.map(|f| f.lat),
-                        dfix.map(|f| f.lon),
-                        fp.origin.clone(),
-                        fp.destination.clone(),
-                    )
-                } else {
-                    (None, None, None, None, String::new(), String::new())
-                };
-
-                let zoom = self.state.config.flight.near_airport_zoom;
-
-                // Load custom map to check for cell overrides
-                let custom_map_path = dirs::config_dir()
-                    .unwrap_or_else(|| std::path::PathBuf::from("."))
-                    .join("autoortho")
-                    .join("custom_map.json");
-                let custom_map = CustomMapStore::load(custom_map_path);
-                let custom_cells = custom_map.get_cells();
-
-                if let (Some(olat), Some(olon), Some(dlat), Some(dlon)) = (olat, olon, dlat, dlon) {
-                    return iced::Task::perform(
-                        async move {
-                            let mut warnings = Vec::new();
-
-                            let origin_cell =
-                                format!("{},{}", olat.floor() as i32, olon.floor() as i32);
-                            let dest_cell =
-                                format!("{},{}", dlat.floor() as i32, dlon.floor() as i32);
-
-                            let origin_has_custom = custom_cells.contains_key(&origin_cell);
-                            if !origin_has_custom
-                                && provider::test_provider_coverage(&provider, olat, olon, zoom)
-                                    .await
-                                    .is_err()
-                            {
-                                warnings.push(format!("origin ({})", origin_code));
-                            }
-
-                            let dest_has_custom = custom_cells.contains_key(&dest_cell);
-                            if !dest_has_custom
-                                && provider::test_provider_coverage(&provider, dlat, dlon, zoom)
-                                    .await
-                                    .is_err()
-                            {
-                                warnings.push(format!("destination ({})", dest_code));
-                            }
-
-                            if warnings.is_empty() {
-                                None
-                            } else {
-                                Some(format!(
-                                    "Provider {} may not have coverage for your route: {}. Consider using ArcGIS for global coverage.",
-                                    provider,
-                                    warnings.join(" and ")
-                                ))
-                            }
-                        },
-                        Message::SimbriefCoverageChecked,
-                    );
-                }
+                return handlers::handle_set_tile_provider(self, provider);
             }
             Message::SetMinZoom(zoom) => {
                 handlers::set_min_zoom(&mut self.state, zoom);
@@ -383,21 +307,7 @@ impl AutoOrthoApp {
                 handlers::set_rate_limit(&mut self.state, rate);
             }
             Message::ClearDdsCache => {
-                let cache_dir = std::path::PathBuf::from(&self.state.config.cache_dir).join("dds");
-                if cache_dir.exists() {
-                    if let Err(e) = std::fs::remove_dir_all(&cache_dir) {
-                        log::warn!("Failed to clear DDS cache: {}", e);
-                        self.state.error_message = Some(format!("Failed to clear cache: {}", e));
-                    } else {
-                        log::info!("DDS cache cleared");
-                        self.state.dds_cache_size_bytes = 0;
-                        // Also clear in-memory cache state
-                        if let Some(ref cache) = self.state.dds_cache {
-                            let mut cache = cache.lock();
-                            let _ = cache.clear();
-                        }
-                    }
-                }
+                handlers::handle_clear_dds_cache(self);
             }
             Message::SetSimbriefUserId(id) => {
                 handlers::set_simbrief_user_id(&mut self.state, id);
@@ -420,252 +330,27 @@ impl AutoOrthoApp {
             Message::SetAirportRadius(v) => {
                 handlers::set_airport_radius(&mut self.state, v);
             }
-            Message::FetchSimbrief => {
-                self.state.simbrief_fetching = true;
-                self.state.simbrief_error = None;
-                let user_id = self.state.config.flight.simbrief_user_id.clone();
-                return iced::Task::perform(
-                    async move { crate::xplane::simbrief::fetch_flight_plan(&user_id).await },
-                    |result| match result {
-                        Ok(plan) => {
-                            let alt = plan.cruise_altitude_ft;
-                            let summary = format!(
-                                "{} \u{2192} {} (FL{:.0})",
-                                plan.origin,
-                                plan.destination,
-                                alt / 100.0
-                            );
-                            let fixes: Vec<(String, String, f32)> = plan
-                                .fixes
-                                .iter()
-                                .map(|f| {
-                                    let alt = if f.ident == plan.origin {
-                                        plan.origin_elevation_ft
-                                    } else if f.ident == plan.destination {
-                                        plan.destination_elevation_ft
-                                    } else {
-                                        f.altitude_ft
-                                    };
-                                    (f.ident.clone(), f.fix_type.clone(), alt)
-                                })
-                                .collect();
-                            Message::SimbriefLoaded(
-                                summary,
-                                fixes,
-                                Arc::new(Mutex::new(Some(plan))),
-                            )
-                        }
-                        Err(e) => Message::SimbriefFailed(e.to_string()),
-                    },
-                );
-            }
+            Message::FetchSimbrief => return handlers::handle_fetch_simbrief(self),
             Message::SimbriefLoaded(summary, fixes, plan) => {
-                self.state.simbrief_fetching = false;
-                self.state.simbrief_route_summary = Some(summary.clone());
-                self.state.simbrief_fixes = fixes;
-                self.state.simbrief_show_details = false;
-                self.state.simbrief_error = None;
-
-                // Extract coordinates and store plan first
-                let flight_plan_opt = {
-                    let guard = plan.lock();
-                    guard.clone()
-                };
-
-                let (origin_lat, origin_lon, dest_lat, dest_lon, origin_code, dest_code): (
-                    Option<f64>,
-                    Option<f64>,
-                    Option<f64>,
-                    Option<f64>,
-                    String,
-                    String,
-                ) = if let Some(ref fp) = flight_plan_opt {
-                    let ofix: Option<&FlightFix> = FlightPlan::origin_fix(fp);
-                    let dfix: Option<&FlightFix> = FlightPlan::destination_fix(fp);
-                    (
-                        ofix.map(|f| f.lat),
-                        ofix.map(|f| f.lon),
-                        dfix.map(|f| f.lat),
-                        dfix.map(|f| f.lon),
-                        fp.origin.clone(),
-                        fp.destination.clone(),
-                    )
-                } else {
-                    (None, None, None, None, String::new(), String::new())
-                };
-
-                self.state.simbrief_flight_plan = flight_plan_opt;
-
-                // Check provider coverage for the flight route
-                let provider = self.state.config.tile.provider.clone();
-                let zoom = self.state.config.flight.near_airport_zoom;
-
-                // Load custom map to check for cell overrides
-                let custom_map_path = dirs::config_dir()
-                    .unwrap_or_else(|| std::path::PathBuf::from("."))
-                    .join("autoortho")
-                    .join("custom_map.json");
-                let custom_map = CustomMapStore::load(custom_map_path);
-                let custom_cells = custom_map.get_cells();
-
-                if let (Some(olat), Some(olon), Some(dlat), Some(dlon)) =
-                    (origin_lat, origin_lon, dest_lat, dest_lon)
-                {
-                    return iced::Task::perform(
-                        async move {
-                            let mut warnings = Vec::new();
-
-                            // Compute cell keys for origin and destination
-                            let origin_cell =
-                                format!("{},{}", olat.floor() as i32, olon.floor() as i32);
-                            let dest_cell =
-                                format!("{},{}", dlat.floor() as i32, dlon.floor() as i32);
-
-                            // Test origin coverage (skip if custom map override exists)
-                            let origin_has_custom = custom_cells.contains_key(&origin_cell);
-                            if !origin_has_custom
-                                && provider::test_provider_coverage(&provider, olat, olon, zoom)
-                                    .await
-                                    .is_err()
-                            {
-                                warnings.push(format!("origin ({})", origin_code));
-                            }
-
-                            // Test destination coverage (skip if custom map override exists)
-                            let dest_has_custom = custom_cells.contains_key(&dest_cell);
-                            if !dest_has_custom
-                                && provider::test_provider_coverage(&provider, dlat, dlon, zoom)
-                                    .await
-                                    .is_err()
-                            {
-                                warnings.push(format!("destination ({})", dest_code));
-                            }
-
-                            if warnings.is_empty() {
-                                None
-                            } else {
-                                Some(format!(
-                                    "Provider {} may not have coverage for your route: {}. Consider using ArcGIS for global coverage.",
-                                    provider,
-                                    warnings.join(" and ")
-                                ))
-                            }
-                        },
-                        Message::SimbriefCoverageChecked,
-                    );
-                }
+                return handlers::handle_simbrief_loaded(self, summary, fixes, plan);
             }
             Message::SimbriefCoverageChecked(warning) => {
-                self.state.simbrief_coverage_warning = warning;
+                handlers::handle_simbrief_coverage_checked(self, warning);
             }
-            Message::SimbriefFailed(err) => {
-                self.state.simbrief_fetching = false;
-                self.state.simbrief_error = Some(err);
-            }
-            Message::ToggleSimbriefDetails => {
-                self.state.simbrief_show_details = !self.state.simbrief_show_details;
-            }
-            Message::PrefetchRoute => {
-                let Some(flight_plan) = self.state.simbrief_flight_plan.clone() else {
-                    self.state.prefetch.status = Some("No flight plan loaded".to_string());
-                    return Task::none();
-                };
-
-                // Initialize per-waypoint progress tracker
-                let num_fixes = self.state.simbrief_fixes.len();
-                self.state.prefetch.waypoint_progress.init(num_fixes);
-                self.state.prefetch.waypoint_status =
-                    vec![crate::ui::state::WaypointPrefetchStatus::NotStarted; num_fixes];
-
-                self.state.prefetch.running = true;
-                self.state.prefetch.status = None;
-                self.state.prefetch.completed = 0;
-                self.state.prefetch.total = 0;
-
-                let cancel = tokio_util::sync::CancellationToken::new();
-                self.state.prefetch.cancel = Some(cancel.clone());
-
-                let config = self.state.config.clone();
-                let waypoint_progress = self.state.prefetch.waypoint_progress.clone();
-                let (tx, rx) = oneshot::channel();
-                let rt = self.runtime.clone();
-
-                rt.spawn(async move {
-                    let result =
-                        prefetch_route_impl(&flight_plan, &config, &cancel, waypoint_progress)
-                            .await;
-                    let _ = tx.send(result);
-                });
-
-                return Task::perform(
-                    async { rx.await.unwrap_or(Err("Channel closed".into())) },
-                    |result| match result {
-                        Ok(msg) if msg.contains("cache 90") => {
-                            Message::PrefetchCompleteCacheFull(msg)
-                        }
-                        Ok(msg) => Message::PrefetchComplete(msg),
-                        Err(e) => Message::PrefetchFailed(e),
-                    },
-                );
-            }
-            Message::StopPrefetch => {
-                if let Some(cancel) = self.state.prefetch.cancel.take() {
-                    cancel.cancel();
-                }
-                self.state.prefetch.running = false;
-                self.state.prefetch.status = Some("Prefetch cancelled".to_string());
-            }
+            Message::SimbriefFailed(err) => handlers::handle_simbrief_failed(self, err),
+            Message::ToggleSimbriefDetails => handlers::handle_toggle_simbrief_details(self),
+            Message::PrefetchRoute => return handlers::handle_prefetch_route(self),
+            Message::StopPrefetch => handlers::handle_stop_prefetch(self),
             Message::PrefetchProgress(completed, total) => {
-                self.state.prefetch.completed = completed;
-                self.state.prefetch.total = total;
+                handlers::handle_prefetch_progress(self, completed, total)
             }
-            Message::PrefetchComplete(msg) => {
-                self.state.prefetch.running = false;
-                self.state.prefetch.cancel = None;
-                self.state.prefetch.status = Some(msg);
-            }
+            Message::PrefetchComplete(msg) => handlers::handle_prefetch_complete(self, msg),
             Message::PrefetchCompleteCacheFull(msg) => {
-                self.state.prefetch.running = false;
-                self.state.prefetch.cancel = None;
-                self.state.prefetch.status = Some(msg);
+                handlers::handle_prefetch_complete_cache_full(self, msg)
             }
-            Message::PrefetchFailed(err) => {
-                self.state.prefetch.running = false;
-                self.state.prefetch.cancel = None;
-                self.state.prefetch.status = Some(format!("Error: {}", err));
-            }
+            Message::PrefetchFailed(err) => handlers::handle_prefetch_failed(self, err),
             Message::SaveConfiguration => {
-                self.state.save_config();
-
-                // Apply SimHeaven compatibility setting
-                let xplane_dir = std::path::Path::new(&self.state.config.xplane_path);
-                let active_regions: Vec<String> = self
-                    .state
-                    .scenery
-                    .installed_packs
-                    .iter()
-                    .filter_map(|p| {
-                        // Only include regions with ortho packs (z_*) not overlays (y_*)
-                        if p.id.starts_with("z_") || !p.id.starts_with("y_") {
-                            Some(p.id.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                if !active_regions.is_empty() {
-                    match crate::scenery::simheaven::apply_simheaven_compat(
-                        xplane_dir,
-                        self.state.config.simheaven_compat,
-                        &active_regions,
-                    ) {
-                        Ok(_) => {}
-                        Err(e) => {
-                            log::warn!("SimHeaven compatibility apply failed: {}", e);
-                        }
-                    }
-                }
+                handlers::handle_save_configuration(self);
             }
             Message::LoadConfiguration => {
                 self.state.load_config();
@@ -673,514 +358,62 @@ impl AutoOrthoApp {
             Message::SetDebugMode(v) => {
                 handlers::set_debug_mode(&mut self.state, v);
             }
-            Message::StartServices => {
-                self.state.services.web_server = ServiceStatus::Starting;
-                self.state.services.xplane_tracker = ServiceStatus::Starting;
-                self.state.clear_error();
-
-                // Create shutdown channel
-                let (shutdown_tx, shutdown_rx) = watch::channel(false);
-                self.shutdown_tx = Some(shutdown_tx);
-
-                let xplane_host = self.state.config.network.xplane_host.clone();
-                let xplane_port = self.state.config.network.xplane_port;
-                let config = self.state.config.clone();
-
-                let (result_tx, result_rx) = oneshot::channel();
-                let rt = self.runtime.clone();
-
-                rt.spawn(async move {
-                    let result = start_all_services(
-                        crate::webui::WEB_UI_PORT,
-                        &xplane_host,
-                        xplane_port,
-                        config,
-                        shutdown_rx,
-                    )
-                    .await;
-                    let _ = result_tx.send(result);
-                });
-
-                return Task::perform(
-                    async {
-                        result_rx
-                            .await
-                            .unwrap_or(Err("Runtime channel closed".into()))
-                    },
-                    |result| match result {
-                        Ok((url, tracker, tile_progress, dds_cache)) => {
-                            Message::ServicesStarted(url, Some(tracker), tile_progress, dds_cache)
-                        }
-                        Err(e) => Message::ServicesFailed(e),
-                    },
-                );
-            }
-            Message::StopServices => {
-                // Signal shutdown to all services
-                if let Some(tx) = self.shutdown_tx.take() {
-                    let _ = tx.send(true);
-                }
-                self.state.services.web_server = ServiceStatus::Stopped;
-                self.state.services.web_server_url = None;
-                self.state.services.xplane_tracker = ServiceStatus::Stopped;
-            }
+            Message::StartServices => return handlers::handle_start_services(self),
+            Message::StopServices => handlers::handle_stop_services(self),
             Message::ServicesStarted(url, tracker, tile_progress, dds_cache) => {
-                self.state.services.web_server = ServiceStatus::Running;
-                self.state.services.web_server_url = Some(url);
-                self.state.services.xplane_tracker = ServiceStatus::Running;
-                self.state.tracker = tracker;
-                self.state.tile_progress = tile_progress;
-                self.state.dds_cache = dds_cache;
+                handlers::handle_services_started(self, url, tracker, tile_progress, dds_cache)
             }
-            Message::ServicesFailed(err) => {
-                self.state.services.web_server = ServiceStatus::Error;
-                self.state.services.xplane_tracker = ServiceStatus::Error;
-                self.state.set_error(format!("Failed to start: {}", err));
-            }
+            Message::ServicesFailed(err) => handlers::handle_services_failed(self, err),
             Message::SetSceneryDownloadDir(v) => {
                 handlers::set_scenery_download_dir_state(&mut self.state, v);
             }
             Message::RefreshAvailableRegions => {
-                self.state.scenery.refreshing = true;
-                self.state.scenery.status = Some("Fetching available regions...".to_string());
-
-                let data_dir = self.state.scenery.data_dir.clone();
-                let download_dir = self.state.scenery.download_dir.clone();
-                let (tx, rx) = oneshot::channel();
-                let rt = self.runtime.clone();
-
-                rt.spawn(async move {
-                    let result = fetch_regions_and_installed(&data_dir, &download_dir).await;
-                    let _ = tx.send(result);
-                });
-
-                return Task::perform(
-                    async { rx.await.unwrap_or(Err("Channel closed".into())) },
-                    |result| match result {
-                        Ok((regions, _installed)) => Message::RegionsLoaded(regions),
-                        Err(e) => Message::RegionsLoadFailed(e),
-                    },
-                );
+                return handlers::handle_refresh_available_regions(self);
             }
-            Message::RegionsLoaded(regions) => {
-                self.state.scenery.refreshing = false;
-                self.state.scenery.available_regions = regions;
-                self.state.scenery.status = Some(format!(
-                    "Found {} regions available for download",
-                    self.state.scenery.available_regions.len()
-                ));
-                // Also refresh installed packs
-                let packs = crate::scenery::installer::list_installed_packs(std::path::Path::new(
-                    &self.state.scenery.data_dir,
-                ));
-                self.state.scenery.installed_packs = packs
-                    .into_iter()
-                    .map(|p| state::InstalledPackInfo {
-                        id: p.id,
-                        name: p.name,
-                        version: p.ver,
-                    })
-                    .collect();
-            }
-            Message::RegionsLoadFailed(err) => {
-                self.state.scenery.refreshing = false;
-                self.state.scenery.status = Some(format!("Error: {}", err));
-            }
+            Message::RegionsLoaded(regions) => handlers::handle_regions_loaded(self, regions),
+            Message::RegionsLoadFailed(err) => handlers::handle_regions_load_failed(self, err),
             Message::DownloadRegion(region_id) => {
-                // Calculate total size from available regions
-                let total_bytes = self
-                    .state
-                    .scenery
-                    .available_regions
-                    .iter()
-                    .find(|r| r.id == region_id)
-                    .map(|r| r.total_size_bytes)
-                    .unwrap_or(0);
-                let files_total = self
-                    .state
-                    .scenery
-                    .available_regions
-                    .iter()
-                    .find(|r| r.id == region_id)
-                    .map(|r| r.package_count as u32)
-                    .unwrap_or(0);
-
-                let cancel = tokio_util::sync::CancellationToken::new();
-                let dl_state = state::DownloadState {
-                    cancel: cancel.clone(),
-                    bytes_downloaded: Arc::new(std::sync::atomic::AtomicU64::new(0)),
-                    total_bytes,
-                    current_file: Arc::new(Mutex::new(String::new())),
-                    files_done: Arc::new(std::sync::atomic::AtomicU32::new(0)),
-                    files_total,
-                    extract_files_done: Arc::new(std::sync::atomic::AtomicU32::new(0)),
-                    extract_files_total: Arc::new(std::sync::atomic::AtomicU32::new(0)),
-                    extracting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-                    pack_current: Arc::new(std::sync::atomic::AtomicU32::new(0)),
-                    pack_total: Arc::new(std::sync::atomic::AtomicU32::new(0)),
-                };
-                self.state
-                    .scenery
-                    .downloading
-                    .insert(region_id.clone(), dl_state.clone());
-                self.state.scenery.status = Some(format!("Downloading {}...", region_id));
-
-                let download_dir = self.state.scenery.download_dir.clone();
-                let data_dir = self.state.scenery.data_dir.clone();
-                let rid = region_id.clone();
-                let progress_bytes = dl_state.bytes_downloaded.clone();
-                let progress_file = dl_state.current_file.clone();
-                let progress_files_done = dl_state.files_done.clone();
-                let (tx, rx) = oneshot::channel();
-                let rt = self.runtime.clone();
-
-                rt.spawn(async move {
-                    let result = download_and_install_region(
-                        &rid,
-                        &download_dir,
-                        &data_dir,
-                        &cancel,
-                        &progress_bytes,
-                        &progress_file,
-                        &progress_files_done,
-                        &dl_state.extract_files_done,
-                        &dl_state.extract_files_total,
-                        &dl_state.extracting,
-                        &dl_state.pack_current,
-                        &dl_state.pack_total,
-                    )
-                    .await;
-                    let _ = tx.send((rid, result));
-                });
-
-                return Task::perform(
-                    async {
-                        rx.await
-                            .unwrap_or(("unknown".into(), Err("Channel closed".into())))
-                    },
-                    |(rid, result)| match result {
-                        Ok(msg) => Message::DownloadComplete(rid, msg),
-                        Err(e) => Message::DownloadFailed(rid, e),
-                    },
-                );
+                return handlers::handle_download_region(self, region_id);
             }
-            Message::CancelDownload(region_id) => {
-                if let Some(dl) = self.state.scenery.downloading.get(&region_id) {
-                    dl.cancel.cancel();
-                }
-                self.state.scenery.status = Some(format!(
-                    "Cancelling {}... (partial files kept for resume)",
-                    region_id
-                ));
-            }
+            Message::CancelDownload(region_id) => handlers::handle_cancel_download(self, region_id),
             Message::CleanRegionDownloads(region_id) => {
-                let download_dir = std::path::Path::new(&self.state.scenery.download_dir);
-                match crate::scenery::installer::clean_downloads(download_dir, &region_id) {
-                    Ok(bytes) => {
-                        if let Some(r) = self
-                            .state
-                            .scenery
-                            .available_regions
-                            .iter_mut()
-                            .find(|r| r.id == region_id)
-                        {
-                            r.has_partial_download = false;
-                        }
-                        self.state.scenery.status = Some(format!(
-                            "Cleaned {:.1} MB of downloads for {}",
-                            bytes as f64 / 1_048_576.0,
-                            region_id
-                        ));
-                    }
-                    Err(e) => {
-                        self.state.scenery.status = Some(format!("Clean failed: {}", e));
-                    }
-                }
+                handlers::handle_clean_region_downloads(self, region_id)
             }
             Message::UninstallRegion(region_id) => {
-                let data_dir = std::path::Path::new(&self.state.scenery.data_dir);
-                match crate::scenery::installer::uninstall_region(&region_id, data_dir) {
-                    Ok(()) => {
-                        self.state.scenery.status = Some(format!("Uninstalled {}", region_id));
-                        // Refresh installed list
-                        let packs = crate::scenery::installer::list_installed_packs(data_dir);
-                        self.state.scenery.installed_packs = packs
-                            .into_iter()
-                            .map(|p| state::InstalledPackInfo {
-                                id: p.id,
-                                name: p.name,
-                                version: p.ver,
-                            })
-                            .collect();
-                    }
-                    Err(e) => {
-                        self.state.scenery.status = Some(format!("Uninstall failed: {}", e));
-                    }
-                }
+                handlers::handle_uninstall_region(self, region_id)
             }
             Message::DownloadComplete(region_id, msg) => {
-                self.state.scenery.downloading.remove(&region_id);
-                self.state.scenery.status = Some(msg);
-                let packs = crate::scenery::installer::list_installed_packs(std::path::Path::new(
-                    &self.state.scenery.data_dir,
-                ));
-                self.state.scenery.installed_packs = packs
-                    .into_iter()
-                    .map(|p| state::InstalledPackInfo {
-                        id: p.id,
-                        name: p.name,
-                        version: p.ver,
-                    })
-                    .collect();
+                handlers::handle_download_complete(self, region_id, msg)
             }
             Message::DownloadFailed(region_id, err) => {
-                self.state.scenery.downloading.remove(&region_id);
-                if err.contains("Cancelled") {
-                    // Mark as having partial download for Resume button
-                    if let Some(r) = self
-                        .state
-                        .scenery
-                        .available_regions
-                        .iter_mut()
-                        .find(|r| r.id == region_id)
-                    {
-                        r.has_partial_download = true;
-                    }
-                    self.state.scenery.status = Some(format!(
-                        "{} cancelled. Click Resume to continue, or Clean for a fresh start.",
-                        region_id
-                    ));
-                } else {
-                    self.state.scenery.status =
-                        Some(format!("Error downloading {}: {}", region_id, err));
-                }
+                handlers::handle_download_failed(self, region_id, err)
             }
-            Message::SetTestLat(v) => {
-                // Check for preset format: "lat|lon|keep" or "lat|lon|14"
-                if let Some((lat, rest)) = v.split_once('|') {
-                    if let Some((lon, zoom_str)) = rest.split_once('|') {
-                        self.state
-                            .dev_test
-                            .set_tile_coords(lat.to_string(), lon.to_string());
-                        // Only update zoom if it's a number (not "keep")
-                        if let Ok(z) = zoom_str.parse::<u32>() {
-                            self.state.dev_test.set_tile_zoom(z);
-                        }
-                    }
-                } else {
-                    self.state
-                        .dev_test
-                        .set_tile_coords(v, self.state.dev_test.test_tile_lon.clone());
-                }
-            }
-            Message::SetTestLon(v) => {
-                self.state
-                    .dev_test
-                    .set_tile_coords(self.state.dev_test.test_tile_lat.clone(), v);
-            }
-            Message::SetTestZoom(v) => {
-                self.state.dev_test.set_tile_zoom(v);
-            }
-
-            Message::FetchTestTile => {
-                self.state.dev_test.start_tile_test();
-
-                let lat = self
-                    .state
-                    .dev_test
-                    .test_tile_lat
-                    .parse::<f64>()
-                    .unwrap_or(-33.86);
-                let lon = self
-                    .state
-                    .dev_test
-                    .test_tile_lon
-                    .parse::<f64>()
-                    .unwrap_or(151.21);
-                let zoom = self.state.dev_test.test_tile_zoom;
-                let provider_name = self.state.config.tile.provider.clone();
-                let rate_limit = self.state.config.network.rate_limit.requests_per_second;
-
-                let (tx, rx) = oneshot::channel();
-                let rt = self.runtime.clone();
-
-                rt.spawn(async move {
-                    use crate::tiles::fetcher::TileFetcher;
-                    use crate::tiles::provider::ProviderFactory;
-
-                    let provider = match ProviderFactory::create(&provider_name) {
-                        Some(p) => p,
-                        None => {
-                            let _ = tx.send(Err(format!("Unknown provider: {}", provider_name)));
-                            return;
-                        }
-                    };
-
-                    let fetcher = Arc::new(TileFetcher::with_rate_limit(
-                        provider,
-                        &provider_name,
-                        rate_limit,
-                    ));
-
-                    let result =
-                        fetch_test_tile_impl(lat, lon, zoom, &provider_name, fetcher).await;
-                    let _ = tx.send(result);
-                });
-
-                return Task::perform(
-                    async { rx.await.unwrap_or(Err("Channel closed".into())) },
-                    |result| match result {
-                        Ok((msg, img)) => Message::TestTileComplete(msg, img),
-                        Err(e) => Message::TestTileFailed(e),
-                    },
-                );
-            }
+            Message::SetTestLat(v) => handlers::handle_set_test_lat(self, v),
+            Message::SetTestLon(v) => handlers::handle_set_test_lon(self, v),
+            Message::SetTestZoom(v) => handlers::handle_set_test_zoom(self, v),
+            Message::FetchTestTile => return handlers::handle_fetch_test_tile(self),
             Message::TestTileComplete(msg, image_data) => {
-                self.state.dev_test.complete_tile_test(msg, image_data);
+                handlers::handle_test_tile_complete(self, msg, image_data)
             }
-            Message::TestTileFailed(err) => {
-                self.state.dev_test.fail_tile_test(err);
-            }
-            Message::TestFallbackLookup => {
-                self.state.dev_test.start_fallback_test();
-                let lat = self
-                    .state
-                    .dev_test
-                    .test_tile_lat
-                    .parse::<f64>()
-                    .unwrap_or(-33.86);
-                let lon = self
-                    .state
-                    .dev_test
-                    .test_tile_lon
-                    .parse::<f64>()
-                    .unwrap_or(151.21);
-                let zoom = self.state.dev_test.test_tile_zoom;
-                let cache_dir = std::path::PathBuf::from(&self.state.config.cache_dir);
-                let fallback_config = self.state.config.fallback.clone();
-
-                let (tx, rx) = oneshot::channel();
-                let rt = self.runtime.clone();
-
-                rt.spawn(async move {
-                    let result =
-                        test_fallback_lookup(lat, lon, zoom, &cache_dir, fallback_config).await;
-                    let _ = tx.send(result);
-                });
-
-                return Task::perform(
-                    async { rx.await.unwrap_or(None) },
-                    Message::FallbackTestComplete,
-                );
-            }
+            Message::TestTileFailed(err) => handlers::handle_test_tile_failed(self, err),
+            Message::TestFallbackLookup => return handlers::handle_test_fallback_lookup(self),
             Message::FallbackTestComplete(result) => {
-                if let Some(r) = result {
-                    self.state.dev_test.complete_fallback_test(r);
-                } else {
-                    self.state
-                        .dev_test
-                        .fail_fallback_test("No result".to_string());
-                }
+                handlers::handle_fallback_test_complete(self, result)
             }
-            Message::BrowseXPlanePath => {
-                return browse_folder("xplane_path", &self.state.config.xplane_path);
-            }
-            Message::BrowseCacheDir => {
-                return browse_folder("cache_dir", &self.state.config.cache_dir);
-            }
+            Message::BrowseXPlanePath => return handlers::handle_browse_xplane_path(self),
+            Message::BrowseCacheDir => return handlers::handle_browse_cache_dir(self),
             Message::BrowseSceneryDownloadDir => {
-                return browse_folder("scenery_download_dir", &self.state.scenery.download_dir);
+                return handlers::handle_browse_scenery_download_dir(self);
             }
-            Message::FolderPicked(field, path) => match field.as_str() {
-                "xplane_path" => {
-                    handlers::handle_set_xplane_path(&mut self.state, path);
-                }
-                "cache_dir" => {
-                    handlers::handle_set_cache_dir(&mut self.state, path);
-                }
-                "scenery_download_dir" => self.state.scenery.download_dir = path,
-                _ => {}
-            },
-            Message::WindowOpened(id) => {
-                // Move window first, then schedule a delayed resize so the
-                // window is on the correct monitor (correct DPI) before resizing.
-                if let Some(geom) = SAVED_WINDOW_GEOM.lock().take() {
-                    let has_pos = geom.0.is_some() && geom.1.is_some();
-                    let has_size = geom.2.is_some() && geom.3.is_some();
-
-                    let mut tasks: Vec<Task<Message>> = Vec::new();
-
-                    if has_pos {
-                        let (x, y) = (geom.0.unwrap(), geom.1.unwrap());
-                        log::debug!("Restoring window position: ({}, {})", x, y);
-                        tasks.push(iced::window::move_to::<Message>(id, iced::Point::new(x, y)));
-                    }
-
-                    if has_size {
-                        let (w, h) = (geom.2.unwrap(), geom.3.unwrap());
-                        // Delay the resize so the window lands on the target
-                        // monitor first — otherwise iced uses the wrong DPI
-                        tasks.push(Task::perform(
-                            async {
-                                // Wait for the move to settle and DPI to update
-                                futures_lite::future::yield_now().await;
-                                futures_lite::future::yield_now().await;
-                                futures_lite::future::yield_now().await;
-                            },
-                            move |_| Message::WindowRestoreSize(id, w, h),
-                        ));
-                    }
-
-                    if !tasks.is_empty() {
-                        return Task::batch(tasks);
-                    }
-                }
-                self.window_events_locked_until = None;
-            }
+            Message::FolderPicked(field, path) => handlers::handle_folder_picked(self, field, path),
+            Message::WindowOpened(id) => return handlers::handle_window_opened(self, id),
             Message::WindowRestoreSize(id, w, h) => {
-                log::debug!("Restoring window size: ({}, {})", w, h);
-                return iced::window::resize::<Message>(id, iced::Size::new(w, h));
+                return handlers::handle_window_restore_size(self, id, w, h);
             }
             Message::WindowRestorePosition => {}
-            Message::WindowMoved(pos) => {
-                if self
-                    .window_events_locked_until
-                    .is_some_and(|t| std::time::Instant::now() < t)
-                {
-                    return Task::none();
-                }
-                self.window_events_locked_until = None;
-                self.state.config.ui.window_x = Some(pos.x);
-                self.state.config.ui.window_y = Some(pos.y);
-                let _ = self.state.config.save();
-            }
-            Message::WindowResized(size) => {
-                if self
-                    .window_events_locked_until
-                    .is_some_and(|t| std::time::Instant::now() < t)
-                {
-                    return Task::none();
-                }
-                self.window_events_locked_until = None;
-                // Save size divided by UI scale so resize() can apply it cleanly
-                let scale = self.state.config.ui.ui_scale as f32;
-                self.state.config.ui.window_width = Some(size.width / scale);
-                self.state.config.ui.window_height = Some(size.height / scale);
-                let _ = self.state.config.save();
-            }
-            Message::WindowCloseRequested => {
-                log::info!(
-                    "Window close: saving config with x={:?} y={:?} w={:?} h={:?}",
-                    self.state.config.ui.window_x,
-                    self.state.config.ui.window_y,
-                    self.state.config.ui.window_width,
-                    self.state.config.ui.window_height
-                );
-                let _ = self.state.config.save();
-                if let Some(tx) = self.shutdown_tx.take() {
-                    let _ = tx.send(true);
-                }
-            }
+            Message::WindowMoved(pos) => return handlers::handle_window_moved(self, pos),
+            Message::WindowResized(size) => return handlers::handle_window_resized(self, size),
+            Message::WindowCloseRequested => handlers::handle_window_close_requested(self),
             Message::Tick => {
                 // Save config periodically when downloads are active (debounced window saves too)
                 let _ = self.state.config.save();
@@ -1428,7 +661,7 @@ impl AutoOrthoApp {
     }
 }
 
-async fn start_all_services(
+pub(crate) async fn start_all_services(
     web_port: u16,
     xplane_host: &str,
     xplane_port: u16,
@@ -1557,7 +790,7 @@ async fn start_all_services(
 }
 
 /// Core implementation of test tile fetch - takes a pre-configured fetcher.
-async fn fetch_test_tile_impl(
+pub(crate) async fn fetch_test_tile_impl(
     lat: f64,
     lon: f64,
     zoom: u32,
@@ -1683,7 +916,7 @@ async fn fetch_test_tile_impl(
 }
 
 /// Test the fallback system for a given tile location.
-async fn test_fallback_lookup(
+pub(crate) async fn test_fallback_lookup(
     lat: f64,
     lon: f64,
     zoom: u32,
@@ -1718,7 +951,7 @@ async fn test_fallback_lookup(
 }
 
 /// Open a native folder picker dialog.
-fn browse_folder(field_name: &str, current_path: &str) -> Task<Message> {
+pub(crate) fn browse_folder(field_name: &str, current_path: &str) -> Task<Message> {
     let field = field_name.to_string();
     let start_dir = current_path.to_string();
 
@@ -1748,7 +981,7 @@ fn browse_folder(field_name: &str, current_path: &str) -> Task<Message> {
 }
 
 /// Fetch available regions from GitHub and list installed packs.
-async fn fetch_regions_and_installed(
+pub(crate) async fn fetch_regions_and_installed(
     data_dir: &str,
     download_dir: &str,
 ) -> Result<(Vec<state::SceneryRegionInfo>, Vec<state::InstalledPackInfo>), String> {
@@ -1784,7 +1017,7 @@ async fn fetch_regions_and_installed(
 
 /// Download and install a scenery region.
 #[allow(clippy::too_many_arguments)]
-async fn download_and_install_region(
+pub(crate) async fn download_and_install_region(
     region_id: &str,
     download_dir: &str,
     data_dir: &str,
@@ -2048,7 +1281,7 @@ fn generate_route_tiles(
 ///          This makes origin tiles most recently used (top of LRU, last to evict).
 /// Phase 2: Fetch remaining tiles until cache is 90% full.
 /// Phase 3: Remaining tiles are demand-fetched by X-Plane.
-async fn prefetch_route_impl(
+pub(crate) async fn prefetch_route_impl(
     flight_plan: &crate::xplane::simbrief::FlightPlan,
     config: &crate::config::AutoOrthoConfig,
     cancel: &tokio_util::sync::CancellationToken,
