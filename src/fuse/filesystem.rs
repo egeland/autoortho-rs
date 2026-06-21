@@ -4,24 +4,20 @@
 //! FUSE mount and any other access method (e.g., direct API for testing).
 //! It handles path parsing, DDS generation, caching, and directory structure.
 
+use crate::fuse::tile_generator::TileGenerator;
 use crate::fuse::{DdsPathParser, FuseError, MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
 use crate::pipeline::cache::{DdsCache, DdsCacheMetadata};
-use crate::pipeline::dds::DdsFormat;
 use crate::stats::StatsStore;
-use crate::tiles::assembler::{AssemblyConfig, AssemblyResult, assemble_tile};
-use crate::tiles::coords::TileCoords;
 use crate::tiles::fallback::FallbackConfig;
 use crate::tiles::fallback::FallbackSystem;
 use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::tile_cache::TileCache;
-use crate::tiles::zoom::ChunkGrid;
 use crate::ui::state::TileProgress;
 use crate::webui::custommap::CustomMapStore;
 use log::{debug, warn};
 use std::borrow::Cow;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
-use std::time::Instant;
 
 /// Virtual DDS filesystem implementation.
 ///
@@ -30,8 +26,7 @@ use std::time::Instant;
 /// Generated DDS data is cached in memory for subsequent reads.
 pub struct DdsFileSystem {
     parser: DdsPathParser,
-    fetcher: Arc<TileFetcher>,
-    format: DdsFormat,
+    tile_generator: Arc<TileGenerator>,
     /// Two-layer tile cache: memory LRU + disk (zstd-compressed)
     tile_cache: Arc<TileCache>,
     /// Scenery root directory (for pass-through of real files)
@@ -39,54 +34,38 @@ pub struct DdsFileSystem {
     /// Night exclusion: when true, read_dds returns a solid-color fallback tile
     /// instead of fetching satellite imagery. Updated externally via the Arc.
     night_exclusion: Arc<AtomicBool>,
-    /// Custom map store for per-cell provider overrides
-    custom_map: Option<Arc<CustomMapStore>>,
-    /// Default provider from config (fallback when no custom map override)
-    default_provider: String,
     /// Fallback system for missing tiles
     fallback: Option<Arc<FallbackSystem>>,
-    /// Shared tile progress tracker for UI status bar
-    tile_progress: Option<Arc<TileProgress>>,
     /// Shared stats store for web UI
     stats: Option<Arc<StatsStore>>,
 }
 
 #[must_use]
 pub struct DdsFileSystemBuilder {
-    parser: DdsPathParser,
-    fetcher: Arc<TileFetcher>,
-    format: DdsFormat,
+    tile_generator: TileGenerator,
     cache_entries: usize,
     disk_cache: Option<Arc<parking_lot::Mutex<DdsCache>>>,
     root: Option<std::path::PathBuf>,
     night_exclusion: Arc<AtomicBool>,
-    custom_map: Option<Arc<CustomMapStore>>,
-    default_provider: String,
     fallback: Option<Arc<FallbackSystem>>,
-    tile_progress: Option<Arc<TileProgress>>,
     stats: Option<Arc<StatsStore>>,
 }
 
 impl DdsFileSystemBuilder {
     fn new(fetcher: Arc<TileFetcher>, provider_id: &str) -> Self {
         Self {
-            parser: DdsPathParser::new(),
-            fetcher,
-            format: DdsFormat::BC3,
+            tile_generator: TileGenerator::new(fetcher, provider_id),
             cache_entries: 256,
             disk_cache: None,
             root: None,
             night_exclusion: Arc::new(AtomicBool::new(false)),
-            custom_map: None,
-            default_provider: provider_id.to_string(),
             fallback: None,
-            tile_progress: None,
             stats: None,
         }
     }
 
     pub fn tile_progress(mut self, progress: Arc<TileProgress>) -> Self {
-        self.tile_progress = Some(progress);
+        self.tile_generator = self.tile_generator.tile_progress(progress);
         self
     }
 
@@ -111,7 +90,7 @@ impl DdsFileSystemBuilder {
     }
 
     pub fn custom_map(mut self, custom_map: Arc<CustomMapStore>) -> Self {
-        self.custom_map = Some(custom_map);
+        self.tile_generator = self.tile_generator.custom_map(custom_map);
         self
     }
 
@@ -131,16 +110,12 @@ impl DdsFileSystemBuilder {
             None => Arc::new(TileCache::new(self.cache_entries)),
         };
         DdsFileSystem {
-            parser: self.parser,
-            fetcher: self.fetcher,
-            format: self.format,
+            parser: DdsPathParser::new(),
+            tile_generator: Arc::new(self.tile_generator),
             tile_cache,
             root: self.root,
             night_exclusion: self.night_exclusion,
-            custom_map: self.custom_map,
-            default_provider: self.default_provider,
             fallback: self.fallback,
-            tile_progress: self.tile_progress,
             stats: self.stats,
         }
     }
@@ -149,11 +124,6 @@ impl DdsFileSystemBuilder {
 impl DdsFileSystem {
     pub fn builder(fetcher: Arc<TileFetcher>, provider_id: &str) -> DdsFileSystemBuilder {
         DdsFileSystemBuilder::new(fetcher, provider_id)
-    }
-
-    /// Set the custom map store for per-cell provider overrides.
-    pub fn set_custom_map(&mut self, custom_map: Arc<CustomMapStore>) {
-        self.custom_map = Some(custom_map);
     }
 
     /// Set the fallback system for missing tiles.
@@ -171,33 +141,6 @@ impl DdsFileSystem {
         self.fallback.as_ref()
     }
 
-    /// Get the provider for a given tile based on custom map overrides.
-    /// Returns the provider ID to use (custom map override or default).
-    fn get_provider_for_tile(&self, row: u32, col: u32, zoom: u32) -> String {
-        // Get tile center coordinates
-        let (center_lat, center_lon) = match TileCoords::tile_to_latlng(col, row, zoom) {
-            Ok(coords) => coords,
-            Err(_) => return self.default_provider.clone(),
-        };
-
-        // Compute cell key (floor coordinates)
-        let cell_key = format!(
-            "{},{}",
-            center_lat.floor() as i32,
-            center_lon.floor() as i32
-        );
-
-        // Check for custom map override
-        if let Some(ref custom_map) = self.custom_map {
-            let cells = custom_map.get_cells();
-            if let Some(provider) = cells.get(&cell_key) {
-                return provider.clone();
-            }
-        }
-
-        self.default_provider.clone()
-    }
-
     /// Get a clone of the night exclusion flag Arc.
     /// External code (e.g., the dataref tracker loop) can set this to `true`
     /// to make `read_dds()` return fallback tiles instead of fetching imagery.
@@ -205,14 +148,9 @@ impl DdsFileSystem {
         self.night_exclusion.clone()
     }
 
-    /// Set the DDS compression format.
-    pub fn set_format(&mut self, format: DdsFormat) {
-        self.format = format;
-    }
-
     /// Get the DDS format used by this filesystem.
-    pub fn format(&self) -> DdsFormat {
-        self.format
+    pub fn format(&self) -> crate::pipeline::dds::DdsFormat {
+        self.tile_generator.dds_format()
     }
 
     /// Get attributes for a path.
@@ -294,7 +232,10 @@ impl DdsFileSystem {
         }
 
         // Not cached — generate the DDS tile
-        let result = self.generate_tile(row, col, &maptype, zoom).await?;
+        let result = self
+            .tile_generator
+            .generate_tile(row, col, &maptype, zoom)
+            .await?;
         let dds_data = result.dds_data;
 
         // Record download in stats store
@@ -310,28 +251,22 @@ impl DdsFileSystem {
                 "Tile {}_{}_{}_{} has {} missing chunks, using fallback",
                 row, col, maptype, zoom, result.chunks_failed
             );
-            let fallback_dds = fb.solid_fallback(4096, self.format);
+            let fallback_dds = fb.solid_fallback(4096, self.tile_generator.dds_format());
             self.tile_cache
                 .put_memory_only(tile_key, fallback_dds.clone());
             return Ok(slice_range(&fallback_dds, offset, size).into_owned());
         }
 
         // Write to disk cache and store in memory
-        let config = AssemblyConfig {
-            chunks_per_side: 16,
-            chunk_size: 256,
-            format: self.format,
-            missing_color: [66, 77, 55],
-            seasonal_saturation: 1.0,
-        };
+        let tile_size = 4096u32; // chunks_per_side(16) * chunk_size(256)
         let metadata = DdsCacheMetadata {
             v: 3,
-            w: config.tile_size(),
-            h: config.tile_size(),
+            w: tile_size,
+            h: tile_size,
             mm: result.mipmap_count,
             zl: zoom,
             max_zl: zoom,
-            fmt: format!("{:?}", self.format),
+            fmt: format!("{:?}", self.tile_generator.dds_format()),
             map: maptype.to_string(),
             built: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -359,96 +294,6 @@ impl DdsFileSystem {
         };
         let tile_key = format!("{}_{}_{}_{}", row, col, maptype, zoom);
         self.tile_cache.has(&tile_key)
-    }
-
-    /// Generate a complete DDS tile by fetching and assembling chunks.
-    async fn generate_tile(
-        &self,
-        row: u32,
-        col: u32,
-        maptype: &str,
-        zoom: u32,
-    ) -> Result<AssemblyResult, FuseError> {
-        let start = Instant::now();
-        let config = AssemblyConfig {
-            chunks_per_side: 16,
-            chunk_size: 256,
-            format: self.format,
-            missing_color: [66, 77, 55],
-            seasonal_saturation: 1.0,
-        };
-
-        // Calculate chunk grid for this tile
-        let grid = ChunkGrid {
-            col,
-            row,
-            width: 16,
-            height: 16,
-            zoom,
-            pixel_width: 4096,
-            pixel_height: 4096,
-        };
-
-        // Notify progress tracker that we're starting
-        if let Some(ref tp) = self.tile_progress {
-            tp.start(row, col, zoom, maptype);
-        }
-
-        // Fetch all 256 chunks with per-chunk provider resolution
-        let mut jpeg_chunks: Vec<Option<Vec<u8>>> = Vec::with_capacity(256);
-        let mut chunks_fetched = 0u32;
-        for (chunk_col, chunk_row) in grid.iter_chunks() {
-            // Get the provider for this specific chunk based on custom map overrides
-            let provider_id = self.get_provider_for_tile(chunk_row, chunk_col, zoom);
-
-            let result = self
-                .fetcher
-                .get_chunk_data_with_provider(chunk_row, chunk_col, maptype, zoom, &provider_id)
-                .await;
-            match result {
-                Ok(Some(data)) => {
-                    jpeg_chunks.push(Some(data.to_vec()));
-                }
-                _ => jpeg_chunks.push(None),
-            }
-            chunks_fetched += 1;
-            // Update progress tracker
-            if let Some(ref tp) = self.tile_progress {
-                tp.update_progress(chunks_fetched);
-            }
-        }
-
-        // Assemble into DDS
-        let result =
-            assemble_tile(&jpeg_chunks, &config).map_err(|e| FuseError::IoError(e.to_string()))?;
-
-        let elapsed = start.elapsed();
-        debug!(
-            "Generated DDS tile {}_{}_{}_{}: {}×{}, {}/{} chunks decoded, {:?}",
-            row,
-            col,
-            maptype,
-            zoom,
-            config.tile_size(),
-            config.tile_size(),
-            result.chunks_decoded,
-            config.total_chunks(),
-            elapsed,
-        );
-
-        if result.chunks_failed > 0 {
-            warn!(
-                "Tile {}_{}_{}_{}: {} chunks used fallback color",
-                row, col, maptype, zoom, result.chunks_failed
-            );
-        }
-
-        // Notify progress tracker that we're done
-        if let Some(ref tp) = self.tile_progress {
-            tp.finish();
-        }
-
-        Ok(result)
     }
 
     /// Get the current size of the disk cache in bytes.
