@@ -19,7 +19,7 @@ pub const WEB_UI_PORT: u16 = 5847;
 
 use crate::config::AutoOrthoConfig;
 use crate::stats::StatsStore;
-use crate::xplane::dataref::DatarefTracker;
+use crate::xplane::FlightDataTracker;
 use custommap::CustomMapStore;
 use log::{error, info};
 use serde::Serialize;
@@ -30,7 +30,7 @@ use tokio::sync::broadcast;
 /// Shared application state accessible by all route handlers.
 pub struct WebState {
     pub stats: Arc<StatsStore>,
-    pub tracker: Arc<DatarefTracker>,
+    pub tracker: Arc<dyn FlightDataTracker>,
     pub custom_map: Arc<CustomMapStore>,
     pub config: Arc<parking_lot::RwLock<AutoOrthoConfig>>,
     pub position_tx: broadcast::Sender<PositionUpdate>,
@@ -39,7 +39,7 @@ pub struct WebState {
 impl WebState {
     pub fn new(
         stats: Arc<StatsStore>,
-        tracker: Arc<DatarefTracker>,
+        tracker: Arc<dyn FlightDataTracker>,
         custom_map: Arc<CustomMapStore>,
         config: Arc<parking_lot::RwLock<AutoOrthoConfig>>,
     ) -> Self {
@@ -72,7 +72,7 @@ pub struct PositionUpdate {
 pub async fn start_server_with_shutdown(
     port: u16,
     stats: Arc<StatsStore>,
-    tracker: Arc<DatarefTracker>,
+    tracker: Arc<dyn FlightDataTracker>,
     config: Arc<parking_lot::RwLock<AutoOrthoConfig>>,
     mut shutdown_rx: tokio::sync::watch::Receiver<bool>,
 ) -> Result<SocketAddr, Box<dyn std::error::Error + Send + Sync>> {
@@ -115,7 +115,7 @@ pub async fn start_server_with_shutdown(
 pub async fn start_server(
     port: u16,
     stats: Arc<StatsStore>,
-    tracker: Arc<DatarefTracker>,
+    tracker: Arc<dyn FlightDataTracker>,
     config: Arc<parking_lot::RwLock<AutoOrthoConfig>>,
 ) -> Result<SocketAddr, Box<dyn std::error::Error + Send + Sync>> {
     let (_tx, rx) = tokio::sync::watch::channel(false);
@@ -124,12 +124,14 @@ pub async fn start_server(
 
 #[cfg(test)]
 mod tests {
+    use crate::xplane::dataref::DatarefTracker;
+    use crate::xplane::FlightDataTracker;
     use super::*;
 
     #[tokio::test]
     async fn test_server_starts_on_random_port() {
         let stats = Arc::new(StatsStore::new());
-        let tracker = Arc::new(DatarefTracker::new());
+        let tracker: Arc<dyn FlightDataTracker> = Arc::new(DatarefTracker::new());
         let config = Arc::new(parking_lot::RwLock::new(
             crate::config::AutoOrthoConfig::default(),
         ));
@@ -144,7 +146,7 @@ mod tests {
         use tokio::sync::watch;
 
         let stats = Arc::new(StatsStore::new());
-        let tracker = Arc::new(DatarefTracker::new());
+        let tracker: Arc<dyn FlightDataTracker> = Arc::new(DatarefTracker::new());
         let config = Arc::new(parking_lot::RwLock::new(
             crate::config::AutoOrthoConfig::default(),
         ));

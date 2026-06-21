@@ -88,7 +88,7 @@ pub enum Message {
     StopServices,
     ServicesStarted(
         String,
-        Option<std::sync::Arc<crate::xplane::dataref::DatarefTracker>>,
+        Option<crate::xplane::Tracker>,
         std::sync::Arc<crate::ui::state::TileProgress>,
         Option<std::sync::Arc<parking_lot::Mutex<crate::pipeline::cache::DdsCache>>>,
     ), // web URL, tracker, tile progress, and DDS cache
@@ -670,7 +670,7 @@ pub(crate) async fn start_all_services(
 ) -> Result<
     (
         String,
-        Arc<crate::xplane::dataref::DatarefTracker>,
+        Arc<dyn crate::xplane::FlightDataTracker>,
         Arc<crate::ui::state::TileProgress>,
         Option<Arc<parking_lot::Mutex<crate::pipeline::cache::DdsCache>>>,
     ),

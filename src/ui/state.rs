@@ -103,7 +103,7 @@ pub use super::scenery_state::{
 pub use super::service_state::ServiceStatus;
 
 /// Application state management (elm-inspired)
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct AppState {
     pub current_screen: Screen,
     pub config: AutoOrthoConfig,
@@ -114,7 +114,7 @@ pub struct AppState {
     pub services: crate::ui::service_state::ServiceState,
 
     // X-Plane dataref tracker for checking connection status
-    pub tracker: Option<std::sync::Arc<crate::xplane::dataref::DatarefTracker>>,
+    pub tracker: Option<crate::xplane::Tracker>,
 
     // Scenery management
     pub scenery: crate::ui::scenery_state::SceneryState,
@@ -140,6 +140,26 @@ pub struct AppState {
 
     // Tile progress (shared with DdsFileSystem)
     pub tile_progress: Arc<TileProgress>,
+}
+
+impl std::fmt::Debug for AppState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AppState")
+            .field("current_screen", &self.current_screen)
+            .field("config", &self.config)
+            .field("is_configured", &self.is_configured)
+            .field("error_message", &self.error_message)
+            .field("services", &self.services)
+            .field("tracker", &self.tracker.as_ref().map(|_| "..."))
+            .field("scenery", &self.scenery)
+            .field("dds_cache_size_bytes", &self.dds_cache_size_bytes)
+            .field("dds_cache", &self.dds_cache.as_ref().map(|_| "..."))
+            .field("simbrief_fetching", &self.simbrief_fetching)
+            .field("simbrief_route_summary", &self.simbrief_route_summary)
+            .field("prefetch", &self.prefetch)
+            .field("tile_progress", &self.tile_progress)
+            .finish()
+    }
 }
 
 impl AppState {
