@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.59](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.58...autoortho-v0.8.59) (2026-06-21)
+
+
+### Code Refactoring
+
+* **ui:** split update() monolith into domain handler modules ([#470](https://github.com/egeland/autoortho-rs/issues/470)) ([45ccc5c](https://github.com/egeland/autoortho-rs/commit/45ccc5c07be0cfe87f75d3b0ce2f179036e4621c))
+
 ## [0.8.58](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.57...autoortho-v0.8.58) (2026-06-21)
 
 
