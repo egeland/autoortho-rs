@@ -676,8 +676,8 @@ mod tests {
     use super::*;
     use crate::stats::StatsStore;
     use crate::webui::custommap::CustomMapStore;
-    use crate::xplane::dataref::DatarefTracker;
     use crate::xplane::FlightDataTracker;
+    use crate::xplane::dataref::DatarefTracker;
 
     fn make_state() -> Arc<WebState> {
         let tmp = std::env::temp_dir().join("autoortho_test_custommap.json");

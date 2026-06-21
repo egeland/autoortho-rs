@@ -124,9 +124,9 @@ pub async fn start_server(
 
 #[cfg(test)]
 mod tests {
-    use crate::xplane::dataref::DatarefTracker;
-    use crate::xplane::FlightDataTracker;
     use super::*;
+    use crate::xplane::FlightDataTracker;
+    use crate::xplane::dataref::DatarefTracker;
 
     #[tokio::test]
     async fn test_server_starts_on_random_port() {
