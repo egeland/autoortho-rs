@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.60](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.59...autoortho-v0.8.60) (2026-06-21)
+
+
+### Features
+
+* adopt FlightDataTracker trait across codebase ([#472](https://github.com/egeland/autoortho-rs/issues/472)) ([2bf5445](https://github.com/egeland/autoortho-rs/commit/2bf5445b75c9efd53dedc5e5d99cd935713e5a6f))
+
 ## [0.8.59](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.58...autoortho-v0.8.59) (2026-06-21)
 
 
