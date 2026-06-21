@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.58](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.57...autoortho-v0.8.58) (2026-06-21)
+
+
+### Code Refactoring
+
+* extract TileGenerator from DdsFileSystem ([#468](https://github.com/egeland/autoortho-rs/issues/468)) ([5617311](https://github.com/egeland/autoortho-rs/commit/5617311e2a26e7ebc77a9696851334f4e5bebc63))
+
 ## [0.8.57](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.56...autoortho-v0.8.57) (2026-06-20)
 
 
