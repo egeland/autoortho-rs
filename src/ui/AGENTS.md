@@ -8,7 +8,16 @@ Desktop GUI using iced (elm-inspired MVU): setup wizard, settings, dashboard, de
 
 - `mod.rs` — `AutoOrthoApp`, MVU `update()` / `view()`, font loading, app lifecycle
 - `state.rs` — `AppState`, `Screen`, `ServiceStatus` types
-- `handlers.rs` — Message handlers for app actions
+- `handlers/` — Message handlers, split by domain:
+  - `mod.rs` — simple one-liner state setters (re-exported)
+  - `cache.rs` — ClearDdsCache, SaveConfiguration
+  - `dev_tools.rs` — FetchTestTile, TestFallbackLookup, SetTestLat/Lon/Zoom
+  - `prefetch.rs` — PrefetchRoute, StopPrefetch, PrefetchProgress, PrefetchComplete*
+  - `scenery.rs` — DownloadRegion, RefreshAvailableRegions, CancelDownload, UninstallRegion
+  - `services.rs` — StartServices, StopServices, ServicesStarted, ServicesFailed
+  - `setup.rs` — BrowseXPlanePath, BrowseCacheDir, FolderPicked
+  - `simbrief.rs` — FetchSimbrief, SimbriefLoaded, SetTileProvider (coverage check)
+  - `window.rs` — WindowOpened, WindowMoved, WindowResized, WindowCloseRequested
 - `helpers.rs` — UI helper functions
 - `screens/` — Individual screen implementations
 
@@ -33,7 +42,8 @@ Desktop GUI using iced (elm-inspired MVU): setup wizard, settings, dashboard, de
 
 - MVU: add variants to `Message` enum, handle in `update()`, render in `view()`
 - `state.rs` owns all mutable app state
-- `handlers.rs` extracted for complex message handling
+- Complex handlers go in `handlers/<domain>.rs`, simple setters stay in `handlers/mod.rs`
+- `update()` should be ~200 LOC of one-liner delegations
 - Embedded fonts in `assets/fonts/`
 
 ## Verification

@@ -10,6 +10,14 @@ use crate::scenery::paths::{scenery_data_dir, scenery_install_dir};
 use crate::seasons::Season;
 use crate::tiles::fallback::FallbackLevel;
 use crate::ui::state::{AppState, DownloadState, ServiceStatus};
+pub mod cache;
+pub mod dev_tools;
+pub mod prefetch;
+pub mod scenery;
+pub mod services;
+pub mod setup;
+pub mod simbrief;
+pub mod window;
 
 pub fn handle_set_xplane_path(state: &mut AppState, path: String) {
     state.config.xplane_path = path.clone();
@@ -191,6 +199,37 @@ pub fn handle_service_status(state: &AppState) -> ServiceStatus {
 pub fn set_debug_mode(state: &mut AppState, v: bool) {
     state.config.ui.debug_mode = v;
 }
+
+pub use cache::{handle_clear_dds_cache, handle_save_configuration};
+pub use dev_tools::{
+    handle_fallback_test_complete, handle_fetch_test_tile, handle_set_test_lat,
+    handle_set_test_lon, handle_set_test_zoom, handle_test_fallback_lookup,
+    handle_test_tile_complete, handle_test_tile_failed,
+};
+pub use prefetch::{
+    handle_prefetch_complete, handle_prefetch_complete_cache_full, handle_prefetch_failed,
+    handle_prefetch_progress, handle_prefetch_route, handle_stop_prefetch,
+};
+pub use scenery::{
+    handle_cancel_download, handle_clean_region_downloads, handle_download_complete,
+    handle_download_failed, handle_download_region, handle_refresh_available_regions,
+    handle_regions_load_failed, handle_regions_loaded, handle_uninstall_region,
+};
+pub use services::{
+    handle_services_failed, handle_services_started, handle_start_services, handle_stop_services,
+};
+pub use setup::{
+    handle_browse_cache_dir, handle_browse_scenery_download_dir, handle_browse_xplane_path,
+    handle_folder_picked,
+};
+pub use simbrief::{
+    handle_fetch_simbrief, handle_set_tile_provider, handle_simbrief_coverage_checked,
+    handle_simbrief_failed, handle_simbrief_loaded, handle_toggle_simbrief_details,
+};
+pub use window::{
+    handle_window_close_requested, handle_window_moved, handle_window_opened,
+    handle_window_resized, handle_window_restore_size,
+};
 
 #[cfg(test)]
 mod tests {
