@@ -6,6 +6,7 @@ use regex::Regex;
 use thiserror::Error;
 
 pub mod filesystem;
+pub mod tile_generator;
 
 #[cfg(not(windows))]
 pub mod mount;
