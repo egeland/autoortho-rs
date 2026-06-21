@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.63](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.62...autoortho-v0.8.63) (2026-06-21)
+
+
+### Code Refactoring
+
+* inject StatsService and FallbackService into DdsFileSystem ([#481](https://github.com/egeland/autoortho-rs/issues/481)) ([7d29128](https://github.com/egeland/autoortho-rs/commit/7d2912827d5d9c849852971af1a025ef8cfd927c))
+
 ## [0.8.62](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.61...autoortho-v0.8.62) (2026-06-21)
 
 
