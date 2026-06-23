@@ -4,6 +4,7 @@
 //! FUSE mount and any other access method (e.g., direct API for testing).
 //! It handles path parsing, DDS generation, caching, and directory structure.
 
+use crate::fuse::pass_through::PassThroughFs;
 use crate::fuse::tile_generator::TileGenerator;
 use crate::fuse::{DdsPathParser, FuseError, MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
 use crate::pipeline::cache::{DdsCache, DdsCacheMetadata};
@@ -29,8 +30,8 @@ pub struct DdsFileSystem {
     tile_generator: Arc<TileGenerator>,
     /// Two-layer tile cache: memory LRU + disk (zstd-compressed)
     tile_cache: Arc<TileCache>,
-    /// Scenery root directory (for pass-through of real files)
-    root: Option<std::path::PathBuf>,
+    /// Pass-through for real files in the scenery root
+    pass_through: Option<PassThroughFs>,
     /// Night exclusion: when true, read_dds returns a solid-color fallback tile
     /// instead of fetching satellite imagery. Updated externally via the Arc.
     night_exclusion: Arc<AtomicBool>,
@@ -124,7 +125,7 @@ impl DdsFileSystemBuilder {
             parser: DdsPathParser::new(),
             tile_generator: Arc::new(self.tile_generator),
             tile_cache,
-            root: self.root,
+            pass_through: self.root.map(PassThroughFs::new),
             night_exclusion: self.night_exclusion,
             fallback: self.fallback,
             stats: self.stats,
@@ -198,17 +199,10 @@ impl DdsFileSystem {
         }
 
         // Real file pass-through
-        if let Some(ref root) = self.root {
-            let full_path = root.join(trimmed);
-            if full_path.exists() {
-                let meta =
-                    std::fs::metadata(&full_path).map_err(|e| FuseError::IoError(e.to_string()))?;
-                if meta.is_dir() {
-                    return Ok(FileAttr::directory());
-                } else {
-                    return Ok(FileAttr::file(meta.len()));
-                }
-            }
+        if let Some(ref pt) = self.pass_through
+            && let Ok(attr) = pt.get_attr(trimmed)
+        {
+            return Ok(attr);
         }
 
         Err(FuseError::InvalidPath)
@@ -321,17 +315,9 @@ impl DdsFileSystem {
 
     /// Check if an entry in a directory path exists as a real directory in the pass-through root.
     pub fn is_dir_in_root(&self, dir_path: &str, entry_name: &str) -> bool {
-        if let Some(ref root) = self.root {
-            let trimmed = dir_path.trim_start_matches('/');
-            let full_path = if trimmed.is_empty() {
-                root.join(entry_name)
-            } else {
-                root.join(trimmed).join(entry_name)
-            };
-            full_path.is_dir()
-        } else {
-            false
-        }
+        self.pass_through
+            .as_ref()
+            .is_some_and(|pt| pt.is_dir_in_root(dir_path, entry_name))
     }
 
     /// List directory contents.
@@ -340,22 +326,16 @@ impl DdsFileSystem {
 
         // Root directory
         if path == "/" || trimmed.is_empty() {
-            let mut entries = vec![".".to_string(), "..".to_string()];
-            for dir in VIRTUAL_DIRS {
-                entries.push(dir.to_string());
-            }
-            // Add real directories from scenery root
-            if let Some(ref root) = self.root
-                && let Ok(read_dir) = std::fs::read_dir(root)
-            {
-                for entry in read_dir.flatten() {
-                    let name = entry.file_name().to_string_lossy().to_string();
-                    if !VIRTUAL_DIRS.contains(&name.as_str()) {
-                        entries.push(name);
+            return Ok(match self.pass_through {
+                Some(ref pt) => pt.root_entries(),
+                None => {
+                    let mut entries = vec![".".to_string(), "..".to_string()];
+                    for dir in VIRTUAL_DIRS {
+                        entries.push(dir.to_string());
                     }
+                    entries
                 }
-            }
-            return Ok(entries);
+            });
         }
 
         // Virtual directories show only the marker file
@@ -368,17 +348,10 @@ impl DdsFileSystem {
         }
 
         // Real directory pass-through
-        if let Some(ref root) = self.root {
-            let full_path = root.join(trimmed);
-            if full_path.is_dir() {
-                let mut entries = vec![".".to_string(), "..".to_string()];
-                if let Ok(read_dir) = std::fs::read_dir(&full_path) {
-                    for entry in read_dir.flatten() {
-                        entries.push(entry.file_name().to_string_lossy().to_string());
-                    }
-                }
-                return Ok(entries);
-            }
+        if let Some(ref pt) = self.pass_through
+            && let Ok(entries) = pt.list_dir(trimmed)
+        {
+            return Ok(entries);
         }
 
         Err(FuseError::InvalidPath)
