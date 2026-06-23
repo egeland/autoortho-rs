@@ -12,8 +12,8 @@ use crate::webui::custommap::CustomMapStore;
 use crate::xplane::simbrief::{FlightFix, FlightPlan};
 
 pub fn handle_fetch_simbrief(app: &mut AutoOrthoApp) -> Task<Message> {
-    app.state.simbrief_fetching = true;
-    app.state.simbrief_error = None;
+    app.state.simbrief.fetching = true;
+    app.state.simbrief.error = None;
     let user_id = app.state.config.flight.simbrief_user_id.clone();
     Task::perform(
         async move { crate::xplane::simbrief::fetch_flight_plan(&user_id).await },
@@ -53,11 +53,11 @@ pub fn handle_simbrief_loaded(
     fixes: Vec<(String, String, f32)>,
     plan: Arc<Mutex<Option<FlightPlan>>>,
 ) -> Task<Message> {
-    app.state.simbrief_fetching = false;
-    app.state.simbrief_route_summary = Some(summary.clone());
-    app.state.simbrief_fixes = fixes;
-    app.state.simbrief_show_details = false;
-    app.state.simbrief_error = None;
+    app.state.simbrief.fetching = false;
+    app.state.simbrief.route_summary = Some(summary.clone());
+    app.state.simbrief.fixes = fixes;
+    app.state.simbrief.show_details = false;
+    app.state.simbrief.error = None;
 
     let flight_plan_opt = {
         let guard = plan.lock();
@@ -86,7 +86,7 @@ pub fn handle_simbrief_loaded(
         (None, None, None, None, String::new(), String::new())
     };
 
-    app.state.simbrief_flight_plan = flight_plan_opt;
+    app.state.simbrief.flight_plan = flight_plan_opt;
 
     let provider = app.state.config.tile.provider.clone();
     let zoom = app.state.config.flight.near_airport_zoom;
@@ -144,16 +144,16 @@ pub fn handle_simbrief_loaded(
 }
 
 pub fn handle_simbrief_coverage_checked(app: &mut AutoOrthoApp, warning: Option<String>) {
-    app.state.simbrief_coverage_warning = warning;
+    app.state.simbrief.coverage_warning = warning;
 }
 
 pub fn handle_simbrief_failed(app: &mut AutoOrthoApp, err: String) {
-    app.state.simbrief_fetching = false;
-    app.state.simbrief_error = Some(err);
+    app.state.simbrief.fetching = false;
+    app.state.simbrief.error = Some(err);
 }
 
 pub fn handle_toggle_simbrief_details(app: &mut AutoOrthoApp) {
-    app.state.simbrief_show_details = !app.state.simbrief_show_details;
+    app.state.simbrief.show_details = !app.state.simbrief.show_details;
 }
 
 /// Check provider coverage for a tile provider change (when flight plan is active).
@@ -166,7 +166,7 @@ pub fn handle_set_tile_provider(app: &mut AutoOrthoApp, provider_name: String) -
         Option<f64>,
         String,
         String,
-    ) = if let Some(ref fp) = app.state.simbrief_flight_plan {
+    ) = if let Some(ref fp) = app.state.simbrief.flight_plan {
         let ofix = FlightPlan::origin_fix(fp);
         let dfix = FlightPlan::destination_fix(fp);
         (

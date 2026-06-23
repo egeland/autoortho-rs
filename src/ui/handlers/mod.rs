@@ -44,7 +44,7 @@ pub fn handle_set_xplane_port(state: &mut AppState, port_str: &str) {
 
 pub fn set_tile_provider(state: &mut AppState, provider: String) {
     state.config.tile.provider = provider;
-    state.simbrief_coverage_warning = None;
+    state.simbrief.coverage_warning = None;
 }
 
 pub fn set_min_zoom(state: &mut AppState, zoom: u32) {

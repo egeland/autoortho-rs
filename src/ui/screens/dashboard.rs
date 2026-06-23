@@ -85,7 +85,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                     .size(13)
                     .color(iced::Color::from_rgb(0.5, 0.5, 0.5)),
             );
-        } else if state.simbrief_fetching {
+        } else if state.simbrief.fetching {
             section = section.push(button(text("Fetching...").size(14)).padding([8, 16]));
         } else {
             let mut btn_row = row![
@@ -96,7 +96,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             ]
             .spacing(8);
 
-            if state.simbrief_route_summary.is_some() {
+            if state.simbrief.route_summary.is_some() {
                 if state.prefetch.running {
                     btn_row = btn_row.push(
                         button(text(format!("{} Stop Prefetch", ICON_STOP)).size(14))
@@ -149,8 +149,8 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             }
         }
 
-        if let Some(ref summary) = state.simbrief_route_summary {
-            let arrow = if state.simbrief_show_details {
+        if let Some(ref summary) = state.simbrief.route_summary {
+            let arrow = if state.simbrief.show_details {
                 "\u{25BC}"
             } else {
                 "\u{25B6}"
@@ -166,9 +166,9 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
                 .on_press(Message::ToggleSimbriefDetails),
             );
 
-            if state.simbrief_show_details && !state.simbrief_fixes.is_empty() {
+            if state.simbrief.show_details && !state.simbrief.fixes.is_empty() {
                 let mut fixes_col = column![].spacing(1);
-                for (fix_idx, (ident, fix_type, alt)) in state.simbrief_fixes.iter().enumerate() {
+                for (fix_idx, (ident, fix_type, alt)) in state.simbrief.fixes.iter().enumerate() {
                     let label = if ident == "TOC" || ident == "TOD" {
                         format!("[{}]", ident)
                     } else {
@@ -204,7 +204,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             }
         }
 
-        if let Some(ref err) = state.simbrief_error {
+        if let Some(ref err) = state.simbrief.error {
             section = section.push(
                 text(err.clone())
                     .size(13)
@@ -212,7 +212,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
             );
         }
 
-        if let Some(ref warning) = state.simbrief_coverage_warning {
+        if let Some(ref warning) = state.simbrief.coverage_warning {
             section = section.push(
                 text(warning.clone())
                     .size(13)

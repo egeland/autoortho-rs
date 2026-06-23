@@ -16,6 +16,7 @@ pub mod handlers;
 pub mod prefetch_state;
 pub mod scenery_state;
 pub mod service_state;
+pub mod simbrief_state;
 use crate::scenery::paths::mount_dir;
 use crate::xplane::simbrief::FlightPlan;
 

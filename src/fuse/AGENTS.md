@@ -8,6 +8,7 @@ FUSE/Dokan virtual filesystem that exposes DDS tile images to X-Plane. Parses ti
 
 - `mod.rs` — `DdsPathParser`, virtual dir constants, shared types
 - `filesystem.rs` — Thin filesystem router: path parsing, directory listing, cache lookup, delegation to TileGenerator
+- `pass_through.rs` — Real filesystem pass-through: get_attr, list_dir, is_dir_in_root for scenery root
 - `tile_generator.rs` — Tile generation pipeline: fetch chunks → decode → compose → compress → DDS bytes
 - `mount.rs` — Unix FUSE mount (unifuse) — `#[cfg(not(windows))]`
 - `mount_win.rs` — Windows Dokan2 mount — `#[cfg(windows)]`

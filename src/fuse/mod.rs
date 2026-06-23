@@ -6,6 +6,7 @@ use regex::Regex;
 use thiserror::Error;
 
 pub mod filesystem;
+pub(crate) mod pass_through;
 pub mod tile_generator;
 
 #[cfg(not(windows))]
@@ -26,6 +27,14 @@ pub enum FuseError {
     IoError(String),
     #[error("Shutdown requested")]
     ShutdownRequested,
+}
+
+impl From<crate::tiles::tile_generator::TileGeneratorError> for FuseError {
+    fn from(e: crate::tiles::tile_generator::TileGeneratorError) -> Self {
+        match e {
+            crate::tiles::tile_generator::TileGeneratorError::Io(msg) => FuseError::IoError(msg),
+        }
+    }
 }
 
 /// DDS virtual file path parser.

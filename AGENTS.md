@@ -69,13 +69,7 @@ NOTE: local development happens on a MacOS machine, and some features for other 
 
 - NEVER change the `origin` git remote from `ssh` to `https`.
 
-1. **Branch**: Use `wt` (worktrunk tool) for tasks; see `wt --help`.
-
-   ```bash
-   git switch main && git pull && wt switch --create fix/some-fix-wt
-   ```
-
-2. **Pre-Commit Checks**:
+1. **Pre-Commit Checks**:
 
    ```bash
    cargo fmt
@@ -83,7 +77,7 @@ NOTE: local development happens on a MacOS machine, and some features for other 
    cargo test --all-features
    ```
 
-3. **Commit**: Conventional commits (`fix:`, `feat:`, `chore:`)
+2. **Commits**: Use Conventional commit format prefixes: (`fix:`, `feat:`, `chore:`)
 
 ## CI/CD Details
 
@@ -95,7 +89,6 @@ NOTE: local development happens on a MacOS machine, and some features for other 
 ## References
 
 - Original AutoOrtho: <https://github.com/ProgrammingDinosaur/autoortho>
-- PLAN.md
 - CHANGELOG.md
 - deny.toml: license restrictions
 

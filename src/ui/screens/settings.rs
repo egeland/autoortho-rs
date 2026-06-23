@@ -282,7 +282,7 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     .spacing(8);
 
     // Show coverage warning if SimBrief is loaded
-    let simbrief = if let Some(ref warning) = state.simbrief_coverage_warning {
+    let simbrief = if let Some(ref warning) = state.simbrief.coverage_warning {
         column![
             simbrief,
             space::vertical().height(8),
