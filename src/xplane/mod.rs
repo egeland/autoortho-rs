@@ -8,12 +8,10 @@ use thiserror::Error;
 pub mod dataref;
 pub mod simbrief;
 pub mod simbrief_adapter;
-pub mod tracker_adapter;
 pub mod traits;
 pub mod udp;
 
 pub use simbrief_adapter::SimBriefAdapter;
-pub use tracker_adapter::TrackerAdapter;
 pub use traits::{FlightDataTracker, FlightPlanSource};
 
 #[derive(Debug, Error)]
