@@ -8,12 +8,12 @@ use crate::ui::AutoOrthoApp;
 use crate::ui::Message;
 
 pub fn handle_prefetch_route(app: &mut AutoOrthoApp) -> Task<Message> {
-    let Some(flight_plan) = app.state.simbrief_flight_plan.clone() else {
+    let Some(flight_plan) = app.state.simbrief.flight_plan.clone() else {
         app.state.prefetch.status = Some("No flight plan loaded".to_string());
         return Task::none();
     };
 
-    let num_fixes = app.state.simbrief_fixes.len();
+    let num_fixes = app.state.simbrief.fixes.len();
     app.state.prefetch.waypoint_progress.init(num_fixes);
     app.state.prefetch.waypoint_status =
         vec![crate::ui::state::WaypointPrefetchStatus::NotStarted; num_fixes];

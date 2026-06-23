@@ -124,13 +124,7 @@ pub struct AppState {
     pub dds_cache: Option<std::sync::Arc<parking_lot::Mutex<crate::pipeline::cache::DdsCache>>>,
 
     // SimBrief flight plan
-    pub simbrief_fetching: bool,
-    pub simbrief_route_summary: Option<String>,
-    pub simbrief_fixes: Vec<(String, String, f32)>, // (ident, fix_type, altitude_ft) for display
-    pub simbrief_show_details: bool,
-    pub simbrief_error: Option<String>,
-    pub simbrief_flight_plan: Option<crate::xplane::simbrief::FlightPlan>,
-    pub simbrief_coverage_warning: Option<String>,
+    pub simbrief: crate::ui::simbrief_state::SimBriefState,
 
     // Developer test tile and fallback test state
     pub dev_test: crate::ui::dev_test_state::DevTestState,
@@ -154,8 +148,7 @@ impl std::fmt::Debug for AppState {
             .field("scenery", &self.scenery)
             .field("dds_cache_size_bytes", &self.dds_cache_size_bytes)
             .field("dds_cache", &self.dds_cache.as_ref().map(|_| "..."))
-            .field("simbrief_fetching", &self.simbrief_fetching)
-            .field("simbrief_route_summary", &self.simbrief_route_summary)
+            .field("simbrief", &self.simbrief)
             .field("prefetch", &self.prefetch)
             .field("tile_progress", &self.tile_progress)
             .finish()
@@ -201,13 +194,7 @@ impl AppState {
             tracker: None,
             dds_cache_size_bytes: 0,
             dds_cache: None,
-            simbrief_fetching: false,
-            simbrief_route_summary: None,
-            simbrief_fixes: Vec::new(),
-            simbrief_show_details: false,
-            simbrief_error: None,
-            simbrief_flight_plan: None,
-            simbrief_coverage_warning: None,
+            simbrief: Default::default(),
             dev_test: crate::ui::dev_test_state::DevTestState::new(),
             prefetch: crate::ui::prefetch_state::PrefetchState::new(),
             tile_progress: Arc::new(TileProgress::new()),
