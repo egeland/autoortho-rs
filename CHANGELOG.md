@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.63...autoortho-v0.9.0) (2026-06-23)
+
+
+### Features
+
+* several code arch improvements ([#483](https://github.com/egeland/autoortho-rs/issues/483)) ([615bcdc](https://github.com/egeland/autoortho-rs/commit/615bcdc95ceb7df7f1624cfcf3586b144103d823))
+
 ## [0.8.63](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.62...autoortho-v0.8.63) (2026-06-21)
 
 
