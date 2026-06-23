@@ -8,6 +8,7 @@ Desktop GUI using iced (elm-inspired MVU): setup wizard, settings, dashboard, de
 
 - `mod.rs` — `AutoOrthoApp`, MVU `update()` / `view()`, font loading, app lifecycle
 - `state.rs` — `AppState`, `Screen`, `ServiceStatus` types
+- `simbrief_state.rs` — `SimBriefState` sub-struct for flight plan UI state
 - `handlers/` — Message handlers, split by domain:
   - `mod.rs` — simple one-liner state setters (re-exported)
   - `cache.rs` — ClearDdsCache, SaveConfiguration

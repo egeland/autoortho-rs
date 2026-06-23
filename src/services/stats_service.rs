@@ -20,17 +20,6 @@ pub enum StatsServiceError {
 /// Result type for stats service operations.
 pub type StatsResult<T> = Result<T, StatsServiceError>;
 
-/// A snapshot of current statistics.
-#[derive(Debug, Clone, Default, PartialEq)]
-pub struct StatsSnapshot {
-    pub tiles_downloaded: u64,
-    pub bytes_downloaded: u64,
-    pub cache_hits: u64,
-    pub cache_misses: u64,
-    pub tiles_pending: u32,
-    pub tiles_completed: u32,
-}
-
 /// Service trait for statistics and telemetry.
 ///
 /// This trait abstracts over the real `StatsStore` and in-memory fakes,
@@ -54,7 +43,7 @@ pub trait StatsService: Send + Sync {
     async fn set_completed_tiles(&self, count: u32);
 
     /// Get a snapshot of current statistics.
-    async fn snapshot(&self) -> StatsSnapshot;
+    async fn snapshot(&self) -> crate::stats::StatsSnapshot;
 
     /// Calculate the cache hit ratio (0.0–1.0).
     /// Returns 0.0 if no data is available.
@@ -98,16 +87,8 @@ impl StatsService for StatsServiceImpl {
         self.store.set_completed_tiles(count);
     }
 
-    async fn snapshot(&self) -> StatsSnapshot {
-        let snap = self.store.snapshot();
-        StatsSnapshot {
-            tiles_downloaded: snap.tiles_downloaded,
-            bytes_downloaded: snap.bytes_downloaded,
-            cache_hits: snap.cache_hits,
-            cache_misses: snap.cache_misses,
-            tiles_pending: snap.tiles_pending,
-            tiles_completed: snap.tiles_completed,
-        }
+    async fn snapshot(&self) -> crate::stats::StatsSnapshot {
+        self.store.snapshot()
     }
 
     async fn hit_ratio(&self) -> f64 {
@@ -128,13 +109,13 @@ pub(crate) mod tests {
     /// Fake stats service for testing without real StatsStore.
     #[derive(Debug, Clone)]
     pub struct FakeStatsService {
-        snapshot: Arc<Mutex<StatsSnapshot>>,
+        snapshot: Arc<Mutex<crate::stats::StatsSnapshot>>,
     }
 
     impl FakeStatsService {
         pub fn new() -> Self {
             Self {
-                snapshot: Arc::new(Mutex::new(StatsSnapshot::default())),
+                snapshot: Arc::new(Mutex::new(crate::stats::StatsSnapshot::default())),
             }
         }
     }
@@ -173,7 +154,7 @@ pub(crate) mod tests {
             snap.tiles_completed = count;
         }
 
-        async fn snapshot(&self) -> StatsSnapshot {
+        async fn snapshot(&self) -> crate::stats::StatsSnapshot {
             self.snapshot.lock().await.clone()
         }
 
@@ -189,7 +170,7 @@ pub(crate) mod tests {
 
         async fn clear(&self) {
             let mut snap = self.snapshot.lock().await;
-            *snap = StatsSnapshot::default();
+            *snap = crate::stats::StatsSnapshot::default();
         }
     }
 

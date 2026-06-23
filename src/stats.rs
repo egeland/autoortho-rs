@@ -5,7 +5,7 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 
 /// Statistics store for tile downloads and cache
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct StatsSnapshot {
     pub tiles_downloaded: u64,
     pub bytes_downloaded: u64,
