@@ -5,7 +5,6 @@
 //! It handles path parsing, DDS generation, caching, and directory structure.
 
 use crate::fuse::pass_through::PassThroughFs;
-use crate::fuse::tile_generator::TileGenerator;
 use crate::fuse::{DdsPathParser, FuseError, MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
 use crate::pipeline::cache::DdsCache;
 use crate::services::{FallbackService, StatsService};
@@ -13,6 +12,7 @@ use crate::tiles::fallback::FallbackConfig;
 use crate::tiles::fallback::FallbackSystem;
 use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::tile_cache::TileCache;
+use crate::tiles::tile_generator::TileGenerator;
 use crate::tiles::tile_resolution::TileResolution;
 use crate::ui::state::TileProgress;
 use crate::webui::custommap::CustomMapStore;

@@ -29,6 +29,14 @@ pub enum FuseError {
     ShutdownRequested,
 }
 
+impl From<crate::tiles::tile_generator::TileGeneratorError> for FuseError {
+    fn from(e: crate::tiles::tile_generator::TileGeneratorError) -> Self {
+        match e {
+            crate::tiles::tile_generator::TileGeneratorError::Io(msg) => FuseError::IoError(msg),
+        }
+    }
+}
+
 /// DDS virtual file path parser.
 ///
 /// Parses X-Plane tile paths like `/textures/3232_2176_BI16.dds`

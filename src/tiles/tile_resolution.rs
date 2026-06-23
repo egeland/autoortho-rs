@@ -7,10 +7,10 @@
 //! cache check → fallback → generate → cache store.
 //! Extracted from `DdsFileSystem` for testability and locality.
 
-use crate::fuse::FuseError;
 use crate::pipeline::cache::DdsCacheMetadata;
 use crate::services::{FallbackService, StatsService};
 use crate::tiles::tile_cache::TileCache;
+use crate::tiles::tile_generator::{TileGenerator, TileGeneratorError};
 use log::{debug, warn};
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -31,17 +31,14 @@ pub struct ResolvedTile {
 /// Composes `TileCache`, `TileGenerator`, `FallbackService`, and `StatsService`.
 pub struct TileResolution {
     tile_cache: Arc<TileCache>,
-    tile_generator: Arc<crate::fuse::tile_generator::TileGenerator>,
+    tile_generator: Arc<TileGenerator>,
     fallback: Option<Arc<dyn FallbackService>>,
     stats: Option<Arc<dyn StatsService>>,
     solid_color: [u8; 3],
 }
 
 impl TileResolution {
-    pub fn new(
-        tile_cache: Arc<TileCache>,
-        tile_generator: Arc<crate::fuse::tile_generator::TileGenerator>,
-    ) -> Self {
+    pub fn new(tile_cache: Arc<TileCache>, tile_generator: Arc<TileGenerator>) -> Self {
         Self {
             tile_cache,
             tile_generator,
@@ -67,7 +64,7 @@ impl TileResolution {
     }
 
     /// Get a reference to the tile generator.
-    pub fn tile_generator(&self) -> &crate::fuse::tile_generator::TileGenerator {
+    pub fn tile_generator(&self) -> &TileGenerator {
         &self.tile_generator
     }
 
@@ -83,7 +80,7 @@ impl TileResolution {
         col: u32,
         maptype: &str,
         zoom: u32,
-    ) -> Result<ResolvedTile, FuseError> {
+    ) -> Result<ResolvedTile, TileGeneratorError> {
         let tile_key = format!("{}_{}_{}_{}", row, col, maptype, zoom);
 
         // Check tile cache (memory → disk → upserving)
@@ -241,10 +238,7 @@ mod tests {
     fn make_resolution() -> TileResolution {
         let provider = Arc::new(MockProvider);
         let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
-        let generator = Arc::new(crate::fuse::tile_generator::TileGenerator::new(
-            Arc::new(fetcher),
-            "ARC",
-        ));
+        let generator = Arc::new(TileGenerator::new(Arc::new(fetcher), "ARC"));
         let cache = Arc::new(TileCache::new(64));
         TileResolution::new(cache, generator)
     }
