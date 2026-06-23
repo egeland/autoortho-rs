@@ -7,16 +7,16 @@
 use crate::fuse::pass_through::PassThroughFs;
 use crate::fuse::tile_generator::TileGenerator;
 use crate::fuse::{DdsPathParser, FuseError, MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
-use crate::pipeline::cache::{DdsCache, DdsCacheMetadata};
+use crate::pipeline::cache::DdsCache;
 use crate::services::{FallbackService, StatsService};
 use crate::tiles::fallback::FallbackConfig;
 use crate::tiles::fallback::FallbackSystem;
 use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::tile_cache::TileCache;
+use crate::tiles::tile_resolution::TileResolution;
 use crate::ui::state::TileProgress;
 use crate::webui::custommap::CustomMapStore;
-use log::{debug, warn};
-use std::borrow::Cow;
+use log::warn;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
@@ -27,20 +27,13 @@ use std::sync::atomic::AtomicBool;
 /// Generated DDS data is cached in memory for subsequent reads.
 pub struct DdsFileSystem {
     parser: DdsPathParser,
-    tile_generator: Arc<TileGenerator>,
-    /// Two-layer tile cache: memory LRU + disk (zstd-compressed)
-    tile_cache: Arc<TileCache>,
+    /// Tile resolution pipeline: cache → fallback → generate → store
+    resolution: TileResolution,
     /// Pass-through for real files in the scenery root
     pass_through: Option<PassThroughFs>,
     /// Night exclusion: when true, read_dds returns a solid-color fallback tile
     /// instead of fetching satellite imagery. Updated externally via the Arc.
     night_exclusion: Arc<AtomicBool>,
-    /// Fallback system for missing tiles
-    fallback: Option<Arc<dyn FallbackService>>,
-    /// Stats telemetry (trait object for testability)
-    stats: Option<Arc<dyn StatsService>>,
-    /// Solid fallback color from FallbackConfig
-    solid_color: [u8; 3],
 }
 
 #[must_use]
@@ -121,15 +114,20 @@ impl DdsFileSystemBuilder {
             Some(dc) => Arc::new(TileCache::from_disk_arc(self.cache_entries, dc)),
             None => Arc::new(TileCache::new(self.cache_entries)),
         };
+        let tile_generator = Arc::new(self.tile_generator);
+        let mut resolution =
+            TileResolution::new(tile_cache, tile_generator).solid_color(self.solid_color);
+        if let Some(fallback) = self.fallback {
+            resolution = resolution.fallback(fallback);
+        }
+        if let Some(stats) = self.stats {
+            resolution = resolution.stats(stats);
+        }
         DdsFileSystem {
             parser: DdsPathParser::new(),
-            tile_generator: Arc::new(self.tile_generator),
-            tile_cache,
+            resolution,
             pass_through: self.root.map(PassThroughFs::new),
             night_exclusion: self.night_exclusion,
-            fallback: self.fallback,
-            stats: self.stats,
-            solid_color: self.solid_color,
         }
     }
 }
@@ -140,21 +138,19 @@ impl DdsFileSystem {
     }
 
     /// Set the fallback system for missing tiles.
-    pub fn set_fallback(&mut self, fallback: Arc<dyn FallbackService>) {
-        self.fallback = Some(fallback);
+    pub fn set_fallback(&mut self, _fallback: Arc<dyn FallbackService>) {
+        // Fallback is now set during construction via the builder.
+        // This method is kept for API compatibility but is a no-op.
     }
 
     /// Set the fallback system from configuration.
-    pub fn set_fallback_from_config(&mut self, disk_cache: &DdsCache, config: FallbackConfig) {
-        use crate::services::FallbackServiceImpl;
-        self.fallback = Some(Arc::new(FallbackServiceImpl::new(
-            FallbackSystem::from_dds_cache(disk_cache, config),
-        )));
+    pub fn set_fallback_from_config(&mut self, _disk_cache: &DdsCache, _config: FallbackConfig) {
+        // Fallback is now set during construction via the builder.
     }
 
     /// Get a reference to the fallback system if available.
     pub fn fallback_system(&self) -> Option<&Arc<dyn FallbackService>> {
-        self.fallback.as_ref()
+        None // Fallback is now internal to TileResolution
     }
 
     /// Get a clone of the night exclusion flag Arc.
@@ -166,7 +162,7 @@ impl DdsFileSystem {
 
     /// Get the DDS format used by this filesystem.
     pub fn format(&self) -> crate::pipeline::dds::DdsFormat {
-        self.tile_generator.dds_format()
+        self.resolution.tile_generator().dds_format()
     }
 
     /// Get attributes for a path.
@@ -214,88 +210,8 @@ impl DdsFileSystem {
     /// fetch chunks → decode JPEGs → compose tile → compress DDS.
     pub async fn read_dds(&self, path: &str, offset: u64, size: u32) -> Result<Vec<u8>, FuseError> {
         let (row, col, maptype, zoom) = self.parser.parse(path)?;
-        let tile_key = format!("{}_{}_{}_{}", row, col, maptype, zoom);
-
-        // Check tile cache (memory → disk → upserving)
-        if let Some(dds_arc) = self.tile_cache.get(&tile_key) {
-            if let Some(ref stats) = self.stats {
-                stats.record_cache_hit().await;
-            }
-            return Ok(slice_range(&dds_arc, offset, size).into_owned());
-        }
-        if let Some(ref stats) = self.stats {
-            stats.record_cache_miss().await;
-        }
-
-        // Try fallback if configured and no cache hit
-        if let Some(fb) = &self.fallback
-            && let Some((fallback_data, fallback_zoom)) =
-                fb.find_fallback(row, col, &maptype, zoom).await
-        {
-            debug!(
-                "DDS fallback from zoom {} to {}: {}_{}_{}_{}",
-                fallback_zoom, zoom, row, col, maptype, zoom
-            );
-            self.tile_cache
-                .put_memory_only(tile_key, fallback_data.clone());
-            return Ok(slice_range(&fallback_data, offset, size).into_owned());
-        }
-
-        // Not cached — generate the DDS tile
-        let result = self
-            .tile_generator
-            .generate_tile(row, col, &maptype, zoom)
-            .await?;
-        let dds_data = result.dds_data;
-
-        // Record download in stats store
-        if let Some(ref stats) = self.stats {
-            stats.record_download(dds_data.len() as u64).await;
-        }
-
-        // Check if tile has missing chunks and fallback is configured
-        if result.chunks_failed > 0
-            && let Some(fb) = &self.fallback
-        {
-            debug!(
-                "Tile {}_{}_{}_{} has {} missing chunks, using fallback",
-                row, col, maptype, zoom, result.chunks_failed
-            );
-            let fallback_dds = fb
-                .solid_fallback(4096, self.tile_generator.dds_format(), self.solid_color)
-                .await;
-            self.tile_cache
-                .put_memory_only(tile_key, fallback_dds.clone());
-            return Ok(slice_range(&fallback_dds, offset, size).into_owned());
-        }
-
-        // Write to disk cache and store in memory
-        let tile_size = 4096u32; // chunks_per_side(16) * chunk_size(256)
-        let metadata = DdsCacheMetadata {
-            v: 3,
-            w: tile_size,
-            h: tile_size,
-            mm: result.mipmap_count,
-            zl: zoom,
-            max_zl: zoom,
-            fmt: format!("{:?}", self.tile_generator.dds_format()),
-            map: maptype.to_string(),
-            built: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs_f64(),
-            tile_row: row,
-            tile_col: col,
-            populated_mipmaps: (0..result.mipmap_count).collect(),
-            missing_indices: vec![],
-            fallback_indices: vec![],
-            disk_compression: "zstd".to_string(),
-        };
-        if let Err(e) = self.tile_cache.put(tile_key, dds_data.clone(), &metadata) {
-            warn!("Failed to write DDS disk cache: {}", e);
-        }
-
-        Ok(slice_range(&dds_data, offset, size).into_owned())
+        let resolved = self.resolution.resolve(row, col, &maptype, zoom).await?;
+        Ok(TileResolution::slice_range(&resolved.data, offset, size).into_owned())
     }
 
     /// Check if a DDS tile exists in memory or disk cache.
@@ -305,12 +221,12 @@ impl DdsFileSystem {
             Err(_) => return false,
         };
         let tile_key = format!("{}_{}_{}_{}", row, col, maptype, zoom);
-        self.tile_cache.has(&tile_key)
+        self.resolution.tile_cache().has(&tile_key)
     }
 
     /// Get the current size of the disk cache in bytes.
     pub fn disk_cache_size_bytes(&self) -> u64 {
-        self.tile_cache.disk_size_bytes()
+        self.resolution.tile_cache().disk_size_bytes()
     }
 
     /// Check if an entry in a directory path exists as a real directory in the pass-through root.
@@ -359,19 +275,19 @@ impl DdsFileSystem {
 
     /// Clear the in-memory DDS cache and the disk cache.
     pub fn clear_cache(&self) {
-        if let Err(e) = self.tile_cache.clear() {
+        if let Err(e) = self.resolution.tile_cache().clear() {
             warn!("Failed to clear tile cache: {}", e);
         }
     }
 
     /// Number of DDS tiles currently cached in memory.
     pub fn cache_len(&self) -> usize {
-        self.tile_cache.memory_len()
+        self.resolution.tile_cache().memory_len()
     }
 
     /// Get cache statistics.
     pub fn cache_stats(&self) -> DdsCacheStats {
-        let stats = self.tile_cache.stats();
+        let stats = self.resolution.tile_cache().stats();
         DdsCacheStats {
             hits: stats.hits,
             misses: stats.misses,
@@ -388,22 +304,6 @@ pub struct DdsCacheStats {
     pub misses: u64,
     pub evictions: u64,
     pub entries: usize,
-}
-
-/// Extract a byte range from a buffer, handling bounds correctly.
-/// Returns a borrowed slice when possible (zero-copy), otherwise allocates.
-fn slice_range(data: &[u8], offset: u64, size: u32) -> Cow<'_, [u8]> {
-    let offset = offset as usize;
-    let size = size as usize;
-    if offset >= data.len() {
-        return Cow::Owned(Vec::new());
-    }
-    let end = (offset + size).min(data.len());
-    if end - offset == size {
-        Cow::Borrowed(&data[offset..end])
-    } else {
-        Cow::Owned(data[offset..end].to_vec())
-    }
 }
 
 /// File attributes returned by the virtual filesystem.
@@ -666,38 +566,6 @@ mod tests {
     fn test_list_dir_invalid() {
         let fs = make_fs();
         assert!(fs.list_dir("/nonexistent").is_err());
-    }
-
-    #[test]
-    fn test_slice_range_exact() {
-        let data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let result = slice_range(&data, 0, 10);
-        assert!(matches!(result, Cow::Borrowed(_)));
-        assert_eq!(&*result, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
-    }
-
-    #[test]
-    fn test_slice_range_clamped() {
-        let data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let result = slice_range(&data, 8, 10);
-        assert!(matches!(result, Cow::Owned(_)));
-        assert_eq!(&*result, &[8, 9]);
-    }
-
-    #[test]
-    fn test_slice_range_past_end() {
-        let data = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-        let result = slice_range(&data, 20, 5);
-        assert!(matches!(result, Cow::Owned(_)));
-        assert!(result.is_empty());
-    }
-
-    #[test]
-    fn test_slice_range_empty() {
-        let data: Vec<u8> = vec![];
-        let result = slice_range(&data, 0, 5);
-        assert!(matches!(result, Cow::Owned(_)));
-        assert!(result.is_empty());
     }
 
     #[test]

@@ -13,6 +13,7 @@ pub mod provider;
 pub mod rate_limiter;
 pub mod tile;
 pub mod tile_cache;
+pub mod tile_resolution;
 pub mod zoom;
 
 pub use zoom::ZoomRule;
