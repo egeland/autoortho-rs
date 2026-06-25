@@ -128,6 +128,11 @@ impl TileFetcher {
             .build()
     }
 
+    /// Get the default provider ID for this fetcher.
+    pub fn default_provider_id(&self) -> &str {
+        &self.default_provider_id
+    }
+
     /// Get or create a chunk, returning its current data if cached.
     /// Uses the default provider from the TileFetcher.
     pub async fn get_chunk_data(

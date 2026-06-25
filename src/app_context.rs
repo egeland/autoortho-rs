@@ -33,6 +33,23 @@ pub struct AppContext {
 }
 
 impl AppContext {
+    /// Create a TileFetcher from config.
+    pub fn new_fetcher(config: &AutoOrthoConfig) -> TileFetcher {
+        let chunk_cache_entries = config.chunk_memory_cache_entries();
+        TileFetcher::with_cache_size(chunk_cache_entries, &config.tile.provider)
+    }
+
+    /// Create an optional DDS cache from config.
+    pub fn new_cache(config: &AutoOrthoConfig) -> Option<Arc<ParkMutex<DdsCache>>> {
+        if !config.cache.enable_dds_cache {
+            return None;
+        }
+        let cache_dir = PathBuf::from(&config.cache_dir).join("dds");
+        DdsCache::open(cache_dir, config.cache.dds_cache_size_mb * 1024 * 1024)
+            .ok()
+            .map(|cache| Arc::new(ParkMutex::new(cache)))
+    }
+
     pub async fn init(config: AutoOrthoConfig) -> Result<Self, Box<dyn Error>> {
         let _provider = ProviderFactory::create(&config.tile.provider)
             .ok_or_else(|| format!("Unknown tile provider: {}", config.tile.provider))?;
@@ -43,27 +60,12 @@ impl AppContext {
             .join("custom_map.json");
         let custom_map = CustomMapStore::load(custom_map_path);
 
-        let chunk_cache_entries = config.chunk_memory_cache_entries();
         let dds_cache_entries = config.dds_memory_cache_entries();
 
-        let fetcher = Arc::new(TileFetcher::with_cache_size(
-            chunk_cache_entries,
-            &config.tile.provider,
-        ));
+        let fetcher = Arc::new(Self::new_fetcher(&config));
+        let dds_cache = Self::new_cache(&config);
 
-        let dds_cache = if config.cache.enable_dds_cache {
-            let cache_dir = PathBuf::from(&config.cache_dir).join("dds");
-            match DdsCache::open(cache_dir, config.cache.dds_cache_size_mb * 1024 * 1024) {
-                Ok(cache) => Some(Arc::new(ParkMutex::new(cache))),
-                Err(_) => None,
-            }
-        } else {
-            None
-        };
-
-        // Create shared tile progress tracker for UI
         let tile_progress = Arc::new(crate::ui::state::TileProgress::new());
-
         let stats = Arc::new(StatsStore::new());
 
         let fs = {
@@ -122,5 +124,38 @@ mod tests {
             .await
             .expect("Failed to init context");
         assert_eq!(context.config.read().tile.provider, "ARC");
+    }
+
+    #[test]
+    fn test_new_fetcher_returns_correct_provider() {
+        let mut config = AutoOrthoConfig::default();
+        config.tile.provider = "GO2".to_string();
+        let fetcher = AppContext::new_fetcher(&config);
+        // Verify fetcher works by checking it starts with empty cache
+        // (provider name is tested indirectly via fetch behavior)
+        assert_eq!(fetcher.default_provider_id(), "GO2");
+    }
+
+    #[test]
+    fn test_new_fetcher_default_provider() {
+        let config = AutoOrthoConfig::default();
+        let fetcher = AppContext::new_fetcher(&config);
+        assert_eq!(fetcher.default_provider_id(), "ARC");
+    }
+
+    #[test]
+    fn test_new_cache_disabled() {
+        let mut config = AutoOrthoConfig::default();
+        config.cache.enable_dds_cache = false;
+        assert!(AppContext::new_cache(&config).is_none());
+    }
+
+    #[test]
+    fn test_new_cache_enabled() {
+        let tmp = TempDir::new().unwrap();
+        let mut config = AutoOrthoConfig::default();
+        config.cache_dir = tmp.path().to_string_lossy().to_string();
+        config.cache.enable_dds_cache = true;
+        assert!(AppContext::new_cache(&config).is_some());
     }
 }
