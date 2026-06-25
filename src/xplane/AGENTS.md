@@ -2,32 +2,40 @@
 
 ## Purpose
 
-X-Plane integration: dataref tracking, SimBrief flight plan parsing, UDP communication.
+X-Plane integration: flight data tracking, SimBrief flight plan parsing, UDP communication.
 
 ## Ownership
 
-- `dataref.rs` — `DatarefTracker`, RREF packet handling, position/altitude tracking
+- `dataref.rs` — `FlightDataStore` (thread-safe snapshot + averaging), `FlightData` builder, `FlightAverages`
+- `udp_loop.rs` — `run_tracker()`, `connect_and_track()`, `datarefs` constants, reconnection loop
+- `udp.rs` — UDP socket utilities
 - `simbrief.rs` — `FlightPlan`, `FlightFix`, SimBrief XML parsing
-- `udp.rs` — UDP socket for X-Plane communication
-- `mod.rs` — `RrefCodec`, `FlightDataAverager`, `HeadingAverager`
+- `mod.rs` — `RrefCodec`, re-exports
+- `averagers.rs` — `FlightDataAverager`, `HeadingAverager`
+- `traits.rs` — `FlightDataTracker`, `FlightPlanSource` traits
+- `codec.rs` — `RrefCodec`, RREF packet encode/decode
+- `simbrief_adapter.rs` — `SimBriefAdapter`
 
 ## Local Contracts
 
+- `FlightDataTracker` trait is the shared interface — implemented by `FlightDataStore`
+- `FlightDataStore` holds 5 averagers internally, updated on every `update()` call
+- `run_tracker()` in `udp_loop.rs` calls `tracker.update(lat, lon, alt_agl_m, ...)` with named fields
+- `FlightData` uses builder pattern: `FlightData::new().lat(45.0).lon(90.0)...`
 - `RrefCodec::encode_request()` / `decode_response()` — RREF protocol
-- `FlightDataAverager` — sliding window for smooth values
-- `HeadingAverager` — circular average for 0–360° headings
-- `DatarefTracker` is shared: used by `tiles::prefetch`, `webui`, `ui`
 
 ## Work Guidance
 
-- `DatarefTracker` is the central position source — used by prefetch and web UI
+- `FlightDataStore` is the central position source — used by prefetch and web UI
+- Consumers use `Arc<dyn FlightDataTracker>` — no concrete type dependency
 - SimBrief parsing uses XML (quick-xml crate)
 - UDP packets are fixed-size binary (little-endian)
+- `udp_loop.rs` handles reconnection on connection loss
 
 ## Verification
 
 - `cargo test --lib xplane`
-- Unit tests for RREF encode/decode and averaging
+- Unit tests for RREF encode/decode, FlightDataStore update/averaging, builder pattern
 
 ## Child DOX Index
 

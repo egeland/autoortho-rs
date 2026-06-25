@@ -677,7 +677,7 @@ pub(crate) async fn start_all_services(
     String,
 > {
     use crate::app_context::AppContext;
-    use crate::xplane::dataref::{self};
+    use crate::xplane::udp_loop;
 
     // Initialize the application context
     let context: AppContext = AppContext::init(config.clone())
@@ -710,7 +710,7 @@ pub(crate) async fn start_all_services(
         .parse()
         .map_err(|e: std::net::AddrParseError| e.to_string())?;
 
-    tokio::spawn(dataref::run_tracker(
+    tokio::spawn(udp_loop::run_tracker(
         tracker.clone(),
         xplane_addr,
         shutdown_rx,
