@@ -20,7 +20,9 @@ pub fn handle_refresh_available_regions(app: &mut AutoOrthoApp) -> Task<Message>
     let rt = app.runtime.clone();
 
     rt.spawn(async move {
-        let result = crate::ui::fetch_regions_and_installed(&data_dir, &download_dir).await;
+        let result =
+            crate::scenery::orchestrator::fetch_regions_and_installed(&data_dir, &download_dir)
+                .await;
         let _ = tx.send(result);
     });
 
@@ -106,19 +108,21 @@ pub fn handle_download_region(app: &mut AutoOrthoApp, region_id: String) -> Task
     let rt = app.runtime.clone();
 
     rt.spawn(async move {
-        let result = crate::ui::download_and_install_region(
+        let result = crate::scenery::orchestrator::download_and_install_region(
             &rid,
             &download_dir,
             &data_dir,
-            &cancel,
-            &progress_bytes,
-            &progress_file,
-            &progress_files_done,
-            &dl_state.extract_files_done,
-            &dl_state.extract_files_total,
-            &dl_state.extracting,
-            &dl_state.pack_current,
-            &dl_state.pack_total,
+            &crate::scenery::orchestrator::DownloadProgress {
+                cancel,
+                bytes_downloaded: progress_bytes,
+                current_file: progress_file,
+                files_done: progress_files_done,
+                extract_done: dl_state.extract_files_done,
+                extract_total: dl_state.extract_files_total,
+                extracting: dl_state.extracting,
+                pack_current: dl_state.pack_current,
+                pack_total: dl_state.pack_total,
+            },
         )
         .await;
         let _ = tx.send((rid, result));
