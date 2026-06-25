@@ -28,7 +28,7 @@ Tile engine: coordinate math, chunk management, tile assembly, prefetching, prov
 ## Work Guidance
 
 - `provider.rs` is the entry point for adding new tile sources
-- `prefetch.rs` depends on `xplane::dataref::DatarefTracker` for position
+- `prefetch.rs` depends on `xplane::FlightDataStore` (via `FlightDataTracker` trait) for position
 - Rate limiter is per-provider, not global
 
 ## Verification

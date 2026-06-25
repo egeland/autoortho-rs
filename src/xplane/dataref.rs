@@ -1,40 +1,15 @@
-//! Dataref tracker: subscribes to X-Plane datarefs via UDP and maintains
-//! a thread-safe snapshot of current flight data.
+//! Flight data store: thread-safe snapshot of current flight data with averaging.
+//!
+//! Provides `FlightDataStore` — the central position source for all consumers
+//! (prefetch, webui, ui). Handles averaging internally.
 
-use crate::xplane::{FlightDataAverager, HeadingAverager, RrefCodec, XPlaneError};
-use std::net::SocketAddr;
+use crate::xplane::{FlightDataAverager, HeadingAverager};
 use std::sync::{Arc, RwLock};
-use std::time::{Duration, Instant};
-use tokio::net::UdpSocket;
-use tracing::{debug, error, info, warn};
+use std::time::Instant;
 
-/// The datarefs we subscribe to from X-Plane, with their assigned indices.
-pub mod datarefs {
-    pub const LATITUDE: (i32, &str) = (0, "sim/flightmodel/position/latitude");
-    pub const LONGITUDE: (i32, &str) = (1, "sim/flightmodel/position/longitude");
-    pub const ALT_AGL: (i32, &str) = (2, "sim/flightmodel/position/y_agl");
-    pub const HEADING: (i32, &str) = (3, "sim/flightmodel/position/mag_psi");
-    pub const GROUND_SPEED: (i32, &str) = (4, "sim/flightmodel/position/groundspeed");
-    pub const LOCAL_TIME: (i32, &str) = (5, "sim/time/local_time_sec");
-    pub const PRESSURE_ALT: (i32, &str) = (6, "sim/flightmodel2/position/pressure_altitude");
-    pub const SUN_PITCH: (i32, &str) = (7, "sim/graphics/scenery/sun_pitch_degrees");
-
-    pub const ALL: &[(i32, &str)] = &[
-        LATITUDE,
-        LONGITUDE,
-        ALT_AGL,
-        HEADING,
-        GROUND_SPEED,
-        LOCAL_TIME,
-        PRESSURE_ALT,
-        SUN_PITCH,
-    ];
-}
+pub use super::udp_loop::datarefs;
 
 const METERS_TO_FEET: f32 = 3.28084;
-const DEFAULT_FREQ_HZ: i32 = 1;
-const UDP_TIMEOUT: Duration = Duration::from_secs(5);
-const RECONNECT_DELAY: Duration = Duration::from_secs(5);
 const AVERAGER_WINDOW: usize = 60;
 
 /// Atomic snapshot of current flight data.
@@ -83,6 +58,11 @@ impl Default for FlightData {
 }
 
 impl FlightData {
+    /// Create a new FlightData builder.
+    pub fn builder() -> FlightDataBuilder {
+        FlightDataBuilder::default()
+    }
+
     /// Altitude AGL in feet
     pub fn alt_agl_ft(&self) -> f32 {
         self.alt_agl_m * METERS_TO_FEET
@@ -104,6 +84,77 @@ impl FlightData {
     }
 }
 
+/// Builder for FlightData.
+#[derive(Debug, Clone, Default)]
+pub struct FlightDataBuilder {
+    lat: f64,
+    lon: f64,
+    alt_agl_m: f32,
+    heading: f32,
+    ground_speed_mps: f32,
+    local_time_sec: f32,
+    pressure_alt_ft: f32,
+    sun_pitch: f32,
+}
+
+impl FlightDataBuilder {
+    pub fn lat(mut self, lat: f64) -> Self {
+        self.lat = lat;
+        self
+    }
+
+    pub fn lon(mut self, lon: f64) -> Self {
+        self.lon = lon;
+        self
+    }
+
+    pub fn alt_agl_m(mut self, alt_agl_m: f32) -> Self {
+        self.alt_agl_m = alt_agl_m;
+        self
+    }
+
+    pub fn heading(mut self, heading: f32) -> Self {
+        self.heading = heading;
+        self
+    }
+
+    pub fn ground_speed_mps(mut self, ground_speed_mps: f32) -> Self {
+        self.ground_speed_mps = ground_speed_mps;
+        self
+    }
+
+    pub fn local_time_sec(mut self, local_time_sec: f32) -> Self {
+        self.local_time_sec = local_time_sec;
+        self
+    }
+
+    pub fn pressure_alt_ft(mut self, pressure_alt_ft: f32) -> Self {
+        self.pressure_alt_ft = pressure_alt_ft;
+        self
+    }
+
+    pub fn sun_pitch(mut self, sun_pitch: f32) -> Self {
+        self.sun_pitch = sun_pitch;
+        self
+    }
+
+    pub fn build(self) -> FlightData {
+        let mut data = FlightData::default();
+        data.lat = self.lat;
+        data.lon = self.lon;
+        data.alt_agl_m = self.alt_agl_m;
+        data.heading = self.heading;
+        data.ground_speed_mps = self.ground_speed_mps;
+        data.local_time_sec = self.local_time_sec;
+        data.pressure_alt_ft = self.pressure_alt_ft;
+        data.sun_pitch = self.sun_pitch;
+        data.data_valid = data.is_position_valid();
+        data.connected = true;
+        data.last_update = Some(Instant::now());
+        data
+    }
+}
+
 /// Averaged flight data over a time window, suitable for stable predictions.
 #[derive(Debug, Clone)]
 pub struct FlightAverages {
@@ -115,9 +166,9 @@ pub struct FlightAverages {
     pub vertical_speed_fpm: f32,
 }
 
-/// Thread-safe dataref tracker that maintains current and averaged flight data.
+/// Thread-safe flight data store that maintains current and averaged flight data.
 #[derive(Debug)]
-pub struct DatarefTracker {
+pub struct FlightDataStore {
     data: Arc<RwLock<FlightData>>,
     lat_avg: Arc<RwLock<FlightDataAverager>>,
     lon_avg: Arc<RwLock<FlightDataAverager>>,
@@ -126,7 +177,7 @@ pub struct DatarefTracker {
     spd_avg: Arc<RwLock<FlightDataAverager>>,
 }
 
-impl DatarefTracker {
+impl FlightDataStore {
     pub fn new() -> Self {
         Self {
             data: Arc::new(RwLock::new(FlightData::default())),
@@ -165,7 +216,60 @@ impl DatarefTracker {
         })
     }
 
-    /// Update flight data from a decoded RREF response.
+    /// Update flight data with named fields.
+    #[allow(clippy::too_many_arguments)]
+    pub fn update(
+        &self,
+        lat: f64,
+        lon: f64,
+        alt_agl_m: f32,
+        heading: f32,
+        ground_speed_mps: f32,
+        local_time_sec: f32,
+        pressure_alt_ft: f32,
+        sun_pitch: f32,
+    ) {
+        let data = FlightData::builder()
+            .lat(lat)
+            .lon(lon)
+            .alt_agl_m(alt_agl_m)
+            .heading(heading)
+            .ground_speed_mps(ground_speed_mps)
+            .local_time_sec(local_time_sec)
+            .pressure_alt_ft(pressure_alt_ft)
+            .sun_pitch(sun_pitch)
+            .build();
+
+        // Update averagers if data is valid
+        if data.data_valid {
+            self.lat_avg
+                .write()
+                .expect("lat avg lock poisoned")
+                .add(data.lat as f32);
+            self.lon_avg
+                .write()
+                .expect("lon avg lock poisoned")
+                .add(data.lon as f32);
+            self.alt_avg
+                .write()
+                .expect("alt avg lock poisoned")
+                .add(data.alt_agl_ft());
+            self.hdg_avg
+                .write()
+                .expect("hdg avg lock poisoned")
+                .add(data.heading);
+            self.spd_avg
+                .write()
+                .expect("spd avg lock poisoned")
+                .add(data.ground_speed_mps);
+        }
+
+        *self.data.write().expect("flight data lock poisoned") = data;
+    }
+
+    /// Update flight data from a decoded RREF response (index-based).
+    ///
+    /// This method maintains backward compatibility with the FlightDataTracker trait.
     pub fn update_from_response(&self, values: &[(i32, f32)]) {
         let mut data = self.data.write().expect("flight data lock poisoned");
 
@@ -232,148 +336,32 @@ impl DatarefTracker {
     }
 }
 
-impl Default for DatarefTracker {
+impl Default for FlightDataStore {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl super::traits::FlightDataTracker for DatarefTracker {
+impl super::traits::FlightDataTracker for FlightDataStore {
     fn update_from_response(&self, values: &[(i32, f32)]) {
-        DatarefTracker::update_from_response(self, values)
+        FlightDataStore::update_from_response(self, values)
     }
 
     fn get_flight_data(&self) -> FlightData {
-        DatarefTracker::get_flight_data(self)
+        FlightDataStore::get_flight_data(self)
     }
 
     fn mark_disconnected(&self) {
-        DatarefTracker::mark_disconnected(self)
+        FlightDataStore::mark_disconnected(self)
     }
 
     fn clear_averages(&self) {
-        DatarefTracker::clear_averages(self)
+        FlightDataStore::clear_averages(self)
     }
 }
 
-/// Run the dataref tracker loop. Connects to X-Plane, subscribes to datarefs,
-/// and continuously updates the tracker with received values.
-///
-/// This function runs until the `shutdown` token is cancelled.
-pub async fn run_tracker(
-    tracker: Arc<dyn super::FlightDataTracker>,
-    xplane_addr: SocketAddr,
-    shutdown: tokio::sync::watch::Receiver<bool>,
-) {
-    loop {
-        if *shutdown.borrow() {
-            info!("Dataref tracker shutting down");
-            return;
-        }
-
-        info!("Connecting to X-Plane at {}", xplane_addr);
-
-        match connect_and_track(tracker.as_ref(), xplane_addr, &shutdown).await {
-            Ok(()) => {
-                info!("Dataref tracker disconnected cleanly");
-                return;
-            }
-            Err(e) => {
-                warn!(
-                    "X-Plane connection lost: {}. Reconnecting in {:?}...",
-                    e, RECONNECT_DELAY
-                );
-                tracker.mark_disconnected();
-                tracker.clear_averages();
-                tokio::time::sleep(RECONNECT_DELAY).await;
-            }
-        }
-    }
-}
-
-async fn connect_and_track(
-    tracker: &dyn super::FlightDataTracker,
-    addr: SocketAddr,
-    shutdown: &tokio::sync::watch::Receiver<bool>,
-) -> Result<(), XPlaneError> {
-    let local: SocketAddr = "0.0.0.0:0".parse().unwrap();
-    let socket = UdpSocket::bind(local).await.map_err(|e| {
-        error!("Failed to bind UDP socket: {}", e);
-        XPlaneError::PacketError
-    })?;
-
-    // Get the local address we bound to for debugging
-    let local_addr = socket.local_addr().unwrap_or(local);
-    info!(
-        "UDP socket bound to {}, connecting to X-Plane at {}",
-        local_addr, addr
-    );
-    socket.connect(addr).await.map_err(|e| {
-        error!("Failed to connect UDP socket to {}: {}", addr, e);
-        XPlaneError::PacketError
-    })?;
-
-    // Subscribe to all datarefs
-    for &(index, dataref) in datarefs::ALL {
-        let packet = RrefCodec::encode_request(DEFAULT_FREQ_HZ, index, dataref);
-        socket.send(&packet).await.map_err(|e| {
-            error!("Failed to send subscription for dataref [{}]: {}", index, e);
-            XPlaneError::PacketError
-        })?;
-        debug!("Subscribed to dataref [{}] {}", index, dataref);
-    }
-
-    info!(
-        "Subscribed to {} datarefs at {} Hz (X-Plane at {})",
-        datarefs::ALL.len(),
-        DEFAULT_FREQ_HZ,
-        addr
-    );
-
-    let mut buf = [0u8; 4096];
-
-    loop {
-        if *shutdown.borrow() {
-            // Unsubscribe (send freq=0)
-            for &(index, dataref) in datarefs::ALL {
-                let packet = RrefCodec::encode_request(0, index, dataref);
-                let _ = socket.send(&packet).await;
-            }
-            return Ok(());
-        }
-
-        let recv_result = tokio::time::timeout(UDP_TIMEOUT, socket.recv(&mut buf)).await;
-
-        match recv_result {
-            Ok(Ok(n)) => match RrefCodec::decode_response(&buf[..n]) {
-                Ok(values) => {
-                    tracker.update_from_response(&values);
-                }
-                Err(e) => {
-                    debug!("Failed to decode RREF response: {}", e);
-                }
-            },
-            Ok(Err(e)) => {
-                warn!("UDP socket error: {}", e);
-                return Err(XPlaneError::PacketError);
-            }
-            Err(_) => {
-                // Timeout — X-Plane may not be running or not sending data
-                warn!(
-                    "UDP timeout ({:?}) waiting for X-Plane response at {}. 
-                    This usually means:
-                    1. X-Plane is not running a flight (RREF only works during active flight)
-                    2. Firewall is blocking UDP port {}
-                    3. X-Plane is on a different machine (check xplane_host config)",
-                    UDP_TIMEOUT,
-                    addr,
-                    addr.port()
-                );
-                tracker.mark_disconnected();
-            }
-        }
-    }
-}
+/// Type alias for backward compatibility.
+pub type DatarefTracker = FlightDataStore;
 
 #[cfg(test)]
 mod tests {
@@ -407,8 +395,30 @@ mod tests {
     }
 
     #[test]
+    fn test_flight_data_builder() {
+        let data = FlightData::builder()
+            .lat(37.7749)
+            .lon(-122.4194)
+            .alt_agl_m(100.0)
+            .heading(270.0)
+            .ground_speed_mps(50.0)
+            .local_time_sec(43200.0)
+            .pressure_alt_ft(3000.0)
+            .sun_pitch(45.0)
+            .build();
+
+        assert!((data.lat - 37.7749).abs() < 0.001);
+        assert!((data.lon - (-122.4194)).abs() < 0.001);
+        assert!((data.alt_agl_m - 100.0).abs() < 0.1);
+        assert!((data.heading - 270.0).abs() < 0.1);
+        assert!(data.connected);
+        assert!(data.data_valid);
+        assert!(data.last_update.is_some());
+    }
+
+    #[test]
     fn test_tracker_update_from_response() {
-        let tracker = DatarefTracker::new();
+        let tracker = FlightDataStore::new();
 
         let values = vec![
             (0, 37.7749f32),   // lat
@@ -428,8 +438,30 @@ mod tests {
     }
 
     #[test]
+    fn test_tracker_update_named_fields() {
+        let tracker = FlightDataStore::new();
+
+        tracker.update(
+            37.7749,   // lat
+            -122.4194, // lon
+            304.8,     // alt_agl_m (1000 feet)
+            270.0,     // heading
+            50.0,      // ground_speed
+            43200.0,   // local_time
+            3000.0,    // pressure_alt
+            45.0,      // sun_pitch
+        );
+
+        let data = tracker.get_flight_data();
+        assert!(data.connected);
+        assert!(data.data_valid);
+        assert!((data.lat - 37.7749).abs() < 0.001);
+        assert!((data.heading - 270.0).abs() < 0.1);
+    }
+
+    #[test]
     fn test_tracker_averages_require_min_samples() {
-        let tracker = DatarefTracker::new();
+        let tracker = FlightDataStore::new();
 
         // Not enough samples yet
         let values = vec![(0, 37.0f32), (1, -122.0f32), (2, 100.0f32)];
@@ -445,7 +477,7 @@ mod tests {
 
     #[test]
     fn test_tracker_disconnect_clears_averages() {
-        let tracker = DatarefTracker::new();
+        let tracker = FlightDataStore::new();
 
         let values = vec![(0, 37.0f32), (1, -122.0f32), (2, 100.0f32)];
         for _ in 0..10 {
@@ -459,13 +491,8 @@ mod tests {
     }
 
     #[test]
-    fn test_datarefs_all_has_8_entries() {
-        assert_eq!(datarefs::ALL.len(), 8);
-    }
-
-    #[test]
     fn test_tracker_handles_invalid_altitude() {
-        let tracker = DatarefTracker::new();
+        let tracker = FlightDataStore::new();
 
         // Send valid latitude and longitude
         // Send invalid altitude (-999.0 feet, presumed X-Plane invalid indicator)

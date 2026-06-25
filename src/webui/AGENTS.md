@@ -13,7 +13,7 @@ Browser-based dashboard: flight tracking map, stats, REST API, WebSocket, custom
 ## Local Contracts
 
 - Port: `WEB_UI_PORT = 5847`
-- `WebState` holds: `StatsStore`, `DatarefTracker`, `CustomMapStore`, `AutoOrthoConfig`
+- `WebState` holds: `StatsStore`, `FlightDataTracker` (trait object), `CustomMapStore`, `AutoOrthoConfig`
 - WebSocket channel: `broadcast::Sender<PositionUpdate>`
 - Custom map stored in OS config dir: `autoortho/custom_map.json`
 

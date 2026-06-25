@@ -6,26 +6,29 @@ Service traits for dependency injection, enabling FUSE-less testing and swappabl
 
 ## Ownership
 
-- `services.rs` — Module root, re-exports traits and types
-- `services/tile_service.rs` — `TileService` trait and implementations
+- `mod.rs` — Module root, re-exports traits and types
+- `stats_service.rs` — `StatsService` trait and `StatsServiceImpl` / `FakeStatsService`
+- `fallback_service.rs` — `FallbackService` trait and `FallbackServiceImpl` / `FakeFallbackService`
+- `cache_service.rs` — `CacheService` trait and `CacheServiceImpl` / `FakeCacheService`
 
 ## Local Contracts
 
-- `TileService` trait defines `get_dds(coords, provider, night_exclusion)` and `tile_exists()`
-- `TileCoord` is re-exported from `tiles::coords` for convenience
-- Production: `TileServiceImpl` wraps `DdsFileSystem`
-- Testing: `FakeTileService` provides deterministic responses
+- `StatsService` trait: `record_download()`, `record_cache_hit()`, `record_cache_miss()`, `snapshot()`, `hit_ratio()`, `clear()`
+- `FallbackService` trait: `find_fallback()`, `solid_fallback()`, `needs_fallback()`
+- `CacheService` trait: `get()`, `put()`, `has()`, `remove()`, `clear()`, `entry_count()`, `size_bytes()`, `max_size_bytes()`, `usage_fraction()`, `promote()`, `evict_non_route_tiles()`
+- Each trait has a `Fake*` implementation in `#[cfg(test)]` module for testing
+- Production impls wrap concrete types: `StatsStore`, `FallbackSystem`, `DdsCache`
 
 ## Work Guidance
 
-- Add new traits for other service boundaries (e.g., `StatsService`, `ConfigService`)
-- Each trait should have a corresponding fake implementation in tests
-- Trait methods should be async to match the runtime model
+- Traits enable `DdsFileSystem` to depend on abstractions, not concrete types
+- Fake implementations are `pub(crate)` for use by integration tests
+- Keep trait methods async to match the runtime model
 
 ## Verification
 
 - `cargo test --lib services::`
-- Integration tests use real `DdsFileSystem` with mock providers
+- Each service module has unit tests for fake impl and production impl
 
 ## Child DOX Index
 

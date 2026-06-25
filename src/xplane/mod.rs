@@ -8,9 +8,11 @@ pub mod simbrief;
 pub mod simbrief_adapter;
 pub mod traits;
 pub mod udp;
+pub mod udp_loop;
 
 pub use averagers::{FlightDataAverager, HeadingAverager};
 pub use codec::{RrefCodec, XPlaneError};
+pub use dataref::{DatarefTracker, FlightDataStore};
 pub use simbrief_adapter::SimBriefAdapter;
 pub use traits::{FlightDataTracker, FlightPlanSource};
 
