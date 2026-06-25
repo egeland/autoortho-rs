@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.2](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.9.1...autoortho-v0.9.2) (2026-06-25)
+
+
+### Code Refactoring
+
+* several architecture cleanups ([#487](https://github.com/egeland/autoortho-rs/issues/487)) ([7f10c35](https://github.com/egeland/autoortho-rs/commit/7f10c358f687a7e15f6c994581a7d1060500931d))
+
 ## [0.9.1](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.9.0...autoortho-v0.9.1) (2026-06-25)
 
 
