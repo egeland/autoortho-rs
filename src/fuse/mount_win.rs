@@ -15,11 +15,11 @@ mod dokan_impl {
         FileSystemMounter, FindData, MountFlags, MountOptions, OperationInfo, OperationResult,
         VolumeInfo, init,
     };
-    use tracing::{debug, error, info, warn};
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex, RwLock};
     use std::time::SystemTime;
+    use tracing::{debug, error, info, warn};
     use widestring::{U16CStr, U16CString};
     use winapi::shared::ntstatus::*;
     use winapi::um::winnt;

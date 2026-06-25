@@ -22,11 +22,7 @@ fn no_tile_service_trait_in_src() {
             if trimmed.contains("trait TileService") {
                 violations.push(format!(
                     "{}:{}: {}",
-                    entry
-                        .path()
-                        .strip_prefix(&src_dir)
-                        .unwrap()
-                        .display(),
+                    entry.path().strip_prefix(&src_dir).unwrap().display(),
                     line_num + 1,
                     trimmed
                 ));

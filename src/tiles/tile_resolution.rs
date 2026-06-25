@@ -11,9 +11,9 @@ use crate::pipeline::cache::DdsCacheMetadata;
 use crate::services::{FallbackService, StatsService};
 use crate::tiles::tile_cache::TileCache;
 use crate::tiles::tile_generator::{TileGenerator, TileGeneratorError};
-use tracing::{debug, warn};
 use std::borrow::Cow;
 use std::sync::Arc;
+use tracing::{debug, warn};
 
 /// Result of resolving a tile.
 pub struct ResolvedTile {

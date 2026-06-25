@@ -1,7 +1,6 @@
 //! Download and install scenery packs.
 
 use crate::scenery::discovery::SceneryPackage;
-use tracing::{debug, info};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -9,6 +8,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
+use tracing::{debug, info};
 
 #[derive(Debug, Error)]
 pub enum InstallError {

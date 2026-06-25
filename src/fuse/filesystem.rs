@@ -9,16 +9,15 @@ use crate::fuse::{DdsPathParser, FuseError, MARKER_FILE, VIRTUAL_DIRS, is_poison
 use crate::pipeline::cache::DdsCache;
 use crate::services::{FallbackService, StatsService};
 use crate::tiles::fallback::FallbackConfig;
-use crate::tiles::fallback::FallbackSystem;
 use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::tile_cache::TileCache;
 use crate::tiles::tile_generator::TileGenerator;
 use crate::tiles::tile_resolution::TileResolution;
 use crate::ui::state::TileProgress;
 use crate::webui::custommap::CustomMapStore;
-use tracing::warn;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use tracing::warn;
 
 /// Virtual DDS filesystem implementation.
 ///
@@ -92,18 +91,6 @@ impl DdsFileSystemBuilder {
         self
     }
 
-    pub fn fallback_config(mut self, config: FallbackConfig) -> Self {
-        self.solid_color = config.solid_color;
-        if let Some(ref disk_cache) = self.disk_cache {
-            use crate::services::FallbackServiceImpl;
-            self.fallback = Some(Arc::new(FallbackServiceImpl::new(FallbackSystem::new(
-                disk_cache.lock().cache_dir().clone(),
-                config,
-            ))));
-        }
-        self
-    }
-
     pub fn fallback_service(mut self, fallback: Arc<dyn FallbackService>) -> Self {
         self.fallback = Some(fallback);
         self
@@ -135,22 +122,6 @@ impl DdsFileSystemBuilder {
 impl DdsFileSystem {
     pub fn builder(fetcher: Arc<TileFetcher>, provider_id: &str) -> DdsFileSystemBuilder {
         DdsFileSystemBuilder::new(fetcher, provider_id)
-    }
-
-    /// Set the fallback system for missing tiles.
-    pub fn set_fallback(&mut self, _fallback: Arc<dyn FallbackService>) {
-        // Fallback is now set during construction via the builder.
-        // This method is kept for API compatibility but is a no-op.
-    }
-
-    /// Set the fallback system from configuration.
-    pub fn set_fallback_from_config(&mut self, _disk_cache: &DdsCache, _config: FallbackConfig) {
-        // Fallback is now set during construction via the builder.
-    }
-
-    /// Get a reference to the fallback system if available.
-    pub fn fallback_system(&self) -> Option<&Arc<dyn FallbackService>> {
-        None // Fallback is now internal to TileResolution
     }
 
     /// Get a clone of the night exclusion flag Arc.

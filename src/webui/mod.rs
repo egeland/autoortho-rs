@@ -21,11 +21,11 @@ use crate::config::AutoOrthoConfig;
 use crate::stats::StatsStore;
 use crate::xplane::FlightDataTracker;
 use custommap::CustomMapStore;
-use tracing::{error, info};
 use serde::Serialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::broadcast;
+use tracing::{error, info};
 
 /// Shared application state accessible by all route handlers.
 pub struct WebState {

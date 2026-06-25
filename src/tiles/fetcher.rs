@@ -1,12 +1,12 @@
 use crate::tiles::chunk::{Chunk, ChunkError, ChunkState};
 use crate::tiles::provider::{ProviderFactory, TileProvider};
 use crate::tiles::rate_limiter::RateLimiter;
-use tracing::debug;
 use lru::LruCache;
 use std::num::NonZero;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::RwLock;
+use tracing::debug;
 
 /// Default cache size (number of chunks).
 const DEFAULT_CACHE_SIZE: usize = 1024;

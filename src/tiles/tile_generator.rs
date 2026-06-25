@@ -9,10 +9,10 @@ use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::zoom::ChunkGrid;
 use crate::ui::state::TileProgress;
 use crate::webui::custommap::CustomMapStore;
-use tracing::{debug, warn};
 use std::sync::Arc;
 use std::time::Instant;
 use thiserror::Error;
+use tracing::{debug, warn};
 
 /// Errors that can occur during tile generation.
 #[derive(Debug, Error)]

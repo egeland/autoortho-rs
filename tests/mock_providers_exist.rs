@@ -7,8 +7,7 @@
 #[test]
 fn mock_provider_single_definition() {
     let test_utils = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("src/test_utils.rs"),
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/test_utils.rs"),
     )
     .unwrap();
 
@@ -40,7 +39,8 @@ fn no_mock_provider_in_tiles_or_fuse() {
         let content = std::fs::read_to_string(path).unwrap();
         for (line_num, line) in content.lines().enumerate() {
             let trimmed = line.trim();
-            if trimmed.contains("struct MockProvider") || trimmed.contains("struct FailingProvider") {
+            if trimmed.contains("struct MockProvider") || trimmed.contains("struct FailingProvider")
+            {
                 violations.push(format!(
                     "{}:{}: {}",
                     path.strip_prefix(&src_dir).unwrap().display(),

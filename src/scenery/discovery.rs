@@ -4,9 +4,9 @@
 //! The region is identified by a `*_info.json` asset in the release.
 //! Multiple releases may exist for the same region — we show the latest.
 
-use tracing::{debug, info};
 use serde::Deserialize;
 use thiserror::Error;
+use tracing::{debug, info};
 
 const RELEASES_URL: &str = "https://api.github.com/repos/kubilus1/autoortho-scenery/releases";
 const USER_AGENT: &str = "autoortho-rs/0.1";
