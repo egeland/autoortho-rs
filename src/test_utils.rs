@@ -47,6 +47,54 @@ pub fn assert_file_not_exists(path: &PathBuf) {
     assert!(!path.exists(), "File should not exist: {:?}", path);
 }
 
+// --- Mock tile providers for tests ---
+
+use crate::tiles::provider::{TileProvider, TileProviderError};
+use std::future::Future;
+use std::pin::Pin;
+
+/// Minimal valid JPEG (22 bytes, 1x1 pixel). Returned by MockProvider.
+pub const MINIMAL_JPEG: &[u8] = &[
+    0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01,
+    0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xD9,
+];
+
+/// Mock tile provider that returns a valid minimal JPEG for any request.
+pub struct MockProvider;
+
+impl TileProvider for MockProvider {
+    fn fetch(
+        &self,
+        _row: u32,
+        _col: u32,
+        _zoom: u32,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, TileProviderError>> + Send + '_>> {
+        Box::pin(async { Ok(MINIMAL_JPEG.to_vec()) })
+    }
+
+    fn name(&self) -> &str {
+        "Mock"
+    }
+}
+
+/// Mock tile provider that always fails with a network error.
+pub struct FailingProvider;
+
+impl TileProvider for FailingProvider {
+    fn fetch(
+        &self,
+        _row: u32,
+        _col: u32,
+        _zoom: u32,
+    ) -> Pin<Box<dyn Future<Output = Result<Vec<u8>, TileProviderError>> + Send + '_>> {
+        Box::pin(async { Err(TileProviderError::NetworkError("test failure".into())) })
+    }
+
+    fn name(&self) -> &str {
+        "Failing"
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

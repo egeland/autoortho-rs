@@ -332,37 +332,7 @@ impl FileAttr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::future::Future;
-    use std::pin::Pin;
-
-    struct MockProvider;
-
-    impl crate::tiles::provider::TileProvider for MockProvider {
-        fn fetch(
-            &self,
-            _row: u32,
-            _col: u32,
-            _zoom: u32,
-        ) -> Pin<
-            Box<
-                dyn Future<Output = Result<Vec<u8>, crate::tiles::provider::TileProviderError>>
-                    + Send
-                    + '_,
-            >,
-        > {
-            Box::pin(async {
-                // Return a valid minimal JPEG (1x1 pixel)
-                Ok(vec![
-                    0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01,
-                    0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xD9,
-                ])
-            })
-        }
-
-        fn name(&self) -> &str {
-            "Mock"
-        }
-    }
+    use crate::test_utils::{FailingProvider, MockProvider};
 
     fn make_fs() -> DdsFileSystem {
         let provider = Arc::new(MockProvider);
@@ -643,33 +613,6 @@ mod tests {
         let snap = stats_ref.snapshot().await;
         assert_eq!(snap.cache_hits, 1, "should record one cache hit");
         assert_eq!(snap.cache_misses, 1, "misses unchanged");
-    }
-
-    struct FailingProvider;
-
-    impl crate::tiles::provider::TileProvider for FailingProvider {
-        fn fetch(
-            &self,
-            _row: u32,
-            _col: u32,
-            _zoom: u32,
-        ) -> Pin<
-            Box<
-                dyn Future<Output = Result<Vec<u8>, crate::tiles::provider::TileProviderError>>
-                    + Send
-                    + '_,
-            >,
-        > {
-            Box::pin(async {
-                Err(crate::tiles::provider::TileProviderError::NetworkError(
-                    "test failure".into(),
-                ))
-            })
-        }
-
-        fn name(&self) -> &str {
-            "Failing"
-        }
     }
 
     #[tokio::test]

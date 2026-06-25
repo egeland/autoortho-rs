@@ -301,31 +301,7 @@ pub struct ChunkCacheStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::future::Future;
-    use std::pin::Pin;
-
-    struct MockProvider;
-
-    impl TileProvider for MockProvider {
-        fn fetch(
-            &self,
-            _row: u32,
-            _col: u32,
-            _zoom: u32,
-        ) -> Pin<
-            Box<
-                dyn Future<Output = Result<Vec<u8>, crate::tiles::provider::TileProviderError>>
-                    + Send
-                    + '_,
-            >,
-        > {
-            Box::pin(async { Ok(vec![0xFF, 0xD8]) })
-        }
-
-        fn name(&self) -> &str {
-            "Mock"
-        }
-    }
+    use crate::test_utils::MockProvider;
 
     #[tokio::test]
     async fn test_fetcher_creation() {
