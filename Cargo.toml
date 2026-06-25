@@ -104,6 +104,7 @@ fuse = [
 [dev-dependencies]
 tempfile = "3"
 criterion = "0.8"
+walkdir = "2.5.0"
 
 
 [lib]

@@ -11,9 +11,9 @@ use crate::pipeline::cache::DdsCacheMetadata;
 use crate::services::{FallbackService, StatsService};
 use crate::tiles::tile_cache::TileCache;
 use crate::tiles::tile_generator::{TileGenerator, TileGeneratorError};
-use log::{debug, warn};
 use std::borrow::Cow;
 use std::sync::Arc;
+use tracing::{debug, warn};
 
 /// Result of resolving a tile.
 pub struct ResolvedTile {
@@ -202,38 +202,9 @@ mod tests {
     use super::*;
     use crate::services::fallback_service::tests::FakeFallbackService;
     use crate::services::stats_service::tests::FakeStatsService;
+    use crate::test_utils::MockProvider;
     use crate::tiles::tile_cache::TileCache;
-    use std::future::Future;
-    use std::pin::Pin;
     use std::sync::Arc;
-
-    struct MockProvider;
-
-    impl crate::tiles::provider::TileProvider for MockProvider {
-        fn fetch(
-            &self,
-            _row: u32,
-            _col: u32,
-            _zoom: u32,
-        ) -> Pin<
-            Box<
-                dyn Future<Output = Result<Vec<u8>, crate::tiles::provider::TileProviderError>>
-                    + Send
-                    + '_,
-            >,
-        > {
-            Box::pin(async {
-                Ok(vec![
-                    0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01,
-                    0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xD9,
-                ])
-            })
-        }
-
-        fn name(&self) -> &str {
-            "Mock"
-        }
-    }
 
     fn make_resolution() -> TileResolution {
         let provider = Arc::new(MockProvider);

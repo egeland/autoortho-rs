@@ -9,10 +9,10 @@ use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::zoom::ChunkGrid;
 use crate::ui::state::TileProgress;
 use crate::webui::custommap::CustomMapStore;
-use log::{debug, warn};
 use std::sync::Arc;
 use std::time::Instant;
 use thiserror::Error;
+use tracing::{debug, warn};
 
 /// Errors that can occur during tile generation.
 #[derive(Debug, Error)]
@@ -172,37 +172,7 @@ impl TileGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::future::Future;
-    use std::pin::Pin;
-
-    struct MockProvider;
-
-    impl crate::tiles::provider::TileProvider for MockProvider {
-        fn fetch(
-            &self,
-            _row: u32,
-            _col: u32,
-            _zoom: u32,
-        ) -> Pin<
-            Box<
-                dyn Future<Output = Result<Vec<u8>, crate::tiles::provider::TileProviderError>>
-                    + Send
-                    + '_,
-            >,
-        > {
-            Box::pin(async {
-                // Return a valid minimal JPEG (1x1 pixel)
-                Ok(vec![
-                    0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01,
-                    0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xD9,
-                ])
-            })
-        }
-
-        fn name(&self) -> &str {
-            "Mock"
-        }
-    }
+    use crate::test_utils::MockProvider;
 
     fn make_generator() -> TileGenerator {
         let provider = Arc::new(MockProvider);

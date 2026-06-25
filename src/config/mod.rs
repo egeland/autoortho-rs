@@ -8,9 +8,9 @@ pub mod night;
 pub mod season;
 pub mod ui;
 
-use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use tracing::{debug, info, warn};
 
 pub use cache::CacheConfig;
 pub use flight::FlightConfig;

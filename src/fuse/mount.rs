@@ -9,11 +9,11 @@ pub use self::unifuse_impl::mount;
 mod unifuse_impl {
     use crate::fuse::filesystem::DdsFileSystem;
     use crate::fuse::{MARKER_FILE, VIRTUAL_DIRS, is_poison_path};
-    use log::{debug, info, warn};
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
     use std::time::SystemTime;
+    use tracing::{debug, info, warn};
 
     use unifuse::types::*;
     use unifuse::{

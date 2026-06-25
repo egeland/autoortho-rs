@@ -11,12 +11,12 @@
 //! requested zoom, it checks higher-zoom entries and returns those.
 
 use crate::pipeline::cache::{DdsCache, DdsCacheMetadata};
-use log::debug;
 use lru::LruCache;
 use parking_lot::RwLock;
 use std::num::NonZero;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use tracing::debug;
 
 /// In-memory tile cache with disk backing and upserving.
 ///

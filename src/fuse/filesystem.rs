@@ -9,16 +9,15 @@ use crate::fuse::{DdsPathParser, FuseError, MARKER_FILE, VIRTUAL_DIRS, is_poison
 use crate::pipeline::cache::DdsCache;
 use crate::services::{FallbackService, StatsService};
 use crate::tiles::fallback::FallbackConfig;
-use crate::tiles::fallback::FallbackSystem;
 use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::tile_cache::TileCache;
 use crate::tiles::tile_generator::TileGenerator;
 use crate::tiles::tile_resolution::TileResolution;
 use crate::ui::state::TileProgress;
 use crate::webui::custommap::CustomMapStore;
-use log::warn;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
+use tracing::warn;
 
 /// Virtual DDS filesystem implementation.
 ///
@@ -92,18 +91,6 @@ impl DdsFileSystemBuilder {
         self
     }
 
-    pub fn fallback_config(mut self, config: FallbackConfig) -> Self {
-        self.solid_color = config.solid_color;
-        if let Some(ref disk_cache) = self.disk_cache {
-            use crate::services::FallbackServiceImpl;
-            self.fallback = Some(Arc::new(FallbackServiceImpl::new(FallbackSystem::new(
-                disk_cache.lock().cache_dir().clone(),
-                config,
-            ))));
-        }
-        self
-    }
-
     pub fn fallback_service(mut self, fallback: Arc<dyn FallbackService>) -> Self {
         self.fallback = Some(fallback);
         self
@@ -135,22 +122,6 @@ impl DdsFileSystemBuilder {
 impl DdsFileSystem {
     pub fn builder(fetcher: Arc<TileFetcher>, provider_id: &str) -> DdsFileSystemBuilder {
         DdsFileSystemBuilder::new(fetcher, provider_id)
-    }
-
-    /// Set the fallback system for missing tiles.
-    pub fn set_fallback(&mut self, _fallback: Arc<dyn FallbackService>) {
-        // Fallback is now set during construction via the builder.
-        // This method is kept for API compatibility but is a no-op.
-    }
-
-    /// Set the fallback system from configuration.
-    pub fn set_fallback_from_config(&mut self, _disk_cache: &DdsCache, _config: FallbackConfig) {
-        // Fallback is now set during construction via the builder.
-    }
-
-    /// Get a reference to the fallback system if available.
-    pub fn fallback_system(&self) -> Option<&Arc<dyn FallbackService>> {
-        None // Fallback is now internal to TileResolution
     }
 
     /// Get a clone of the night exclusion flag Arc.
@@ -332,37 +303,7 @@ impl FileAttr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::future::Future;
-    use std::pin::Pin;
-
-    struct MockProvider;
-
-    impl crate::tiles::provider::TileProvider for MockProvider {
-        fn fetch(
-            &self,
-            _row: u32,
-            _col: u32,
-            _zoom: u32,
-        ) -> Pin<
-            Box<
-                dyn Future<Output = Result<Vec<u8>, crate::tiles::provider::TileProviderError>>
-                    + Send
-                    + '_,
-            >,
-        > {
-            Box::pin(async {
-                // Return a valid minimal JPEG (1x1 pixel)
-                Ok(vec![
-                    0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01,
-                    0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0xFF, 0xD9,
-                ])
-            })
-        }
-
-        fn name(&self) -> &str {
-            "Mock"
-        }
-    }
+    use crate::test_utils::{FailingProvider, MockProvider};
 
     fn make_fs() -> DdsFileSystem {
         let provider = Arc::new(MockProvider);
@@ -643,33 +584,6 @@ mod tests {
         let snap = stats_ref.snapshot().await;
         assert_eq!(snap.cache_hits, 1, "should record one cache hit");
         assert_eq!(snap.cache_misses, 1, "misses unchanged");
-    }
-
-    struct FailingProvider;
-
-    impl crate::tiles::provider::TileProvider for FailingProvider {
-        fn fetch(
-            &self,
-            _row: u32,
-            _col: u32,
-            _zoom: u32,
-        ) -> Pin<
-            Box<
-                dyn Future<Output = Result<Vec<u8>, crate::tiles::provider::TileProviderError>>
-                    + Send
-                    + '_,
-            >,
-        > {
-            Box::pin(async {
-                Err(crate::tiles::provider::TileProviderError::NetworkError(
-                    "test failure".into(),
-                ))
-            })
-        }
-
-        fn name(&self) -> &str {
-            "Failing"
-        }
     }
 
     #[tokio::test]

@@ -1,12 +1,12 @@
 use crate::tiles::chunk::{Chunk, ChunkError, ChunkState};
 use crate::tiles::provider::{ProviderFactory, TileProvider};
 use crate::tiles::rate_limiter::RateLimiter;
-use log::debug;
 use lru::LruCache;
 use std::num::NonZero;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::RwLock;
+use tracing::debug;
 
 /// Default cache size (number of chunks).
 const DEFAULT_CACHE_SIZE: usize = 1024;
@@ -126,6 +126,11 @@ impl TileFetcher {
         TileFetcherBuilder::new(provider, default_provider_id)
             .rate_limit(rate_per_second)
             .build()
+    }
+
+    /// Get the default provider ID for this fetcher.
+    pub fn default_provider_id(&self) -> &str {
+        &self.default_provider_id
     }
 
     /// Get or create a chunk, returning its current data if cached.
@@ -301,31 +306,7 @@ pub struct ChunkCacheStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::future::Future;
-    use std::pin::Pin;
-
-    struct MockProvider;
-
-    impl TileProvider for MockProvider {
-        fn fetch(
-            &self,
-            _row: u32,
-            _col: u32,
-            _zoom: u32,
-        ) -> Pin<
-            Box<
-                dyn Future<Output = Result<Vec<u8>, crate::tiles::provider::TileProviderError>>
-                    + Send
-                    + '_,
-            >,
-        > {
-            Box::pin(async { Ok(vec![0xFF, 0xD8]) })
-        }
-
-        fn name(&self) -> &str {
-            "Mock"
-        }
-    }
+    use crate::test_utils::MockProvider;
 
     #[tokio::test]
     async fn test_fetcher_creation() {
