@@ -6,7 +6,6 @@ use parking_lot::Mutex;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::OnceLock;
-use std::sync::atomic::Ordering;
 #[cfg(test)]
 use tempfile::TempDir;
 use tokio::sync::{oneshot, watch};
@@ -981,169 +980,6 @@ pub(crate) fn browse_folder(field_name: &str, current_path: &str) -> Task<Messag
     )
 }
 
-/// Fetch available regions from GitHub and list installed packs.
-pub(crate) async fn fetch_regions_and_installed(
-    data_dir: &str,
-    download_dir: &str,
-) -> Result<(Vec<state::SceneryRegionInfo>, Vec<state::InstalledPackInfo>), String> {
-    let regions = crate::scenery::discovery::discover_regions()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let dl_path = std::path::Path::new(download_dir);
-    let ui_regions: Vec<state::SceneryRegionInfo> = regions
-        .iter()
-        .map(|r| state::SceneryRegionInfo {
-            id: r.id.clone(),
-            name: r.name.clone(),
-            version: r.version.clone(),
-            package_count: r.packages.len(),
-            total_size_bytes: r.packages.iter().map(|p| p.size_bytes).sum(),
-            has_partial_download: crate::scenery::installer::has_partial_downloads(dl_path, &r.id),
-        })
-        .collect();
-
-    let packs = crate::scenery::installer::list_installed_packs(std::path::Path::new(data_dir));
-    let ui_packs: Vec<state::InstalledPackInfo> = packs
-        .into_iter()
-        .map(|p| state::InstalledPackInfo {
-            id: p.id,
-            name: p.name,
-            version: p.ver,
-        })
-        .collect();
-
-    Ok((ui_regions, ui_packs))
-}
-
-/// Download and install a scenery region.
-#[allow(clippy::too_many_arguments)]
-pub(crate) async fn download_and_install_region(
-    region_id: &str,
-    download_dir: &str,
-    data_dir: &str,
-    cancel: &tokio_util::sync::CancellationToken,
-    progress_bytes: &std::sync::Arc<std::sync::atomic::AtomicU64>,
-    progress_file: &Arc<Mutex<String>>,
-    progress_files_done: &std::sync::Arc<std::sync::atomic::AtomicU32>,
-    progress_extract_done: &std::sync::Arc<std::sync::atomic::AtomicU32>,
-    progress_extract_total: &std::sync::Arc<std::sync::atomic::AtomicU32>,
-    progress_extracting: &std::sync::Arc<std::sync::atomic::AtomicBool>,
-    progress_pack_current: &std::sync::Arc<std::sync::atomic::AtomicU32>,
-    progress_pack_total: &std::sync::Arc<std::sync::atomic::AtomicU32>,
-) -> Result<String, String> {
-    use crate::scenery::discovery;
-    use crate::scenery::installer;
-
-    // Discover to get download URLs
-    let regions = discovery::discover_regions()
-        .await
-        .map_err(|e| e.to_string())?;
-
-    let region = regions
-        .iter()
-        .find(|r| r.id == region_id)
-        .ok_or_else(|| format!("Region '{}' not found", region_id))?;
-
-    let download_path = std::path::Path::new(download_dir);
-    let data_path = std::path::Path::new(data_dir);
-    let mut downloaded_files = Vec::new();
-
-    // Download all packages in the region
-    let mut verified = 0u32;
-    let mut unverified = 0u32;
-
-    for package in &region.packages {
-        *progress_file.lock() = package.filename.clone();
-
-        let path = installer::download_package(package, download_path, cancel, progress_bytes)
-            .await
-            .map_err(|e| format!("{}", e))?;
-
-        // Download and verify SHA256 hash if available
-        let has_hash = installer::download_hash_file(package, download_path)
-            .await
-            .unwrap_or(false);
-
-        if has_hash {
-            match installer::verify_file_hash(&path) {
-                Ok(true) => verified += 1,
-                Ok(false) => unverified += 1,
-                Err(e) => {
-                    return Err(format!(
-                        "Verification failed for {}: {}",
-                        package.filename, e
-                    ));
-                }
-            }
-        } else {
-            unverified += 1;
-        }
-
-        downloaded_files.push(path);
-        progress_files_done.fetch_add(1, Ordering::Relaxed);
-    }
-
-    // Extract ZIP files
-    let total_packs = downloaded_files
-        .iter()
-        .filter(|p| p.to_string_lossy().ends_with(".zip"))
-        .count() as u32;
-    progress_pack_total.store(total_packs, Ordering::Relaxed);
-    progress_extracting.store(true, Ordering::Relaxed);
-
-    for (pack_idx, path) in downloaded_files.iter().enumerate() {
-        if path.to_string_lossy().ends_with(".zip") {
-            let current_pack = pack_idx as u32 + 1;
-            progress_pack_current.store(current_pack, Ordering::Relaxed);
-
-            let target = data_path
-                .join("scenery")
-                .join(format!("z_ao_{}", region_id));
-            installer::extract_zip_with_pack_progress(
-                path,
-                &target,
-                progress_extract_done.clone(),
-                progress_extract_total.clone(),
-                current_pack,
-                total_packs,
-            )
-            .map_err(|e| format!("Extract failed: {}", e))?;
-        }
-    }
-    progress_extracting.store(false, Ordering::Relaxed);
-    progress_pack_current.store(total_packs, Ordering::Relaxed);
-
-    // Save metadata
-    let info = installer::PackInfo {
-        id: region_id.to_string(),
-        name: region.name.clone(),
-        ver: region.version.clone(),
-        ortho_prefix: format!("z_{}_", region_id),
-        overlay_prefix: format!("y_{}_overlays", region_id),
-        ortho_dirs: vec![],
-        info_ver: "v1".to_string(),
-    };
-    installer::save_pack_info(&info, data_path)
-        .map_err(|e| format!("Failed to save metadata: {}", e))?;
-
-    let verify_msg = if verified > 0 && unverified == 0 {
-        format!(", {} verified", verified)
-    } else if verified > 0 {
-        format!(", {} verified, {} unverified", verified, unverified)
-    } else {
-        String::new()
-    };
-
-    Ok(format!(
-        "Installed {} v{} ({} packages{})",
-        region.name,
-        region.version,
-        region.packages.len(),
-        verify_msg
-    ))
-}
-
 /// Run the desktop application with a pre-created Tokio runtime.
 pub fn run(runtime: tokio::runtime::Runtime) -> iced::Result {
     // Store the runtime globally for AutoOrthoApp::new() to retrieve
@@ -1211,7 +1047,9 @@ fn boot() -> (AutoOrthoApp, Task<Message>) {
     let rt = app.runtime.clone();
 
     rt.spawn(async move {
-        let result = fetch_regions_and_installed(&data_dir, &download_dir).await;
+        let result =
+            crate::scenery::orchestrator::fetch_regions_and_installed(&data_dir, &download_dir)
+                .await;
         let _ = tx.send(result);
     });
 
