@@ -9,7 +9,7 @@
 use crate::scenery::discovery;
 use crate::scenery::installer;
 use crate::ui::scenery_state::{InstalledPackInfo, SceneryRegionInfo};
-use log::info;
+use tracing::info;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};

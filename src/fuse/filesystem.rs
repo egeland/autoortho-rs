@@ -16,7 +16,7 @@ use crate::tiles::tile_generator::TileGenerator;
 use crate::tiles::tile_resolution::TileResolution;
 use crate::ui::state::TileProgress;
 use crate::webui::custommap::CustomMapStore;
-use log::warn;
+use tracing::warn;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 

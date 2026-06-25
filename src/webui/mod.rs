@@ -21,7 +21,7 @@ use crate::config::AutoOrthoConfig;
 use crate::stats::StatsStore;
 use crate::xplane::FlightDataTracker;
 use custommap::CustomMapStore;
-use log::{error, info};
+use tracing::{error, info};
 use serde::Serialize;
 use std::net::SocketAddr;
 use std::sync::Arc;

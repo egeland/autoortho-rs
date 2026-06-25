@@ -6,7 +6,7 @@ use axum::extract::{Query, State, ws};
 use axum::response::{Html, IntoResponse, Json};
 use axum::routing::{Router, get, post};
 use futures_util::{SinkExt, StreamExt};
-use log::warn;
+use tracing::warn;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;

@@ -4,7 +4,7 @@
 //! The region is identified by a `*_info.json` asset in the release.
 //! Multiple releases may exist for the same region — we show the latest.
 
-use log::{debug, info};
+use tracing::{debug, info};
 use serde::Deserialize;
 use thiserror::Error;
 

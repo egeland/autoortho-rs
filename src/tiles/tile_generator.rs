@@ -9,7 +9,7 @@ use crate::tiles::fetcher::TileFetcher;
 use crate::tiles::zoom::ChunkGrid;
 use crate::ui::state::TileProgress;
 use crate::webui::custommap::CustomMapStore;
-use log::{debug, warn};
+use tracing::{debug, warn};
 use std::sync::Arc;
 use std::time::Instant;
 use thiserror::Error;

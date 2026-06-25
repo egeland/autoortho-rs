@@ -3,7 +3,7 @@
 //! Stores which satellite provider to use for each 1°×1° geographic cell.
 //! Persisted as custom_map.json in the config directory.
 
-use log::info;
+use tracing::info;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;

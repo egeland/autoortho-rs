@@ -11,7 +11,7 @@
 //! requested zoom, it checks higher-zoom entries and returns those.
 
 use crate::pipeline::cache::{DdsCache, DdsCacheMetadata};
-use log::debug;
+use tracing::debug;
 use lru::LruCache;
 use parking_lot::RwLock;
 use std::num::NonZero;

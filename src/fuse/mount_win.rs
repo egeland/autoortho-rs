@@ -15,7 +15,7 @@ mod dokan_impl {
         FileSystemMounter, FindData, MountFlags, MountOptions, OperationInfo, OperationResult,
         VolumeInfo, init,
     };
-    use log::{debug, error, info, warn};
+    use tracing::{debug, error, info, warn};
     use std::collections::HashMap;
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex, RwLock};

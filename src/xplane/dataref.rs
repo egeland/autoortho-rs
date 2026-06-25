@@ -2,7 +2,7 @@
 //! a thread-safe snapshot of current flight data.
 
 use crate::xplane::{FlightDataAverager, HeadingAverager, RrefCodec, XPlaneError};
-use log::{debug, error, info, warn};
+use tracing::{debug, error, info, warn};
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};

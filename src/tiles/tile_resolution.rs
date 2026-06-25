@@ -11,7 +11,7 @@ use crate::pipeline::cache::DdsCacheMetadata;
 use crate::services::{FallbackService, StatsService};
 use crate::tiles::tile_cache::TileCache;
 use crate::tiles::tile_generator::{TileGenerator, TileGeneratorError};
-use log::{debug, warn};
+use tracing::{debug, warn};
 use std::borrow::Cow;
 use std::sync::Arc;
 

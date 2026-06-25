@@ -1,7 +1,7 @@
 use crate::tiles::chunk::{Chunk, ChunkError, ChunkState};
 use crate::tiles::provider::{ProviderFactory, TileProvider};
 use crate::tiles::rate_limiter::RateLimiter;
-use log::debug;
+use tracing::debug;
 use lru::LruCache;
 use std::num::NonZero;
 use std::sync::Arc;

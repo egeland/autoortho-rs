@@ -8,7 +8,7 @@ pub mod night;
 pub mod season;
 pub mod ui;
 
-use log::{debug, info, warn};
+use tracing::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 

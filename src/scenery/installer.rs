@@ -1,7 +1,7 @@
 //! Download and install scenery packs.
 
 use crate::scenery::discovery::SceneryPackage;
-use log::{debug, info};
+use tracing::{debug, info};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
