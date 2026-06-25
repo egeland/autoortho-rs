@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.9.1](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.9.0...autoortho-v0.9.1) (2026-06-25)
+
+
+### Bug Fixes
+
+* **stats:** remove duplicate StatsSnapshot, unify to crate::stats ([f6b5e85](https://github.com/egeland/autoortho-rs/commit/f6b5e859e9a212945ac67900c93fe4b0e5acacda))
+* **tiles:** move TileGenerator to tiles module for Windows compat ([f6b5e85](https://github.com/egeland/autoortho-rs/commit/f6b5e859e9a212945ac67900c93fe4b0e5acacda))
+
+
+### Miscellaneous
+
+* **adr:** write ADR recording why we keep the services layer as-is ([f6b5e85](https://github.com/egeland/autoortho-rs/commit/f6b5e859e9a212945ac67900c93fe4b0e5acacda))
+* **security:** ignore RUSTSEC-2026-0185 (quinn-proto) ([f6b5e85](https://github.com/egeland/autoortho-rs/commit/f6b5e859e9a212945ac67900c93fe4b0e5acacda))
+* **xplane:** delete dead TrackerAdapter code ([f6b5e85](https://github.com/egeland/autoortho-rs/commit/f6b5e859e9a212945ac67900c93fe4b0e5acacda))
+
+
+### Code Refactoring
+
+* **fuse:** extract PassThroughFs from DdsFileSystem ([f6b5e85](https://github.com/egeland/autoortho-rs/commit/f6b5e859e9a212945ac67900c93fe4b0e5acacda))
+* **scenery:** tidied up scenery domain ([#485](https://github.com/egeland/autoortho-rs/issues/485)) ([f6b5e85](https://github.com/egeland/autoortho-rs/commit/f6b5e859e9a212945ac67900c93fe4b0e5acacda))
+* **tiles:** extract TileResolution from DdsFileSystem ([f6b5e85](https://github.com/egeland/autoortho-rs/commit/f6b5e859e9a212945ac67900c93fe4b0e5acacda))
+* **ui:** group simbrief fields into SimBriefState ([f6b5e85](https://github.com/egeland/autoortho-rs/commit/f6b5e859e9a212945ac67900c93fe4b0e5acacda))
+* **xplane:** extract codec and averagers into separate modules ([f6b5e85](https://github.com/egeland/autoortho-rs/commit/f6b5e859e9a212945ac67900c93fe4b0e5acacda))
+
 ## [0.9.0](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.8.63...autoortho-v0.9.0) (2026-06-23)
 
 
