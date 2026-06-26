@@ -11,6 +11,7 @@ pub mod fetcher;
 pub mod prefetch;
 pub mod provider;
 pub mod rate_limiter;
+pub mod route_prefetch;
 pub mod tile;
 pub mod tile_cache;
 pub mod tile_generator;
