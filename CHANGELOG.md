@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.4](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.9.3...autoortho-v0.9.4) (2026-06-27)
+
+
+### Code Refactoring
+
+* increase test coverage ([#492](https://github.com/egeland/autoortho-rs/issues/492)) ([6ddcd67](https://github.com/egeland/autoortho-rs/commit/6ddcd67276357a0d8c7d4fb16b07e0f441ed2c79))
+
 ## [0.9.3](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.9.2...autoortho-v0.9.3) (2026-06-27)
 
 
