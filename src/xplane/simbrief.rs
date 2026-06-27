@@ -263,25 +263,8 @@ impl PrefetchPoint {
 }
 
 /// Fetch a flight plan from SimBrief.
-pub async fn fetch_flight_plan(user_id: &str) -> Result<FlightPlan, SimbriefError> {
-    let url = format!("{}?userid={}&json=1", SIMBRIEF_API_URL, user_id);
-
-    let client = reqwest::Client::builder()
-        .timeout(API_TIMEOUT)
-        .build()
-        .map_err(|e| SimbriefError::HttpError(e.to_string()))?;
-
-    let response = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| SimbriefError::HttpError(e.to_string()))?;
-
-    let body: SimbriefResponse = response
-        .json()
-        .await
-        .map_err(|e| SimbriefError::ParseError(e.to_string()))?;
-
+/// Parse a SimBrief JSON response into a FlightPlan.
+pub(crate) fn parse_simbrief_response(body: SimbriefResponse) -> Result<FlightPlan, SimbriefError> {
     // Check for API errors
     if let Some(fetch) = &body.fetch
         && let Some(status) = &fetch.status
@@ -362,10 +345,32 @@ pub async fn fetch_flight_plan(user_id: &str) -> Result<FlightPlan, SimbriefErro
     })
 }
 
+pub async fn fetch_flight_plan(user_id: &str) -> Result<FlightPlan, SimbriefError> {
+    let url = format!("{}?userid={}&json=1", SIMBRIEF_API_URL, user_id);
+
+    let client = reqwest::Client::builder()
+        .timeout(API_TIMEOUT)
+        .build()
+        .map_err(|e| SimbriefError::HttpError(e.to_string()))?;
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| SimbriefError::HttpError(e.to_string()))?;
+
+    let body: SimbriefResponse = response
+        .json()
+        .await
+        .map_err(|e| SimbriefError::ParseError(e.to_string()))?;
+
+    parse_simbrief_response(body)
+}
+
 // --- SimBrief JSON response types ---
 
 #[derive(Debug, Deserialize)]
-struct SimbriefResponse {
+pub(crate) struct SimbriefResponse {
     origin: Option<SimbriefAirport>,
     destination: Option<SimbriefAirport>,
     general: Option<SimbriefGeneral>,
@@ -374,23 +379,23 @@ struct SimbriefResponse {
 }
 
 #[derive(Debug, Deserialize)]
-struct SimbriefAirport {
+pub(crate) struct SimbriefAirport {
     icao_code: String,
     elevation: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-struct SimbriefGeneral {
+pub(crate) struct SimbriefGeneral {
     initial_altitude: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-struct SimbriefNavlog {
+pub(crate) struct SimbriefNavlog {
     fix: Option<Vec<SimbriefFix>>,
 }
 
 #[derive(Debug, Deserialize)]
-struct SimbriefFix {
+pub(crate) struct SimbriefFix {
     ident: String,
     name: Option<String>,
     #[serde(rename = "type")]
@@ -405,7 +410,7 @@ struct SimbriefFix {
 }
 
 #[derive(Debug, Deserialize)]
-struct SimbriefFetch {
+pub(crate) struct SimbriefFetch {
     status: Option<String>,
 }
 
@@ -619,5 +624,223 @@ mod tests {
             fixes: vec![],
         };
         assert!(!plan.is_on_route(0.0, 0.0, 100.0));
+    }
+
+    // --- parse_simbrief_response tests ---
+
+    fn make_fix_json(ident: &str, lat: &str, lon: &str) -> serde_json::Value {
+        serde_json::json!({
+            "ident": ident,
+            "name": ident,
+            "type": "wpt",
+            "pos_lat": lat,
+            "pos_long": lon,
+            "altitude_feet": "35000",
+            "ground_height": "1000",
+            "time_total": "100",
+            "time_leg": "50",
+            "groundspeed": "400"
+        })
+    }
+
+    #[test]
+    fn test_parse_happy_path() {
+        let body: SimbriefResponse = serde_json::from_value(serde_json::json!({
+            "origin": { "icao_code": "KLAX", "elevation": "126" },
+            "destination": { "icao_code": "KLAS", "elevation": "2181" },
+            "general": { "initial_altitude": "35000" },
+            "navlog": {
+                "fix": [
+                    make_fix_json("KLAX", "33.94", "-118.41"),
+                    make_fix_json("KLAS", "36.08", "-115.15")
+                ]
+            }
+        }))
+        .unwrap();
+        let plan = parse_simbrief_response(body).unwrap();
+        assert_eq!(plan.origin, "KLAX");
+        assert_eq!(plan.destination, "KLAS");
+        assert_eq!(plan.fixes.len(), 2);
+        assert!((plan.origin_elevation_ft - 126.0).abs() < 0.1);
+        assert!((plan.destination_elevation_ft - 2181.0).abs() < 0.1);
+        assert!((plan.cruise_altitude_ft - 35000.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_parse_api_error() {
+        let body: SimbriefResponse = serde_json::from_value(serde_json::json!({
+            "fetch": { "status": "Error: user not found" }
+        }))
+        .unwrap();
+        let err = parse_simbrief_response(body).unwrap_err();
+        assert!(matches!(err, SimbriefError::ApiError(_)));
+    }
+
+    #[test]
+    fn test_parse_no_fixes() {
+        let body: SimbriefResponse = serde_json::from_value(serde_json::json!({
+            "origin": { "icao_code": "KLAX", "elevation": "126" },
+            "navlog": { "fix": [] }
+        }))
+        .unwrap();
+        assert!(matches!(
+            parse_simbrief_response(body),
+            Err(SimbriefError::NoFlightPlan)
+        ));
+    }
+
+    #[test]
+    fn test_parse_missing_navlog() {
+        let body: SimbriefResponse = serde_json::from_value(serde_json::json!({})).unwrap();
+        assert!(matches!(
+            parse_simbrief_response(body),
+            Err(SimbriefError::NoFlightPlan)
+        ));
+    }
+
+    #[test]
+    fn test_parse_missing_airports() {
+        let body: SimbriefResponse = serde_json::from_value(serde_json::json!({
+            "navlog": {
+                "fix": [make_fix_json("WP1", "34.0", "-118.0")]
+            }
+        }))
+        .unwrap();
+        let plan = parse_simbrief_response(body).unwrap();
+        assert_eq!(plan.origin, "");
+        assert_eq!(plan.destination, "");
+        assert!((plan.origin_elevation_ft - 0.0).abs() < 0.1);
+        assert!((plan.destination_elevation_ft - 0.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_parse_invalid_elevation() {
+        let body: SimbriefResponse = serde_json::from_value(serde_json::json!({
+            "origin": { "icao_code": "KLAX", "elevation": "not_a_number" },
+            "navlog": {
+                "fix": [make_fix_json("WP1", "34.0", "-118.0")]
+            }
+        }))
+        .unwrap();
+        let plan = parse_simbrief_response(body).unwrap();
+        assert!((plan.origin_elevation_ft - 0.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_parse_invalid_cruise_alt() {
+        let body: SimbriefResponse = serde_json::from_value(serde_json::json!({
+            "general": { "initial_altitude": "bad" },
+            "navlog": {
+                "fix": [make_fix_json("WP1", "34.0", "-118.0")]
+            }
+        }))
+        .unwrap();
+        let plan = parse_simbrief_response(body).unwrap();
+        assert!((plan.cruise_altitude_ft - 35000.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_parse_invalid_lat_lon_filtered() {
+        let body: SimbriefResponse = serde_json::from_value(serde_json::json!({
+            "navlog": {
+                "fix": [
+                    make_fix_json("GOOD", "34.0", "-118.0"),
+                    serde_json::json!({
+                        "ident": "BAD",
+                        "name": "Bad",
+                        "type": "wpt",
+                        "pos_lat": "not_a_number",
+                        "pos_long": "-118.0"
+                    })
+                ]
+            }
+        }))
+        .unwrap();
+        let plan = parse_simbrief_response(body).unwrap();
+        assert_eq!(plan.fixes.len(), 1);
+        assert_eq!(plan.fixes[0].ident, "GOOD");
+    }
+
+    #[test]
+    fn test_parse_out_of_range_coords_filtered() {
+        let body: SimbriefResponse = serde_json::from_value(serde_json::json!({
+            "navlog": {
+                "fix": [
+                    make_fix_json("GOOD", "34.0", "-118.0"),
+                    serde_json::json!({
+                        "ident": "OOR",
+                        "name": "OutOfRange",
+                        "type": "wpt",
+                        "pos_lat": "100.0",
+                        "pos_long": "-118.0"
+                    })
+                ]
+            }
+        }))
+        .unwrap();
+        let plan = parse_simbrief_response(body).unwrap();
+        assert_eq!(plan.fixes.len(), 1);
+        assert_eq!(plan.fixes[0].ident, "GOOD");
+    }
+
+    #[test]
+    fn test_parse_optional_fields_default() {
+        let body: SimbriefResponse = serde_json::from_value(serde_json::json!({
+            "navlog": {
+                "fix": [serde_json::json!({
+                    "ident": "WP1",
+                    "pos_lat": "34.0",
+                    "pos_long": "-118.0"
+                })]
+            }
+        }))
+        .unwrap();
+        let plan = parse_simbrief_response(body).unwrap();
+        let f = &plan.fixes[0];
+        assert_eq!(f.name, "");
+        assert_eq!(f.fix_type, "");
+        assert!((f.altitude_ft - 0.0).abs() < 0.1);
+        assert!((f.ground_height_ft - 0.0).abs() < 0.1);
+        assert!((f.time_total_sec - 0.0).abs() < 0.1);
+        assert!((f.time_leg_sec - 0.0).abs() < 0.1);
+        assert!((f.ground_speed_kt - 0.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_parse_non_numeric_optional_fields() {
+        let body: SimbriefResponse = serde_json::from_value(serde_json::json!({
+            "navlog": {
+                "fix": [serde_json::json!({
+                    "ident": "WP1",
+                    "pos_lat": "34.0",
+                    "pos_long": "-118.0",
+                    "altitude_feet": "bad",
+                    "ground_height": "bad",
+                    "time_total": "bad",
+                    "time_leg": "bad",
+                    "groundspeed": "bad"
+                })]
+            }
+        }))
+        .unwrap();
+        let plan = parse_simbrief_response(body).unwrap();
+        let f = &plan.fixes[0];
+        assert!((f.altitude_ft - 0.0).abs() < 0.1);
+        assert!((f.ground_height_ft - 0.0).abs() < 0.1);
+        assert!((f.time_total_sec - 0.0).abs() < 0.1);
+        assert!((f.time_leg_sec - 0.0).abs() < 0.1);
+        assert!((f.ground_speed_kt - 0.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_parse_missing_general() {
+        let body: SimbriefResponse = serde_json::from_value(serde_json::json!({
+            "navlog": {
+                "fix": [make_fix_json("WP1", "34.0", "-118.0")]
+            }
+        }))
+        .unwrap();
+        let plan = parse_simbrief_response(body).unwrap();
+        assert!((plan.cruise_altitude_ft - 35000.0).abs() < 0.1);
     }
 }
