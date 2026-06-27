@@ -109,6 +109,34 @@ pub fn requires_driver_install() -> bool {
     cfg!(target_os = "macos") || cfg!(target_os = "windows")
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_platform_name() {
+        let name = platform_name();
+        assert!(!name.is_empty());
+        #[cfg(target_os = "macos")]
+        assert_eq!(name, "macOS (macFUSE)");
+        #[cfg(target_os = "linux")]
+        assert_eq!(name, "Linux (libfuse)");
+        #[cfg(target_os = "windows")]
+        assert_eq!(name, "Windows (Dokan)");
+    }
+
+    #[test]
+    fn test_requires_driver_install() {
+        let result = requires_driver_install();
+        #[cfg(target_os = "macos")]
+        assert!(result);
+        #[cfg(target_os = "linux")]
+        assert!(!result);
+        #[cfg(target_os = "windows")]
+        assert!(result);
+    }
+}
+
 /// Attempt to clean up any stale mount at the given path before mounting.
 /// This is similar to Python's `setupmount()` which checks for existing mounts
 /// and unmounts them before mounting again.

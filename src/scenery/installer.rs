@@ -300,4 +300,82 @@ mod tests {
         assert!(new.join("na_info.json").exists());
         assert!(!new.join("textures").exists());
     }
+
+    #[test]
+    fn test_install_error_from_download_error() {
+        let err = InstallError::from(DownloadError::Download("test".into()));
+        assert!(matches!(err, InstallError::Download(_)));
+
+        let err = InstallError::from(DownloadError::Cancelled);
+        assert!(matches!(err, InstallError::Cancelled));
+    }
+
+    #[test]
+    fn test_install_error_from_extract_error() {
+        let err = InstallError::from(ExtractError::Extract("test".into()));
+        assert!(matches!(err, InstallError::Extract(_)));
+    }
+
+    #[test]
+    fn test_save_pack_info_invalid_path() {
+        let info = sample_info();
+        let tmp = TempDir::new().unwrap();
+        // Create a file, then try to write under it — fails on all platforms
+        let file_as_dir = tmp.path().join("blocking_file");
+        std::fs::write(&file_as_dir, b"x").unwrap();
+        let result = save_pack_info(&info, &file_as_dir);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_load_pack_info_missing_file() {
+        let tmp = TempDir::new().unwrap();
+        let result = load_pack_info("nonexistent", tmp.path());
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_uninstall_region_no_scenery_dir() {
+        let tmp = TempDir::new().unwrap();
+        // No scenery dir exists, should still succeed
+        uninstall_region("nonexistent", tmp.path()).unwrap();
+    }
+
+    #[test]
+    fn test_migrate_scenery_skip_existing_dest() {
+        let tmp = TempDir::new().unwrap();
+        let old = tmp.path().join("old");
+        let new = tmp.path().join("new");
+
+        std::fs::create_dir_all(&old).unwrap();
+        std::fs::create_dir_all(&new).unwrap();
+        std::fs::write(old.join("test.txt"), b"old").unwrap();
+        // Pre-existing file in new location
+        std::fs::write(new.join("test.txt"), b"new").unwrap();
+
+        let count = migrate_scenery(&old, &new).unwrap();
+        assert_eq!(count, 0); // Skipped because dest exists
+        // Original content preserved
+        assert_eq!(
+            std::fs::read_to_string(new.join("test.txt")).unwrap(),
+            "new"
+        );
+    }
+
+    #[test]
+    fn test_migrate_scenery_copies_dir() {
+        let tmp = TempDir::new().unwrap();
+        let old = tmp.path().join("old");
+        let new = tmp.path().join("new");
+
+        // Create nested dir structure
+        std::fs::create_dir_all(old.join("subdir").join("nested")).unwrap();
+        std::fs::write(old.join("file.txt").to_path_buf(), b"data").unwrap();
+        std::fs::write(old.join("subdir").join("nested").join("deep.txt"), b"deep").unwrap();
+
+        let count = migrate_scenery(&old, &new).unwrap();
+        assert_eq!(count, 2);
+        assert!(new.join("file.txt").exists());
+        assert!(new.join("subdir").join("nested").join("deep.txt").exists());
+    }
 }

@@ -250,4 +250,51 @@ mod tests {
         // Gray should remain approximately gray at any saturation
         assert!((result.0 as i32 - result.1 as i32).abs() <= 1);
     }
+
+    #[test]
+    fn test_auto_season_spring() {
+        // auto_season uses Local::now(), so we test via effective_season
+        let adj = SeasonalAdjustment::new(Season::Disabled, 1.0, 1.0, 1.0, 1.0);
+        // When Disabled, effective_season calls auto_season
+        let _ = adj.effective_season(); // Just exercise the code path
+    }
+
+    #[test]
+    fn test_effective_season_manual_override() {
+        let adj = SeasonalAdjustment::new(Season::Winter, 1.0, 1.0, 1.0, 0.5);
+        assert_eq!(adj.effective_season(), Season::Winter);
+        assert!((adj.current_saturation() - 0.5).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_current_saturation_disabled() {
+        let adj = SeasonalAdjustment::default();
+        assert_eq!(adj.current_saturation(), 1.0);
+    }
+
+    #[test]
+    fn test_saturation_for_month_winter() {
+        let adj = SeasonalAdjustment::new(Season::Spring, 1.0, 1.0, 1.0, 0.6);
+        // Months 1,2,12 = winter
+        assert!((adj.saturation_for_month(1) - 0.6).abs() < 0.01);
+        assert!((adj.saturation_for_month(2) - 0.6).abs() < 0.01);
+        assert!((adj.saturation_for_month(12) - 0.6).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_apply_to_rgb_all_hue_branches() {
+        // Test different hues to hit all match branches in apply_to_rgb
+        // Pure red (h=0)
+        let _ = SeasonalAdjustment::apply_to_rgb((255, 0, 0), 0.8);
+        // Green (h=1/3)
+        let _ = SeasonalAdjustment::apply_to_rgb((0, 255, 0), 0.8);
+        // Blue (h=2/3)
+        let _ = SeasonalAdjustment::apply_to_rgb((0, 0, 255), 0.8);
+        // Yellow (h=1/6)
+        let _ = SeasonalAdjustment::apply_to_rgb((255, 255, 0), 0.8);
+        // Cyan (h=1/2)
+        let _ = SeasonalAdjustment::apply_to_rgb((0, 255, 255), 0.8);
+        // Magenta (h=5/6)
+        let _ = SeasonalAdjustment::apply_to_rgb((255, 0, 255), 0.8);
+    }
 }

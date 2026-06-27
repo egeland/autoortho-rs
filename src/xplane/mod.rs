@@ -36,3 +36,27 @@ impl std::ops::Deref for Tracker {
         &*self.0
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::xplane::dataref::FlightDataStore;
+
+    #[test]
+    fn test_tracker_debug_output() {
+        let store = FlightDataStore::new();
+        let tracker = Tracker(Arc::new(store));
+        let debug = format!("{:?}", tracker);
+        assert!(debug.contains("Tracker"));
+        assert!(debug.contains("<dyn FlightDataTracker>"));
+    }
+
+    #[test]
+    fn test_tracker_deref_access() {
+        let store = FlightDataStore::new();
+        let tracker = Tracker(Arc::new(store));
+        // Deref to FlightDataTracker trait — call get_flight_data
+        let data = tracker.get_flight_data();
+        assert!(!data.data_valid);
+    }
+}
