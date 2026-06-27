@@ -99,48 +99,7 @@ impl AppleTokenService {
             .await
             .map_err(|e| AppleTokenError::NetworkError(e.to_string()))?;
 
-        // Extract tile source info for satellite
-        let tile_sources = apple_json
-            .get("tileSources")
-            .and_then(|ts| ts.as_array())
-            .ok_or_else(|| AppleTokenError::ParseError("No tileSources found".to_string()))?;
-
-        for ts in tile_sources {
-            if ts
-                .get("tileSource")
-                .and_then(|s| s.as_str())
-                .map(|s| s == "satellite")
-                .unwrap_or(false)
-            {
-                let path = ts.get("path").and_then(|p| p.as_str()).ok_or_else(|| {
-                    AppleTokenError::ParseError("No path in tileSource".to_string())
-                })?;
-
-                // Extract version and accessKey from path like:
-                // /tile?style=7&size=1&scale=1&z={z}&x={x}&y={y}&v=21.04.15&accessKey=abc123...
-                let version = path
-                    .split("v=")
-                    .nth(1)
-                    .and_then(|s| s.split('&').next())
-                    .ok_or_else(|| AppleTokenError::ParseError("No version in path".to_string()))?
-                    .to_string();
-
-                let access_key = path
-                    .split("accessKey=")
-                    .nth(1)
-                    .ok_or_else(|| AppleTokenError::ParseError("No accessKey in path".to_string()))?
-                    .to_string();
-
-                return Ok(AppleToken {
-                    version,
-                    access_key,
-                });
-            }
-        }
-
-        Err(AppleTokenError::ParseError(
-            "Could not find satellite tile source".to_string(),
-        ))
+        parse_bootstrap_response(&apple_json)
     }
 
     pub fn reset_token(&self) {
@@ -162,6 +121,56 @@ pub fn apple_token_service() -> &'static AppleTokenService {
     APPLE_TOKEN_SERVICE.get_or_init(AppleTokenService::new)
 }
 
+/// Parse Apple bootstrap JSON response into an AppleToken.
+///
+/// Extracts the satellite tile source version and accessKey from the
+/// `tileSources` array in the bootstrap response.
+pub(crate) fn parse_bootstrap_response(
+    json: &serde_json::Value,
+) -> Result<AppleToken, AppleTokenError> {
+    let tile_sources = json
+        .get("tileSources")
+        .and_then(|ts| ts.as_array())
+        .ok_or_else(|| AppleTokenError::ParseError("No tileSources found".to_string()))?;
+
+    for ts in tile_sources {
+        if ts
+            .get("tileSource")
+            .and_then(|s| s.as_str())
+            .map(|s| s == "satellite")
+            .unwrap_or(false)
+        {
+            let path = ts
+                .get("path")
+                .and_then(|p| p.as_str())
+                .ok_or_else(|| AppleTokenError::ParseError("No path in tileSource".to_string()))?;
+
+            let version = path
+                .split("v=")
+                .nth(1)
+                .and_then(|s| s.split('&').next())
+                .ok_or_else(|| AppleTokenError::ParseError("No version in path".to_string()))?
+                .to_string();
+
+            let access_key = path
+                .split("accessKey=")
+                .nth(1)
+                .and_then(|s| s.split('&').next())
+                .ok_or_else(|| AppleTokenError::ParseError("No accessKey in path".to_string()))?
+                .to_string();
+
+            return Ok(AppleToken {
+                version,
+                access_key,
+            });
+        }
+    }
+
+    Err(AppleTokenError::ParseError(
+        "Could not find satellite tile source".to_string(),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -173,9 +182,14 @@ mod tests {
     }
 
     #[test]
+    fn test_token_service_default() {
+        let service = AppleTokenService::default();
+        assert!(service.token.read().is_none());
+    }
+
+    #[test]
     fn test_reset_token() {
         let service = AppleTokenService::new();
-        // Manually set a token
         *service.token.write() = Some(AppleToken {
             version: "test".to_string(),
             access_key: "key".to_string(),
@@ -200,5 +214,171 @@ mod tests {
         assert!(url.contains("z=14"));
         assert!(url.contains("v=21.04.15"));
         assert!(url.contains("accessKey=abc123"));
+    }
+
+    #[test]
+    fn test_apple_token_service_singleton() {
+        let s1 = apple_token_service();
+        let s2 = apple_token_service();
+        assert!(std::ptr::eq(s1, s2));
+    }
+
+    #[tokio::test]
+    async fn test_get_token_cached() {
+        let service = AppleTokenService::new();
+        let token = AppleToken {
+            version: "v1".to_string(),
+            access_key: "k1".to_string(),
+        };
+        *service.token.write() = Some(token.clone());
+        let result = service.get_token().await.unwrap();
+        assert_eq!(result.version, "v1");
+        assert_eq!(result.access_key, "k1");
+    }
+
+    // --- parse_bootstrap_response tests ---
+
+    #[test]
+    fn test_parse_happy_path() {
+        let json = serde_json::json!({
+            "tileSources": [{
+                "tileSource": "satellite",
+                "path": "/tile?style=7&v=21.04.15&accessKey=abc123&z={z}"
+            }]
+        });
+        let token = parse_bootstrap_response(&json).unwrap();
+        assert_eq!(token.version, "21.04.15");
+        assert_eq!(token.access_key, "abc123");
+    }
+
+    #[test]
+    fn test_parse_access_key_with_trailing_params() {
+        let json = serde_json::json!({
+            "tileSources": [{"tileSource": "satellite", "path": "/tile?v=1&accessKey=xyz789&foo=bar"}]
+        });
+        let token = parse_bootstrap_response(&json).unwrap();
+        assert_eq!(token.access_key, "xyz789");
+    }
+
+    #[test]
+    fn test_parse_no_tile_sources() {
+        let json = serde_json::json!({"other": true});
+        assert!(matches!(
+            parse_bootstrap_response(&json),
+            Err(AppleTokenError::ParseError(msg)) if msg == "No tileSources found"
+        ));
+    }
+
+    #[test]
+    fn test_parse_tile_sources_not_array() {
+        let json = serde_json::json!({"tileSources": "not_array"});
+        assert!(matches!(
+            parse_bootstrap_response(&json),
+            Err(AppleTokenError::ParseError(_))
+        ));
+    }
+
+    #[test]
+    fn test_parse_no_satellite_source() {
+        let json = serde_json::json!({
+            "tileSources": [{"tileSource": "road", "path": "/tile?v=1&accessKey=k"}]
+        });
+        assert!(matches!(
+            parse_bootstrap_response(&json),
+            Err(AppleTokenError::ParseError(msg)) if msg == "Could not find satellite tile source"
+        ));
+    }
+
+    #[test]
+    fn test_parse_no_path_in_tile_source() {
+        let json = serde_json::json!({
+            "tileSources": [{"tileSource": "satellite"}]
+        });
+        assert!(matches!(
+            parse_bootstrap_response(&json),
+            Err(AppleTokenError::ParseError(msg)) if msg == "No path in tileSource"
+        ));
+    }
+
+    #[test]
+    fn test_parse_no_version_in_path() {
+        let json = serde_json::json!({
+            "tileSources": [{"tileSource": "satellite", "path": "/tile?accessKey=abc"}]
+        });
+        assert!(matches!(
+            parse_bootstrap_response(&json),
+            Err(AppleTokenError::ParseError(msg)) if msg == "No version in path"
+        ));
+    }
+
+    #[test]
+    fn test_parse_no_access_key_in_path() {
+        let json = serde_json::json!({
+            "tileSources": [{"tileSource": "satellite", "path": "/tile?v=1.0"}]
+        });
+        assert!(matches!(
+            parse_bootstrap_response(&json),
+            Err(AppleTokenError::ParseError(msg)) if msg == "No accessKey in path"
+        ));
+    }
+
+    #[test]
+    fn test_parse_version_before_access_key() {
+        let json = serde_json::json!({
+            "tileSources": [{"tileSource": "satellite", "path": "/tile?v=22.01.01&accessKey=k"}]
+        });
+        let token = parse_bootstrap_response(&json).unwrap();
+        assert_eq!(token.version, "22.01.01");
+    }
+
+    #[test]
+    fn test_parse_access_key_at_end_of_path() {
+        let json = serde_json::json!({
+            "tileSources": [{"tileSource": "satellite", "path": "/tile?v=1&accessKey=xyz"}]
+        });
+        let token = parse_bootstrap_response(&json).unwrap();
+        assert_eq!(token.access_key, "xyz");
+    }
+
+    #[test]
+    fn test_parse_version_with_trailing_params() {
+        let json = serde_json::json!({
+            "tileSources": [{"tileSource": "satellite", "path": "/tile?v=3.0.1&accessKey=k"}]
+        });
+        let token = parse_bootstrap_response(&json).unwrap();
+        assert_eq!(token.version, "3.0.1");
+    }
+
+    #[test]
+    fn test_parse_tile_source_without_tile_source_field() {
+        let json = serde_json::json!({
+            "tileSources": [{}]
+        });
+        assert!(matches!(
+            parse_bootstrap_response(&json),
+            Err(AppleTokenError::ParseError(msg)) if msg == "Could not find satellite tile source"
+        ));
+    }
+
+    #[test]
+    fn test_parse_empty_tile_sources() {
+        let json = serde_json::json!({"tileSources": []});
+        assert!(matches!(
+            parse_bootstrap_response(&json),
+            Err(AppleTokenError::ParseError(msg)) if msg == "Could not find satellite tile source"
+        ));
+    }
+
+    #[test]
+    fn test_parse_multiple_sources_picks_satellite() {
+        let json = serde_json::json!({
+            "tileSources": [
+                {"tileSource": "road", "path": "/tile?v=1&accessKey=skip"},
+                {"tileSource": "satellite", "path": "/tile?v=2&accessKey=hit"}
+            ]
+        });
+        let token = parse_bootstrap_response(&json).unwrap();
+        assert_eq!(token.version, "2");
+        assert_eq!(token.access_key, "hit");
     }
 }
