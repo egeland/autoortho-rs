@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.3](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.9.2...autoortho-v0.9.3) (2026-06-27)
+
+
+### Code Refactoring
+
+* scenery and tiles ([#490](https://github.com/egeland/autoortho-rs/issues/490)) ([01b87b6](https://github.com/egeland/autoortho-rs/commit/01b87b6eb9eab7faafd56f0ebc1a1e4634a3d905))
+
 ## [0.9.2](https://github.com/egeland/autoortho-rs/compare/autoortho-v0.9.1...autoortho-v0.9.2) (2026-06-25)
 
 
