@@ -761,4 +761,287 @@ mod tests {
         assert!(providers.contains(&"BI"));
         assert!(providers.contains(&"ARC"));
     }
+
+    // --- validate_image_response tests ---
+
+    #[test]
+    fn test_validate_jpeg() {
+        // JPEG magic: FF D8 FF E0
+        let jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46];
+        assert!(validate_image_response(&jpeg).is_ok());
+    }
+
+    #[test]
+    fn test_validate_png() {
+        // PNG magic: 89 50 4E 47
+        let png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        assert!(validate_image_response(&png).is_ok());
+    }
+
+    #[test]
+    fn test_validate_html_error() {
+        let html = b"<html><body>Error</body></html>";
+        let err = validate_image_response(html).unwrap_err();
+        match err {
+            TileProviderError::NetworkError(msg) => {
+                assert!(msg.contains("HTML instead of image"));
+            }
+            _ => panic!("Expected NetworkError for HTML response"),
+        }
+    }
+
+    #[test]
+    fn test_validate_too_short() {
+        let short = [0xFF];
+        assert!(validate_image_response(&short).is_err());
+    }
+
+    #[test]
+    fn test_validate_empty() {
+        let empty: [u8; 0] = [];
+        assert!(validate_image_response(&empty).is_err());
+    }
+
+    #[test]
+    fn test_validate_unknown_format_allowed() {
+        // Not JPEG, PNG, or HTML — allowed
+        let data = [0x00, 0x00, 0x00, 0x00];
+        assert!(validate_image_response(&data).is_ok());
+    }
+
+    // --- provider_info tests ---
+
+    #[test]
+    fn test_provider_info_found() {
+        let info = provider_info("GO2").unwrap();
+        assert_eq!(info.id, "GO2");
+        assert_eq!(info.display_name, "Google Maps");
+        assert!(info.requires_auth);
+    }
+
+    #[test]
+    fn test_provider_info_case_insensitive() {
+        let info = provider_info("go2").unwrap();
+        assert_eq!(info.id, "GO2");
+    }
+
+    #[test]
+    fn test_provider_info_not_found() {
+        assert!(provider_info("UNKNOWN").is_none());
+    }
+
+    #[test]
+    fn test_provider_info_all_providers() {
+        for id in PROVIDER_IDS {
+            let info = provider_info(id).unwrap();
+            assert_eq!(info.id, *id);
+        }
+    }
+
+    // --- ProviderFactory::create — all providers ---
+
+    #[test]
+    fn test_factory_create_naip() {
+        let p = ProviderFactory::create("NAIP").unwrap();
+        assert_eq!(p.name(), "USGS NAIP");
+    }
+
+    #[test]
+    fn test_factory_create_usgs() {
+        let p = ProviderFactory::create("USGS").unwrap();
+        assert_eq!(p.name(), "USGS Topo");
+    }
+
+    #[test]
+    fn test_factory_create_eox() {
+        let p = ProviderFactory::create("EOX").unwrap();
+        assert_eq!(p.name(), "EOX Maps");
+    }
+
+    #[test]
+    fn test_factory_create_firefly() {
+        let p = ProviderFactory::create("FIREFLY").unwrap();
+        assert_eq!(p.name(), "Firefly");
+    }
+
+    #[test]
+    fn test_factory_create_yndx() {
+        let p = ProviderFactory::create("YNDX").unwrap();
+        assert_eq!(p.name(), "Yandex Maps");
+    }
+
+    #[test]
+    fn test_factory_create_apple() {
+        let p = ProviderFactory::create("APPLE").unwrap();
+        assert_eq!(p.name(), "Apple Maps");
+    }
+
+    #[test]
+    fn test_factory_create_aliases() {
+        // Alternate names
+        assert!(ProviderFactory::create("GOOGLE").is_some());
+        assert!(ProviderFactory::create("BING").is_some());
+        assert!(ProviderFactory::create("ARCGIS").is_some());
+        assert!(ProviderFactory::create("YANDEX").is_some());
+    }
+
+    #[test]
+    fn test_factory_available_providers_full() {
+        let providers = ProviderFactory::available_providers();
+        assert_eq!(providers.len(), 9);
+        let expected = [
+            "GO2", "BI", "ARC", "NAIP", "USGS", "EOX", "FIREFLY", "YNDX", "APPLE",
+        ];
+        for id in &expected {
+            assert!(providers.contains(id), "missing provider {}", id);
+        }
+    }
+
+    // --- Provider name tests for uncovered providers ---
+
+    #[test]
+    fn test_naip_provider_name() {
+        assert_eq!(UsgsNaipProvider::new().name(), "USGS NAIP");
+    }
+
+    #[test]
+    fn test_usgs_topo_provider_name() {
+        assert_eq!(UsgsTopoProvider::new().name(), "USGS Topo");
+    }
+
+    #[test]
+    fn test_eox_provider_name() {
+        assert_eq!(EoxProvider::new().name(), "EOX Maps");
+    }
+
+    #[test]
+    fn test_firefly_provider_name() {
+        assert_eq!(FireflyProvider::new().name(), "Firefly");
+    }
+
+    #[test]
+    fn test_yandex_provider_name() {
+        assert_eq!(YandexMapsProvider::new().name(), "Yandex Maps");
+    }
+
+    #[test]
+    fn test_yandex_next_server() {
+        let provider = YandexMapsProvider::new();
+        // Should cycle 1-4
+        let s1 = provider.next_server();
+        assert!((1..=4).contains(&s1));
+        let s2 = provider.next_server();
+        assert!((1..=4).contains(&s2));
+    }
+
+    #[test]
+    fn test_apple_provider_name() {
+        assert_eq!(AppleMapsProvider::new().name(), "Apple Maps");
+    }
+
+    #[test]
+    fn test_tile_provider_error_rate_limited() {
+        let err = TileProviderError::RateLimited;
+        assert!(err.to_string().contains("Rate limited"));
+    }
+
+    // --- Default impl coverage ---
+
+    #[test]
+    fn test_google_provider_default() {
+        let p = GoogleMapsProvider::default();
+        assert_eq!(p.name(), "Google Maps");
+    }
+
+    #[test]
+    fn test_bing_provider_default() {
+        let p = BingMapsProvider::default();
+        assert_eq!(p.name(), "Bing Maps");
+    }
+
+    #[test]
+    fn test_naip_provider_default() {
+        let p = UsgsNaipProvider::default();
+        assert_eq!(p.name(), "USGS NAIP");
+    }
+
+    #[test]
+    fn test_usgs_topo_provider_default() {
+        let p = UsgsTopoProvider::default();
+        assert_eq!(p.name(), "USGS Topo");
+    }
+
+    #[test]
+    fn test_eox_provider_default() {
+        let p = EoxProvider::default();
+        assert_eq!(p.name(), "EOX Maps");
+    }
+
+    #[test]
+    fn test_firefly_provider_default() {
+        let p = FireflyProvider::default();
+        assert_eq!(p.name(), "Firefly");
+    }
+
+    #[test]
+    fn test_yandex_provider_default() {
+        let p = YandexMapsProvider::default();
+        assert_eq!(p.name(), "Yandex Maps");
+    }
+
+    #[test]
+    fn test_apple_provider_default() {
+        let p = AppleMapsProvider::default();
+        assert_eq!(p.name(), "Apple Maps");
+    }
+
+    // --- fetch_image / test_provider_coverage ---
+
+    #[tokio::test]
+    async fn test_provider_coverage_unknown_provider() {
+        let result = test_provider_coverage("NONEXISTENT", 0.0, 0.0, 10).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Unknown provider"));
+    }
+
+    #[tokio::test]
+    async fn test_provider_coverage_invalid_coords() {
+        // Use lat/lng that tile_to_tile rejects
+        let result = test_provider_coverage("GO2", f64::NAN, 0.0, 10).await;
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.contains("Invalid coordinates") || err.contains("Coverage test failed"));
+    }
+
+    // fetch() methods are network-dependent, skip per plan
+
+    // --- PROVIDER_INFO properties ---
+
+    #[test]
+    fn test_provider_info_zoom_ranges() {
+        let info = provider_info("GO2").unwrap();
+        assert_eq!(info.min_zoom, 0);
+        assert_eq!(info.max_zoom, 21);
+        assert!(info.requires_auth);
+
+        let info = provider_info("BI").unwrap();
+        assert_eq!(info.min_zoom, 1);
+        assert_eq!(info.max_zoom, 19);
+        assert!(!info.requires_auth);
+
+        let info = provider_info("APPLE").unwrap();
+        assert!(info.requires_auth);
+    }
+
+    #[test]
+    fn test_provider_info_all_have_names() {
+        for info in PROVIDER_INFO {
+            assert!(
+                !info.display_name.is_empty(),
+                "{} has empty display_name",
+                info.id
+            );
+            assert!(!info.id.is_empty(), "provider has empty id");
+        }
+    }
 }

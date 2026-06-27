@@ -31,16 +31,8 @@
 - **Entry Points**:
   - `src/main.rs`: Binary entry point (CLI/GUI)
   - `src/lib.rs`: Library crate (`autoortho_lib`)
-- **Core Modules**:
-  - `src/pipeline/`: Image processing: JPEG decode, DDS gen, cache, budget
-  - `src/tiles/`: Tile engine: coords, chunks, assembly, prefetch, providers, fetcher, fallback
-  - `src/fuse/`: FUSE (Linux/macOS: unifuse; Windows: Dokan2)
-  - `src/xplane/`: X-Plane integration: dataref, simbrief, UDP
-  - `src/webui/`: Web UI: axum, WebSocket, REST API
-  - `src/ui/`: Desktop UI (iced): setup, settings, dashboard, dev tools
-  - `src/scenery/`: Scenery management: discovery, packs.ini, installer, SimHeaven
-- **Config**: `src/config/` — split by domain concern (see `src/config/AGENTS.md`)
-- **Tests**: Unit tests in module files, integration tests in `tests/`, benches in `benches/`
+
+See the DOX section below for more about the structure.
 
 ## Platform-Specific Notes
 
@@ -54,16 +46,18 @@ NOTE: local development happens on a MacOS machine, and some features for other 
 ## Common Commands
 
 | Task | Command |
-|------|--------|
+| ------ | -------- |
 | Debug build | `cargo build` |
 | Release build | `cargo build --release` |
 | Run (GUI) | `./target/release/autoortho --gui` |
 | Run (CLI) | `./target/release/autoortho --xplane /path/to/X-Plane` |
-| Format | `cargo fmt` |
+| Format (run after each edit of .rs file) | `cargo fmt` |
 | Lint | `cargo clippy -- -D warnings` |
 | Test | `cargo test` |
 | Library tests | `cargo test --lib` |
 | Integration tests | `cargo test --test integration_test` |
+| Test coverage - baseline | `cargo llvm-cov --all-features --lcov --output-path /tmp/lcov_baseline.info` Run first, before doing any work, set baseline for test coverage. |
+| Test coverage - delta | `cargo llvm-cov --all-features --lcov --output-path /tmp/lcov_delta.info`  |
 
 ## Workflow Specifics
 
@@ -75,9 +69,12 @@ NOTE: local development happens on a MacOS machine, and some features for other 
    cargo fmt
    cargo clippy --all-features -- -D warnings
    cargo test --all-features
+   cargo llvm-cov --all-features --lcov --output-path lcov.info
    ```
 
-2. **Commits**: Use Conventional commit format prefixes: (`fix:`, `feat:`, `chore:`)
+Run `cargo llvm-cov` before each commit, compare with baseline for test coverage. Coverage must at worst stay unchanged, but aim to increase coverage with each commit.
+
+1. **Commits**: Use Conventional commit format prefixes: (`fix:`, `feat:`, `chore:`)
 
 ## CI/CD Details
 
@@ -88,7 +85,7 @@ NOTE: local development happens on a MacOS machine, and some features for other 
 
 ## References
 
-- Original AutoOrtho: <https://github.com/ProgrammingDinosaur/autoortho>
+- Original ("python version") AutoOrtho: <https://github.com/ProgrammingDinosaur/autoortho>
 - CHANGELOG.md
 - deny.toml: license restrictions
 
