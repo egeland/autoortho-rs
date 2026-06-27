@@ -9,6 +9,8 @@
 //! DDS textures on-the-fly via FUSE.
 
 pub mod discovery;
+pub mod download;
+pub mod extract;
 pub mod installer;
 pub mod orchestrator;
 pub mod packs_ini;
