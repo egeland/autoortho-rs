@@ -43,6 +43,41 @@ jobs:
       - name: Clippy (all features)
         run: cargo clippy --all-features -- -D warnings
 
+  coverage:
+    name: Coverage
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: ${{ ! startsWith(github.ref_name, 'release-please-') }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libxkbcommon-dev libwayland-dev libvulkan-dev \
+            libfuse-dev pkg-config
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov
+
+      - name: Run tests with coverage
+        run: cargo llvm-cov --all-features --lcov --output-path lcov.info
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-report
+          path: lcov.info
+
   cross-platform:
     name: Test (${{ matrix.os }})
     needs: check
