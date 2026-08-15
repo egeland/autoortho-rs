@@ -48,7 +48,7 @@ parking_lot = "0.12"
 axum = { version = "0.8", features = ["ws"] }
 tower = "0.5"
 tower-http = { version = "0.7", features = ["cors", "trace"] }
-tokio-tungstenite = "0.29"
+tokio-tungstenite = "0.30"
 hyper = "1.10"
 hyper-util = "0.1"
 http-body-util = "0.1"
