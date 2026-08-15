@@ -24,7 +24,7 @@
 - **Repository**: <https://github.com/egeland/autoortho-rs>
 - **License**: Apache-2.0 OR GPL-3.0-or-later
 - **Author**: Frode Egeland
-- **Rust Edition**: 2024 (stable ≥1.95; no toolchain pinning, check upgrades)
+- **Rust Edition**: 2024 (stable ≥1.96; no toolchain pinning, check upgrades)
 
 ## Codebase Structure
 
