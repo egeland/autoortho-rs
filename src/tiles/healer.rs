@@ -17,6 +17,10 @@ use tracing::{info, warn};
 /// Maximum healing attempts per tile before it is left alone.
 pub const MAX_ATTEMPTS: u32 = 3;
 
+/// Tiles re-generated per pass. Keeps healing a gentle trickle so it never
+/// competes meaningfully with X-Plane's own tile requests for bandwidth.
+pub const TILES_PER_PASS: usize = 20;
+
 /// How long to wait between the first and subsequent healing passes.
 pub const PASS_INTERVAL: std::time::Duration = std::time::Duration::from_secs(15 * 60);
 
@@ -132,7 +136,7 @@ pub fn spawn_healer(
                 _ = shutdown.recv() => return,
             }
 
-            let report = heal_pass(&resolution, usize::MAX, MAX_ATTEMPTS).await;
+            let report = heal_pass(&resolution, TILES_PER_PASS, MAX_ATTEMPTS).await;
             if report.healed > 0 || report.skipped > 0 {
                 info!(
                     "Healing pass done: scanned {}, healed {}, skipped {}, failed {}",
