@@ -774,6 +774,7 @@ mod tests {
             populated_mipmaps: vec![0, 1, 2, 3, 4],
             missing_indices: vec![],
             fallback_indices: vec![],
+            attempts: 0,
             disk_compression: "zstd".to_string(),
         };
         let meta_json = serde_json::to_string_pretty(&meta).unwrap();
@@ -859,6 +860,7 @@ mod tests {
             populated_mipmaps: vec![0, 1, 2, 3, 4],
             missing_indices: vec![],
             fallback_indices: vec![],
+            attempts: 0,
             disk_compression: "zstd".to_string(),
         };
         let meta_json = serde_json::to_string_pretty(&meta).unwrap();
@@ -930,6 +932,7 @@ mod tests {
             populated_mipmaps: vec![0, 1, 2],
             missing_indices: vec![],
             fallback_indices: vec![],
+            attempts: 0,
             disk_compression: "zstd".to_string(),
         };
         std::fs::write(
@@ -955,6 +958,7 @@ mod tests {
             populated_mipmaps: vec![0, 1, 2, 3],
             missing_indices: vec![],
             fallback_indices: vec![],
+            attempts: 0,
             disk_compression: "zstd".to_string(),
         };
         std::fs::write(
@@ -1022,6 +1026,7 @@ mod tests {
             populated_mipmaps: vec![0, 1],
             missing_indices: vec![],
             fallback_indices: vec![],
+            attempts: 0,
             disk_compression: "zstd".to_string(),
         };
         std::fs::write(

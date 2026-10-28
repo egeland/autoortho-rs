@@ -27,7 +27,7 @@ use tracing::warn;
 pub struct DdsFileSystem {
     parser: DdsPathParser,
     /// Tile resolution pipeline: cache → fallback → generate → store
-    resolution: TileResolution,
+    resolution: Arc<TileResolution>,
     /// Pass-through for real files in the scenery root
     pass_through: Option<PassThroughFs>,
     /// Night exclusion: when true, read_dds returns a solid-color fallback tile
@@ -112,7 +112,7 @@ impl DdsFileSystemBuilder {
         }
         DdsFileSystem {
             parser: DdsPathParser::new(),
-            resolution,
+            resolution: Arc::new(resolution),
             pass_through: self.root.map(PassThroughFs::new),
             night_exclusion: self.night_exclusion,
         }
@@ -129,6 +129,12 @@ impl DdsFileSystem {
     /// to make `read_dds()` return fallback tiles instead of fetching imagery.
     pub fn night_exclusion_flag(&self) -> Arc<AtomicBool> {
         self.night_exclusion.clone()
+    }
+
+    /// Get a shared handle to the tile resolution pipeline (for background
+    /// tasks such as the tile healer).
+    pub fn resolution_arc(&self) -> Arc<TileResolution> {
+        Arc::clone(&self.resolution)
     }
 
     /// Get the DDS format used by this filesystem.

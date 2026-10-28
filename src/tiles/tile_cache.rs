@@ -225,6 +225,19 @@ impl TileCache {
             .unwrap_or(0)
     }
 
+    /// All keys present in the disk cache (empty if no disk cache).
+    pub fn disk_keys(&self) -> Vec<String> {
+        self.disk
+            .as_ref()
+            .map(|dc| dc.lock().keys())
+            .unwrap_or_default()
+    }
+
+    /// Metadata for a disk-cached tile (None if absent or no disk cache).
+    pub fn disk_metadata(&self, tile_key: &str) -> Option<DdsCacheMetadata> {
+        self.disk.as_ref()?.lock().get_metadata(tile_key).ok()
+    }
+
     /// Promote a tile into the memory cache, evicting LRU if full.
     fn promote_to_memory(&self, tile_key: &str, dds: Arc<Vec<u8>>) {
         let mut mem = self.memory.write();
@@ -258,6 +271,7 @@ mod tests {
             populated_mipmaps: vec![0, 1, 2, 3, 4],
             missing_indices: vec![],
             fallback_indices: vec![],
+            attempts: 0,
             disk_compression: "zstd".to_string(),
         }
     }

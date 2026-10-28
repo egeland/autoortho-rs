@@ -1359,6 +1359,7 @@ pub(crate) async fn prefetch_route_impl(
                 populated_mipmaps: (0..result.mipmap_count).collect(),
                 missing_indices: vec![],
                 fallback_indices: vec![],
+                attempts: 0,
                 disk_compression: "zstd".to_string(),
             };
             if cache.put(key, &result.dds_data, &metadata).is_ok() {
@@ -1581,6 +1582,7 @@ mod tests {
             populated_mipmaps: vec![0],
             missing_indices: vec![],
             fallback_indices: vec![],
+            attempts: 0,
             disk_compression: "zstd".to_string(),
         };
         cache.put(key.clone(), &dds_data, &metadata).unwrap();
