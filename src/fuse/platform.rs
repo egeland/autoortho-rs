@@ -203,3 +203,105 @@ pub fn cleanup_mount(mountpoint: &std::path::Path) -> Result<(), Box<dyn std::er
 
     Ok(())
 }
+
+/// Prepare the mount point directory for mounting.
+///
+/// Windows: a previous run that was killed leaves its Dokan mount point
+/// junction behind. The junction is dangling, so `create_dir_all` fails with
+/// `AlreadyExists` and the app cannot start again. Release any live mount and
+/// remove the leftover junction before creating the directory.
+pub fn prepare_mount_dir(mountpoint: &std::path::Path) -> std::io::Result<()> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+
+        // Release a mount that is still live (e.g. from a previous instance).
+        let _ = cleanup_mount(mountpoint);
+
+        if let Ok(metadata) = std::fs::symlink_metadata(mountpoint)
+            && metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+        {
+            log::warn!(
+                "Removing leftover mount point junction: {}",
+                mountpoint.display()
+            );
+            // Removes the junction itself, not the target directory.
+            std::fs::remove_dir(mountpoint)?;
+        }
+    }
+
+    std::fs::create_dir_all(mountpoint)
+}
+
+#[cfg(test)]
+mod mount_dir_tests {
+    use super::prepare_mount_dir;
+
+    #[test]
+    fn creates_missing_mount_dir() {
+        let tmp = crate::test_utils::temp_dir();
+        let mountpoint = tmp.path().join("z_autoortho");
+
+        prepare_mount_dir(&mountpoint).expect("mount dir should be created");
+
+        assert!(mountpoint.is_dir());
+    }
+
+    #[test]
+    fn accepts_existing_mount_dir() {
+        let tmp = crate::test_utils::temp_dir();
+        let mountpoint = tmp.path().join("z_autoortho");
+        std::fs::create_dir_all(&mountpoint).expect("dir should be created");
+
+        prepare_mount_dir(&mountpoint).expect("existing dir should be accepted");
+
+        assert!(mountpoint.is_dir());
+    }
+
+    /// Windows: a killed run leaves a dangling mount point junction. The app
+    /// must recover instead of failing with `AlreadyExists`.
+    #[cfg(windows)]
+    #[test]
+    fn replaces_leftover_mount_point_junction() {
+        use std::os::windows::fs::MetadataExt;
+
+        const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
+
+        let tmp = crate::test_utils::temp_dir();
+        let target = tmp.path().join("target");
+        std::fs::create_dir_all(&target).expect("target should be created");
+        let mountpoint = tmp.path().join("z_autoortho");
+
+        // mklink /J creates a directory junction (no elevation required).
+        let status = std::process::Command::new("cmd")
+            .args([
+                "/c",
+                "mklink",
+                "/J",
+                &mountpoint.display().to_string(),
+                &target.display().to_string(),
+            ])
+            .status()
+            .expect("mklink should run");
+        assert!(status.success(), "mklink /J failed");
+
+        let metadata = std::fs::symlink_metadata(&mountpoint).expect("metadata");
+        assert_ne!(
+            metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT,
+            0,
+            "expected a reparse point"
+        );
+
+        prepare_mount_dir(&mountpoint).expect("leftover junction should be replaced");
+
+        let metadata = std::fs::symlink_metadata(&mountpoint).expect("metadata");
+        assert_eq!(
+            metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT,
+            0,
+            "junction should be replaced by a plain directory"
+        );
+        assert!(target.is_dir(), "junction target must be untouched");
+    }
+}

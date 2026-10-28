@@ -708,7 +708,6 @@ mod tests {
         let provider = Arc::new(FailingProvider);
         let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
         let fake_fallback = Arc::new(FakeFallbackService::new(true));
-        let fallback_ref = fake_fallback.clone();
 
         let fs = DdsFileSystem::builder(Arc::new(fetcher), "ARC")
             .fallback_service(fake_fallback as Arc<dyn FallbackService>)
