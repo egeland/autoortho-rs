@@ -128,25 +128,10 @@ impl TileResolution {
             stats.record_download(dds_data.len() as u64).await;
         }
 
-        // Check if tile has missing chunks and fallback is configured
-        if result.chunks_failed > 0
-            && let Some(fb) = &self.fallback
-        {
-            debug!(
-                "Tile {}_{}_{}_{} has {} missing chunks, using fallback",
-                row, col, maptype, zoom, result.chunks_failed
-            );
-            let fallback_dds = fb
-                .solid_fallback(4096, self.tile_generator.dds_format(), self.solid_color)
-                .await;
-            self.tile_cache
-                .put_memory_only(tile_key, fallback_dds.clone());
-            return Ok(ResolvedTile {
-                data: fallback_dds,
-                cache_hit: false,
-                used_fallback: true,
-            });
-        }
+        // Tiles with missing chunks keep the fetched imagery: the generator
+        // already fills failed chunks with the fallback color. Replacing the
+        // whole tile with a solid color tile would discard valid imagery
+        // (ocean chunks have no imagery, but land chunks do).
 
         // Write to disk cache and store in memory
         let tile_size = 4096u32;
@@ -177,6 +162,8 @@ impl TileResolution {
         Ok(ResolvedTile {
             data: dds_data,
             cache_hit: false,
+            // The fallback service was not used; the generator filled missing
+            // chunks with the fallback color (logged separately as a warning).
             used_fallback: false,
         })
     }
@@ -257,14 +244,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_resolve_uses_solid_fallback_on_chunk_failure() {
+    async fn test_resolve_keeps_composed_tile_on_chunk_failure() {
         let fallback = Arc::new(FakeFallbackService::new(true));
         let res = make_resolution().fallback(fallback);
 
-        // Mock JPEGs are too small to decode → all chunks fail → solid fallback
+        // Mock JPEGs are too small to decode → all chunks fail → the composed
+        // tile is kept (fallback color fills the chunks) instead of being
+        // replaced by a solid color tile that discards valid imagery.
         let result = res.resolve(100, 200, "BI", 16).await.unwrap();
-        assert!(result.used_fallback);
-        assert!(!result.data.is_empty());
+        assert!(!result.used_fallback, "fallback service was not used");
+        assert!(
+            result.data.len() > 1_000_000,
+            "composed tile expected, got {} bytes",
+            result.data.len()
+        );
     }
 
     #[tokio::test]

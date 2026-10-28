@@ -640,7 +640,68 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_fallback_used_on_provider_failure() {
+    async fn test_partial_tile_keeps_fetched_imagery() {
+        use crate::services::FallbackService;
+        use crate::services::fallback_service::tests::FakeFallbackService;
+
+        // Provider succeeds for some chunks and fails for others (ocean areas
+        // have no imagery). The tile must keep the fetched chunks instead of
+        // being replaced by a solid color tile.
+        struct PartialProvider;
+
+        impl crate::tiles::provider::TileProvider for PartialProvider {
+            fn fetch(
+                &self,
+                row: u32,
+                col: u32,
+                _zoom: u32,
+            ) -> std::pin::Pin<
+                Box<
+                    dyn std::future::Future<
+                            Output = Result<Vec<u8>, crate::tiles::provider::TileProviderError>,
+                        > + Send
+                        + '_,
+                >,
+            > {
+                Box::pin(async move {
+                    if (row + col) % 2 == 0 {
+                        Ok(crate::test_utils::MINIMAL_JPEG.to_vec())
+                    } else {
+                        Err(crate::tiles::provider::TileProviderError::NetworkError(
+                            "no imagery".into(),
+                        ))
+                    }
+                })
+            }
+
+            fn name(&self) -> &str {
+                "Partial"
+            }
+        }
+
+        let provider = Arc::new(PartialProvider);
+        let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
+        let fake_fallback = Arc::new(FakeFallbackService::new(false));
+
+        let fs = DdsFileSystem::builder(Arc::new(fetcher), "ARC")
+            .fallback_service(fake_fallback as Arc<dyn FallbackService>)
+            .build();
+
+        let data = fs
+            .read_dds("/textures/100_200_BI16.dds", 0, u32::MAX)
+            .await
+            .unwrap();
+
+        // A real composed DDS (megabytes), not the 148-byte solid fallback
+        assert!(
+            data.len() > 1_000_000,
+            "partial tile must keep composed imagery, got {} bytes",
+            data.len()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_provider_failure_yields_valid_tile() {
         use crate::services::FallbackService;
         use crate::services::fallback_service::tests::FakeFallbackService;
 
@@ -653,13 +714,22 @@ mod tests {
             .fallback_service(fake_fallback as Arc<dyn FallbackService>)
             .build();
 
-        // Read a tile — provider fails, fallback should be used
+        // Provider fails for every chunk: the tile is still valid, with the
+        // fallback color filling the missing chunks.
         let result = fs.read_dds("/textures/100_200_BI16.dds", 0, u32::MAX).await;
-        assert!(result.is_ok(), "should return fallback data, not error");
+        assert!(result.is_ok(), "should return tile data, not error");
 
         let data = result.unwrap();
-        // FakeFallbackService::solid_fallback returns DDS header with color bytes at 144-147
         assert_eq!(&data[0..4], b"DDS ", "should be valid DDS header");
-        assert_eq!(data.len(), 148, "fake fallback returns 148 bytes");
+        assert!(
+            data.len() > 1_000_000,
+            "should be a full tile, got {} bytes",
+            data.len()
+        );
+
+        // A second read must be served from cache, not regenerate the tile
+        let second = fs.read_dds("/textures/100_200_BI16.dds", 0, u32::MAX).await;
+        assert!(second.is_ok());
+        assert_eq!(second.unwrap().len(), data.len());
     }
 }
