@@ -188,7 +188,7 @@ mod dokan_impl {
             let size = buffer.len() as u32;
             match self
                 .runtime
-                .block_on(self.fs.read_dds(&path_str, offset_u64, size))
+                .block_on(self.fs.read(&path_str, offset_u64, size))
             {
                 Ok(data) => {
                     let len = data.len().min(buffer.len());

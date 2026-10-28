@@ -37,6 +37,29 @@ impl PassThroughFs {
         }
     }
 
+    /// Read a byte range from a real file in the root.
+    pub fn read(&self, trimmed: &str, offset: u64, size: u32) -> Result<Vec<u8>, FuseError> {
+        use std::io::{Read, Seek, SeekFrom};
+        let full_path = self.root.join(trimmed);
+        let mut file =
+            std::fs::File::open(&full_path).map_err(|e| FuseError::IoError(e.to_string()))?;
+        file.seek(SeekFrom::Start(offset))
+            .map_err(|e| FuseError::IoError(e.to_string()))?;
+        let mut buf = vec![0u8; size as usize];
+        let mut read_total = 0usize;
+        while read_total < buf.len() {
+            let n = file
+                .read(&mut buf[read_total..])
+                .map_err(|e| FuseError::IoError(e.to_string()))?;
+            if n == 0 {
+                break;
+            }
+            read_total += n;
+        }
+        buf.truncate(read_total);
+        Ok(buf)
+    }
+
     /// List entries in a real directory within the root.
     pub fn list_dir(&self, trimmed: &str) -> Result<Vec<String>, FuseError> {
         let full_path = self.root.join(trimmed);

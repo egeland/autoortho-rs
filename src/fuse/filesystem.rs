@@ -185,6 +185,24 @@ impl DdsFileSystem {
         Ok(TileResolution::slice_range(&resolved.data, offset, size).into_owned())
     }
 
+    /// Read a byte range from any file served by the mount: the AOISWORKING
+    /// marker (empty), a virtual DDS tile, or a real pass-through file
+    /// (Earth nav data .dsf, terrain .ter). Both FUSE and Dokan read paths
+    /// must route through this or X-Plane cannot load the scenery pack.
+    pub async fn read(&self, path: &str, offset: u64, size: u32) -> Result<Vec<u8>, FuseError> {
+        let trimmed = path.trim_start_matches('/');
+        if trimmed.ends_with(MARKER_FILE) {
+            return Ok(Vec::new());
+        }
+        if self.parser.parse(path).is_ok() {
+            return self.read_dds(path, offset, size).await;
+        }
+        if let Some(ref pt) = self.pass_through {
+            return pt.read(trimmed, offset, size);
+        }
+        Err(FuseError::InvalidPath)
+    }
+
     /// Check if a DDS tile exists in memory or disk cache.
     pub fn has_dds(&self, path: &str) -> bool {
         let (row, col, maptype, zoom) = match self.parser.parse(path) {
@@ -538,6 +556,41 @@ mod tests {
         // Real directory
         let attr = fs.get_attr("/Earth nav data").await.unwrap();
         assert!(attr.is_dir);
+    }
+
+    #[tokio::test]
+    async fn test_read_marker_returns_empty() {
+        let fs = make_fs();
+        // Monitoring tools and X-Plane pack scanners open the marker; a read
+        // must succeed (empty) instead of failing DDS-path parsing
+        let data = fs.read("/textures/AOISWORKING", 0, 64).await.unwrap();
+        assert!(data.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_read_pass_through_file() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("test.dsf"), b"fake dsf content").unwrap();
+        let provider = Arc::new(MockProvider);
+        let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
+        let fs = DdsFileSystem::builder(Arc::new(fetcher), "ARC")
+            .root(tmp.path().to_path_buf())
+            .build();
+
+        // Real files (Earth nav data .dsf, terrain .ter) must be readable
+        // through the mount or X-Plane cannot load the scenery pack
+        let data = fs.read("/test.dsf", 5, 4).await.unwrap();
+        assert_eq!(data, b"dsf ");
+
+        let data = fs.read("/test.dsf", 0, 100).await.unwrap();
+        assert_eq!(data, b"fake dsf content");
+    }
+
+    #[tokio::test]
+    async fn test_read_invalid_path() {
+        let fs = make_fs();
+        let result = fs.read("/nonexistent.bin", 0, 10).await;
+        assert!(result.is_err());
     }
 
     #[test]
