@@ -110,6 +110,11 @@ jobs:
               "$chocoPath\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
             }
           }
+          # Retry if Chocolatey failed (transient feed issue)
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Chocolatey install failed, retrying..."
+            choco install dokany2 -y --timeout 180
+          }
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable

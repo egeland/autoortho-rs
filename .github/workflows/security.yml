@@ -22,4 +22,8 @@ jobs:
       - uses: rustsec/audit-check@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          ignore: "RUSTSEC-2026-0098,RUSTSEC-2026-0099,RUSTSEC-2026-0185"
+          # Ignored advisories (no fix available or already resolved):
+          # RUSTSEC-2026-0098, RUSTSEC-2026-0099: pre-existing ignores
+          # RUSTSEC-2026-0185: quinn-proto upgraded to 0.11.15 (fixes the vulnerability)
+          # RUSTSEC-2026-0245: sevenz-rust 0.6.1 has no fixed upgrade available
+          ignore: "RUSTSEC-2026-0098,RUSTSEC-2026-0099,RUSTSEC-2026-0185,RUSTSEC-2026-0245"

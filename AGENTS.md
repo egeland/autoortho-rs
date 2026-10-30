@@ -76,12 +76,15 @@ Run `cargo llvm-cov` before each commit, compare with baseline for test coverage
 
 1. **Commits**: Use Conventional commit format prefixes: (`fix:`, `feat:`, `chore:`)
 
+When running `cargo test` or `cargo clippy` pipe the full output to a temp file, rather than grepping the live output. Then check that output for any results needed.
+
 ## CI/CD Details
 
 - **ci.yml**: Cross-platform tests: Linux/macOS/Windows
 - **release.yml**: Release builds; Inno Setup deprecated
 - **release-plz.yml**: Version bumps + release PRs via release-plz
 - **security.yml**: PR + main push: cargo audit, cargo deny
+  - **ignored advisories**: RUSTSEC-2026-0245 (sevenz-rust path traversal, no fix available). Check this list when upgrading dependencies — future sessions should verify if a fixed upgrade exists before keeping an advisory ignored.
 
 ## References
 
