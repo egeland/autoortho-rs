@@ -13,8 +13,15 @@ pub struct StatsSnapshot {
     pub cache_misses: u64,
     pub tiles_pending: u32,
     pub tiles_completed: u32,
+    /// Tile read requests that arrived through the mount (X-Plane driven).
+    pub mount_requests: u64,
+    /// Unix ms of the last mount tile request (0 = never).
+    pub last_mount_request_ms: u64,
 }
 
+/// Statistics store for tile downloads and cache.
+/// Debug is required because the iced `Message` enum derives it.
+#[derive(Debug)]
 pub struct StatsStore {
     snapshot: Arc<Mutex<StatsSnapshot>>,
 }
@@ -29,6 +36,8 @@ impl StatsStore {
                 cache_misses: 0,
                 tiles_pending: 0,
                 tiles_completed: 0,
+                mount_requests: 0,
+                last_mount_request_ms: 0,
             })),
         }
     }
@@ -57,6 +66,22 @@ impl StatsStore {
     pub fn record_cache_miss(&self) {
         self.with_snapshot(|snap| {
             snap.cache_misses += 1;
+        })
+    }
+
+    /// Record a tile read request arriving through the mount.
+    ///
+    /// Called from the FUSE/Dokan read path only, so prefetch and the tile
+    /// healer never light this up — the dashboard uses it to show that
+    /// X-Plane is actively requesting tiles.
+    pub fn record_mount_request(&self) {
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        self.with_snapshot(|snap| {
+            snap.mount_requests += 1;
+            snap.last_mount_request_ms = now_ms;
         })
     }
 
@@ -159,6 +184,21 @@ mod tests {
         stats.set_pending_tiles(5);
         let snap = stats.snapshot();
         assert_eq!(snap.tiles_pending, 5);
+    }
+
+    #[test]
+    fn test_mount_requests_recorded_with_timestamp() {
+        // X-Plane tile reads through the mount must be distinguishable from
+        // prefetch/healer activity so the dashboard only pulses on sim requests.
+        let stats = StatsStore::new();
+        assert_eq!(stats.snapshot().mount_requests, 0);
+        assert_eq!(stats.snapshot().last_mount_request_ms, 0);
+
+        stats.record_mount_request();
+        stats.record_mount_request();
+        let snap = stats.snapshot();
+        assert_eq!(snap.mount_requests, 2);
+        assert!(snap.last_mount_request_ms > 0);
     }
 
     #[test]

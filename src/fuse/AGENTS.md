@@ -19,6 +19,9 @@ FUSE/Dokan virtual filesystem that exposes DDS tile images to X-Plane. Parses ti
 - DDS path regex: `r".*/(\d+)[-_](\d+)[-_](\S*)(\d{2})\.dds"`
 - `VIRTUAL_DIRS`: `["textures", "terrain"]`
 - `MARKER_FILE`: `"AOISWORKING"`
+- `DdsFileSystem::read()` DDS branch records a mount tile request via the
+  stats service (dashboard "X-Plane Tile Requests" indicator, bead-e64);
+  marker and pass-through reads don't count
 - Poison path: `is_poison_path()` for shutdown signaling
 - `calculate_dds_size()` must match pipeline's `dds_file_size_4096_bc3()`
 

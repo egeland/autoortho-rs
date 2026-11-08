@@ -36,6 +36,9 @@ pub trait StatsService: Send + Sync {
     /// Record a cache miss.
     async fn record_cache_miss(&self);
 
+    /// Record a tile read request arriving through the mount (X-Plane driven).
+    async fn record_mount_request(&self);
+
     /// Set the number of pending tiles.
     async fn set_pending_tiles(&self, count: u32);
 
@@ -77,6 +80,10 @@ impl StatsService for StatsServiceImpl {
 
     async fn record_cache_miss(&self) {
         self.store.record_cache_miss();
+    }
+
+    async fn record_mount_request(&self) {
+        self.store.record_mount_request();
     }
 
     async fn set_pending_tiles(&self, count: u32) {
@@ -142,6 +149,16 @@ pub(crate) mod tests {
         async fn record_cache_miss(&self) {
             let mut snap = self.snapshot.lock().await;
             snap.cache_misses += 1;
+        }
+
+        async fn record_mount_request(&self) {
+            let now_ms = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as u64)
+                .unwrap_or(0);
+            let mut snap = self.snapshot.lock().await;
+            snap.mount_requests += 1;
+            snap.last_mount_request_ms = now_ms;
         }
 
         async fn set_pending_tiles(&self, count: u32) {
@@ -234,6 +251,19 @@ pub(crate) mod tests {
         let snap = stats.snapshot().await;
         assert_eq!(snap.tiles_downloaded, 0);
         assert_eq!(snap.cache_hits, 0);
+    }
+
+    #[tokio::test]
+    async fn test_fake_stats_mount_requests() {
+        // Both real and fake stats must track mount tile requests so the
+        // dashboard indicator works in tests and production alike.
+        let stats = FakeStatsService::new();
+        stats.record_mount_request().await;
+        stats.record_mount_request().await;
+
+        let snap = stats.snapshot().await;
+        assert_eq!(snap.mount_requests, 2);
+        assert!(snap.last_mount_request_ms > 0);
     }
 
     /// Test that StatsService works as a trait object.

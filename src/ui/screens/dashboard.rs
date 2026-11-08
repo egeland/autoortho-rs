@@ -67,11 +67,31 @@ pub fn view(state: &AppState) -> Element<'_, Message> {
     );
     let xp_status = status_indicator("X-Plane Tracker", state.services.xplane_tracker, &None);
 
+    // Mount tile-request activity: pulses only on X-Plane reads (prefetch and
+    // the tile healer never enter the mount read path)
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0);
+    let (mount_active, mount_text) =
+        mount_activity_status(state.mount_last_request_ms, state.mount_requests, now_ms);
+    let mount_color = if mount_active {
+        iced::Color::from_rgb(0.0, 0.6, 0.0)
+    } else {
+        iced::Color::from_rgb(0.5, 0.5, 0.5)
+    };
+    let mount_requests_row = row![
+        text("X-Plane Tile Requests:").width(Length::Fixed(160.0)),
+        text(mount_text).color(mount_color),
+    ]
+    .spacing(8);
+
     let status_section = column![
         text("Services").size(18),
         rule::horizontal(1),
         web_status,
         xp_status,
+        mount_requests_row,
     ]
     .spacing(6);
 
@@ -322,4 +342,49 @@ fn config_row(label: &'static str, value: String) -> Element<'static, Message> {
     ]
     .spacing(8)
     .into()
+}
+
+/// Dashboard label for mount tile-request activity (X-Plane reads only).
+///
+/// Active when a tile request arrived through the mount within the last
+/// 3 seconds; prefetch and healer never trigger it, so the pulse reflects
+/// real simulator demand. Returns (active, label text).
+pub(crate) fn mount_activity_status(
+    last_request_ms: u64,
+    total_requests: u64,
+    now_ms: u64,
+) -> (bool, String) {
+    const RECENT_WINDOW_MS: u64 = 3_000;
+    let active = total_requests > 0 && now_ms.saturating_sub(last_request_ms) <= RECENT_WINDOW_MS;
+    if active {
+        (true, format!("Serving tiles ({total_requests} total)"))
+    } else if total_requests > 0 {
+        (false, format!("Idle ({total_requests} requests total)"))
+    } else {
+        (false, "No requests yet".to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mount_activity_status_windows() {
+        // Active only while a mount tile request happened within the 3s window
+        let (active, text) = mount_activity_status(100_000, 5, 100_000 + 2_999);
+        assert!(active, "request 2999ms ago is still active");
+        assert!(text.contains('5'), "label shows request count: {text}");
+
+        let (active, text) = mount_activity_status(100_000, 5, 100_000 + 3_001);
+        assert!(!active, "request 3001ms ago is stale");
+        assert!(text.contains("Idle"), "stale label: {text}");
+
+        let (active, text) = mount_activity_status(0, 0, 9_999);
+        assert!(!active);
+        assert!(
+            text.contains("No requests"),
+            "never-requested label: {text}"
+        );
+    }
 }

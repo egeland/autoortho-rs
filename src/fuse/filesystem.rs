@@ -33,6 +33,8 @@ pub struct DdsFileSystem {
     /// Night exclusion: when true, read_dds returns a solid-color fallback tile
     /// instead of fetching satellite imagery. Updated externally via the Arc.
     night_exclusion: Arc<AtomicBool>,
+    /// Stats service for mount tile-request tracking (X-Plane activity indicator)
+    stats: Option<Arc<dyn StatsService>>,
 }
 
 #[must_use]
@@ -107,7 +109,7 @@ impl DdsFileSystemBuilder {
         if let Some(fallback) = self.fallback {
             resolution = resolution.fallback(fallback);
         }
-        if let Some(stats) = self.stats {
+        if let Some(stats) = self.stats.clone() {
             resolution = resolution.stats(stats);
         }
         DdsFileSystem {
@@ -115,6 +117,7 @@ impl DdsFileSystemBuilder {
             resolution: Arc::new(resolution),
             pass_through: self.root.map(PassThroughFs::new),
             night_exclusion: self.night_exclusion,
+            stats: self.stats,
         }
     }
 }
@@ -201,6 +204,12 @@ impl DdsFileSystem {
             return Ok(Vec::new());
         }
         if self.parser.parse(path).is_ok() {
+            // Tile request arriving through the mount (X-Plane driven —
+            // prefetch and healer never enter read()). Feeds the dashboard
+            // "X-Plane Tile Requests" indicator.
+            if let Some(stats) = &self.stats {
+                stats.record_mount_request().await;
+            }
             return self.read_dds(path, offset, size).await;
         }
         if let Some(ref pt) = self.pass_through {
@@ -643,6 +652,43 @@ mod tests {
         let snap = stats_ref.snapshot().await;
         assert_eq!(snap.cache_hits, 1, "should record one cache hit");
         assert_eq!(snap.cache_misses, 1, "misses unchanged");
+    }
+
+    #[tokio::test]
+    async fn test_read_records_mount_request_for_dds_paths_only() {
+        // The dashboard "X-Plane Tile Requests" indicator must light up only
+        // for tile reads (DDS), never for marker or pass-through reads, and
+        // never from prefetch/healer (which don't enter read()).
+        use crate::services::StatsService;
+        use crate::services::stats_service::tests::FakeStatsService;
+
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("test.dsf"), b"data").unwrap();
+        std::fs::create_dir(tmp.path().join("Earth nav data")).unwrap();
+
+        let provider = Arc::new(MockProvider);
+        let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
+        let fake_stats = Arc::new(FakeStatsService::new());
+        let stats_ref = fake_stats.clone();
+
+        let fs = DdsFileSystem::builder(Arc::new(fetcher), "ARC")
+            .root(tmp.path().to_path_buf())
+            .stats(fake_stats as Arc<dyn StatsService>)
+            .build();
+
+        // Marker read: no mount tile request
+        let _ = fs.read("/textures/AOISWORKING", 0, 16).await;
+        assert_eq!(stats_ref.snapshot().await.mount_requests, 0);
+
+        // Pass-through read: no mount tile request
+        let _ = fs.read("/Earth nav data/test.dsf", 0, 4).await;
+        assert_eq!(stats_ref.snapshot().await.mount_requests, 0);
+
+        // DDS read: one mount tile request
+        let _ = fs.read("/textures/100_200_BI16.dds", 0, u32::MAX).await;
+        let snap = stats_ref.snapshot().await;
+        assert_eq!(snap.mount_requests, 1);
+        assert!(snap.last_mount_request_ms > 0);
     }
 
     #[tokio::test]

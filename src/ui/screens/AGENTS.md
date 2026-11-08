@@ -11,7 +11,9 @@ Each file implements one screen's `view()` and associated message handling:
 - `welcome.rs` — First-run welcome wizard
 - `setup.rs` — X-Plane path configuration
 - `settings.rs` — Config editor (zoom rules, cache, provider, UI scale)
-- `dashboard.rs` — Live status display, tile stats, flight info
+- `dashboard.rs` — Live status display, tile stats, flight info; "X-Plane Tile
+  Requests" row pulses on mount DDS reads (mount_activity_status helper,
+  stats via AppState.stats refreshed each Tick)
 - `developer.rs` — Debug tools, test tile generation
 - `scenery.rs` — Scenery pack management UI
 - `about.rs` — Version info, links
