@@ -94,9 +94,6 @@ impl TileResolution {
                 used_fallback: false,
             });
         }
-        if let Some(ref stats) = self.stats {
-            stats.record_cache_miss().await;
-        }
 
         // Try fallback if configured and no cache hit
         if let Some(fb) = &self.fallback
@@ -109,14 +106,47 @@ impl TileResolution {
             );
             self.tile_cache
                 .put_memory_only(tile_key, fallback_data.clone());
+            if let Some(ref stats) = self.stats {
+                stats.record_cache_miss().await;
+            }
             return Ok(ResolvedTile {
                 data: fallback_data,
                 cache_hit: false,
                 used_fallback: true,
             });
         }
+        if let Some(ref stats) = self.stats {
+            stats.record_cache_miss().await;
+        }
 
-        // Not cached — generate the DDS tile
+        self.generate_and_store(row, col, maptype, zoom, 0).await
+    }
+
+    /// Re-generate a tile, bypassing the cache lookup. Used by the healer to
+    /// refresh incomplete tiles: the new build overwrites the cached data and
+    /// records `prior_attempts + 1` so repeated failures eventually stop.
+    pub async fn regenerate(
+        &self,
+        row: u32,
+        col: u32,
+        maptype: &str,
+        zoom: u32,
+        prior_attempts: u32,
+    ) -> Result<ResolvedTile, TileGeneratorError> {
+        self.generate_and_store(row, col, maptype, zoom, prior_attempts + 1)
+            .await
+    }
+
+    async fn generate_and_store(
+        &self,
+        row: u32,
+        col: u32,
+        maptype: &str,
+        zoom: u32,
+        attempts: u32,
+    ) -> Result<ResolvedTile, TileGeneratorError> {
+        let tile_key = format!("{}_{}_{}_{}", row, col, maptype, zoom);
+
         let result = self
             .tile_generator
             .generate_tile(row, col, maptype, zoom)
@@ -127,26 +157,10 @@ impl TileResolution {
         if let Some(ref stats) = self.stats {
             stats.record_download(dds_data.len() as u64).await;
         }
-
-        // Check if tile has missing chunks and fallback is configured
-        if result.chunks_failed > 0
-            && let Some(fb) = &self.fallback
-        {
-            debug!(
-                "Tile {}_{}_{}_{} has {} missing chunks, using fallback",
-                row, col, maptype, zoom, result.chunks_failed
-            );
-            let fallback_dds = fb
-                .solid_fallback(4096, self.tile_generator.dds_format(), self.solid_color)
-                .await;
-            self.tile_cache
-                .put_memory_only(tile_key, fallback_dds.clone());
-            return Ok(ResolvedTile {
-                data: fallback_dds,
-                cache_hit: false,
-                used_fallback: true,
-            });
-        }
+        // Tiles with missing chunks keep the fetched imagery: the generator
+        // already fills failed chunks with the fallback color. Replacing the
+        // whole tile with a solid color tile would discard valid imagery
+        // (ocean chunks have no imagery, but land chunks do).
 
         // Write to disk cache and store in memory
         let tile_size = 4096u32;
@@ -167,7 +181,8 @@ impl TileResolution {
             tile_col: col,
             populated_mipmaps: (0..result.mipmap_count).collect(),
             missing_indices: vec![],
-            fallback_indices: vec![],
+            fallback_indices: result.failed_indices,
+            attempts,
             disk_compression: "zstd".to_string(),
         };
         if let Err(e) = self.tile_cache.put(tile_key, dds_data.clone(), &metadata) {
@@ -177,6 +192,8 @@ impl TileResolution {
         Ok(ResolvedTile {
             data: dds_data,
             cache_hit: false,
+            // The fallback service was not used; the generator filled missing
+            // chunks with the fallback color (logged separately as a warning).
             used_fallback: false,
         })
     }
@@ -214,6 +231,35 @@ mod tests {
         TileResolution::new(cache, generator)
     }
 
+    fn make_disk_resolution(tmp: &tempfile::TempDir) -> TileResolution {
+        let provider = Arc::new(MockProvider);
+        let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
+        let generator = Arc::new(TileGenerator::new(Arc::new(fetcher), "ARC"));
+        let dds_cache =
+            crate::pipeline::cache::DdsCache::new(tmp.path().join("dds"), 64 * 1024 * 1024);
+        let cache = Arc::new(TileCache::with_disk(64, dds_cache));
+        TileResolution::new(cache, generator)
+    }
+
+    /// Incomplete tiles must be marked in metadata so the healer can find
+    /// and re-generate them. Mock JPEGs are too small to decode, so all 256
+    /// chunks fall back.
+    #[tokio::test]
+    async fn test_resolve_persists_fallback_indices_in_metadata() {
+        let tmp = crate::test_utils::temp_dir();
+        let res = make_disk_resolution(&tmp);
+
+        res.resolve(100, 200, "BI", 16).await.unwrap();
+
+        let meta = res
+            .tile_cache()
+            .disk_metadata("100_200_BI_16")
+            .expect("tile should be disk-cached");
+        assert_eq!(meta.fallback_indices.len(), 256);
+        assert!(meta.needs_healing(), "incomplete tile must be marked");
+        assert_eq!(meta.attempts, 0, "fresh build has no healing attempts");
+    }
+
     #[tokio::test]
     async fn test_resolve_cache_miss_generates_tile() {
         let res = make_resolution();
@@ -239,6 +285,27 @@ mod tests {
         assert_eq!(r1.data, r2.data);
     }
 
+    /// Healing must bump the persisted attempt counter so perpetually
+    /// failing tiles eventually stop being retried.
+    #[tokio::test]
+    async fn test_regenerate_increments_attempts() {
+        let tmp = crate::test_utils::temp_dir();
+        let res = make_disk_resolution(&tmp);
+
+        res.resolve(100, 200, "BI", 16).await.unwrap();
+        let meta = res.tile_cache().disk_metadata("100_200_BI_16").unwrap();
+        assert_eq!(meta.attempts, 0);
+
+        // Mock JPEGs never decode, so the tile stays incomplete, but the
+        // attempt count must increase and persist to the disk cache.
+        res.regenerate(100, 200, "BI", 16, meta.attempts)
+            .await
+            .unwrap();
+        let meta = res.tile_cache().disk_metadata("100_200_BI_16").unwrap();
+        assert_eq!(meta.attempts, 1);
+        assert!(meta.needs_healing());
+    }
+
     #[tokio::test]
     async fn test_resolve_records_stats() {
         let stats = Arc::new(FakeStatsService::new());
@@ -257,14 +324,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_resolve_uses_solid_fallback_on_chunk_failure() {
+    async fn test_resolve_keeps_composed_tile_on_chunk_failure() {
         let fallback = Arc::new(FakeFallbackService::new(true));
         let res = make_resolution().fallback(fallback);
 
-        // Mock JPEGs are too small to decode → all chunks fail → solid fallback
+        // Mock JPEGs are too small to decode → all chunks fail → the composed
+        // tile is kept (fallback color fills the chunks) instead of being
+        // replaced by a solid color tile that discards valid imagery.
         let result = res.resolve(100, 200, "BI", 16).await.unwrap();
-        assert!(result.used_fallback);
-        assert!(!result.data.is_empty());
+        assert!(!result.used_fallback, "fallback service was not used");
+        assert!(
+            result.data.len() > 1_000_000,
+            "composed tile expected, got {} bytes",
+            result.data.len()
+        );
     }
 
     #[tokio::test]

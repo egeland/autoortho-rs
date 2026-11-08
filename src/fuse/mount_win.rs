@@ -188,7 +188,7 @@ mod dokan_impl {
             let size = buffer.len() as u32;
             match self
                 .runtime
-                .block_on(self.fs.read_dds(&path_str, offset_u64, size))
+                .block_on(self.fs.read(&path_str, offset_u64, size))
             {
                 Ok(data) => {
                     let len = data.len().min(buffer.len());
@@ -376,6 +376,11 @@ mod dokan_impl {
             // CURRENT_SESSION: only visible to the current user session
             // FILELOCK_USER_MODE: use user-mode locking instead of kernel
             flags: MountFlags::CURRENT_SESSION | MountFlags::FILELOCK_USER_MODE,
+            // Tile generation (16 network chunk fetches) can take minutes on
+            // a cold cache. Dokan's default is 15 s per request; on timeout
+            // the caller sees "Insufficient system resources" and the driver
+            // may unmount the device.
+            timeout: std::time::Duration::from_secs(600),
             ..Default::default()
         };
 

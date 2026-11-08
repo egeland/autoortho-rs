@@ -108,6 +108,7 @@ mod tests {
                 dds_data: vec![0u8; 148], // Minimal DDS header
                 chunks_decoded: 256,
                 chunks_failed: 0,
+                failed_indices: vec![],
                 mipmap_count: 13,
             }
         }
@@ -134,6 +135,7 @@ mod tests {
                     dds_data: data.clone(),
                     chunks_decoded: 256,
                     chunks_failed: 0,
+                    failed_indices: vec![],
                     mipmap_count: 13,
                 }),
                 None => Ok(FakeAssemblyPipeline::default_result()),

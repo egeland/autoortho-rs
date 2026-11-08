@@ -207,7 +207,7 @@ mod unifuse_impl {
 
             let path_str = path.to_string_lossy();
 
-            match self.fs.read_dds(&path_str, offset, size).await {
+            match self.fs.read(&path_str, offset, size).await {
                 Ok(data) => Ok(data),
                 Err(e) => {
                     warn!("read error for {:?}: {:?}", path, e);

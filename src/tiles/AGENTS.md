@@ -21,6 +21,8 @@ Tile engine: coordinate math, chunk management, tile assembly, prefetching, prov
 - `tile_cache.rs` — In-memory tile cache
 - `tile_generator.rs` — Tile generation pipeline
 - `tile_resolution.rs` — Tile resolution orchestrator
+- `healer.rs` — Background re-generation of incomplete disk-cached tiles
+- `assembly_pipeline.rs` — `AssemblyPipeline` service trait wrapper
 
 ## Local Contracts
 
@@ -29,6 +31,14 @@ Tile engine: coordinate math, chunk management, tile assembly, prefetching, prov
 - Prefetch uses `SpatialPrefetcher` with optional `RoutePrefetchConfig`
 - `RoutePrefetchEngine` owns the SimBrief integration loop (was in main.rs)
 - `TileFetcher` requires runtime handle (tokio)
+- `AssemblyResult.failed_indices` lists chunks filled with fallback color;
+  `DdsCacheMetadata.fallback_indices` persists them, `attempts` counts healing
+  passes (serde-default for pre-existing .ddm files)
+- Incomplete tiles are identified by `DdsCacheMetadata::needs_healing()`;
+  `TileResolution::regenerate()` re-generates bypassing cache and bumps
+  `attempts`; healer caps at `MAX_ATTEMPTS` (3)
+- Disk cache keys come in two formats: `row_col_MAP_zoom` (TileResolution) and
+  `col_row_MAP_zzoom` (fallback up-serving); `healer::parse_tile_key` accepts both
 
 ## Work Guidance
 
@@ -41,6 +51,7 @@ Tile engine: coordinate math, chunk management, tile assembly, prefetching, prov
 
 - `cargo test --lib tiles`
 - `route_prefetch.rs` tests: engine creation, SimBrief integration
+- `healer.rs` tests: key parsing (both formats), heal pass behavior (heal + attempt cap)
 
 ## Child DOX Index
 

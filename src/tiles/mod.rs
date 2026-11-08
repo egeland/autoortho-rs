@@ -8,6 +8,7 @@ pub mod chunk;
 pub mod coords;
 pub mod fallback;
 pub mod fetcher;
+pub mod healer;
 pub mod prefetch;
 pub mod provider;
 pub mod rate_limiter;

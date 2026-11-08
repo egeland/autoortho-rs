@@ -75,6 +75,8 @@ pub struct AssemblyResult {
     pub chunks_decoded: u32,
     /// Number of chunks that used fallback color
     pub chunks_failed: u32,
+    /// Indices of chunks that used fallback color (row-major: index = row * chunks_per_side + col)
+    pub failed_indices: Vec<u32>,
     /// Number of mipmap levels generated
     pub mipmap_count: u32,
 }
@@ -117,6 +119,7 @@ pub fn assemble_tile(
     let mut tile = Image::new(tile_size, tile_size);
     let mut chunks_decoded = 0u32;
     let mut chunks_failed = 0u32;
+    let mut failed_indices = Vec::new();
 
     for (i, maybe_img) in decoded.iter().enumerate() {
         let row = (i as u32) / config.chunks_per_side;
@@ -132,6 +135,7 @@ pub fn assemble_tile(
             _ => {
                 tile.paste(x, y, &fallback_chunk).ok();
                 chunks_failed += 1;
+                failed_indices.push(i as u32);
             }
         }
     }
@@ -150,6 +154,7 @@ pub fn assemble_tile(
         dds_data,
         chunks_decoded,
         chunks_failed,
+        failed_indices,
         mipmap_count,
     })
 }
@@ -175,6 +180,7 @@ pub fn assemble_from_images(
     let mut tile = Image::new(tile_size, tile_size);
     let mut chunks_decoded = 0u32;
     let mut chunks_failed = 0u32;
+    let mut failed_indices = Vec::new();
 
     for (i, maybe_img) in images.iter().enumerate() {
         let row = (i as u32) / config.chunks_per_side;
@@ -190,6 +196,7 @@ pub fn assemble_from_images(
             _ => {
                 tile.paste(x, y, &fallback_chunk).ok();
                 chunks_failed += 1;
+                failed_indices.push(i as u32);
             }
         }
     }
@@ -202,6 +209,7 @@ pub fn assemble_from_images(
         dds_data,
         chunks_decoded,
         chunks_failed,
+        failed_indices,
         mipmap_count,
     })
 }
@@ -280,6 +288,8 @@ mod tests {
         let result = assemble_tile(&chunks, &config).unwrap();
         assert_eq!(result.chunks_decoded, 3);
         assert_eq!(result.chunks_failed, 1);
+        // Chunk 3 (row 1, col 1 of the 2x2 grid) used fallback color
+        assert_eq!(result.failed_indices, vec![3]);
         assert_eq!(&result.dds_data[0..4], b"DDS ");
         assert_eq!(&result.dds_data[84..88], b"DXT5");
         assert!(result.mipmap_count > 1);

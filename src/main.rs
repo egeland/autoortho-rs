@@ -410,6 +410,15 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     .map_err(|e| format!("Web server error: {}", e))?;
     info!("Web UI at http://{}", addr);
 
+    // Background tile healer: re-generates disk-cached tiles that contain
+    // fallback-color chunks from failed fetches (dark-green patches).
+    autoortho_lib::tiles::healer::spawn_healer(
+        context.fs.resolution_arc(),
+        shutdown_tx.subscribe(),
+        autoortho_lib::tiles::healer::INITIAL_DELAY,
+        autoortho_lib::tiles::healer::PASS_INTERVAL,
+    );
+
     // Night exclusion: poll sun_pitch from the dataref tracker and update the
     // filesystem's night exclusion flag accordingly.
     let fs = context.fs.clone();
@@ -441,9 +450,10 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
         });
     }
 
-    // Create mount point if it doesn't exist
+    // Create mount point if it doesn't exist (also clears a leftover
+    // mount point junction from a previous run).
     let mount_path = Path::new(mountpoint);
-    std::fs::create_dir_all(mount_path)?;
+    autoortho_lib::fuse::platform::prepare_mount_dir(mount_path)?;
 
     info!("Mounting FUSE at: {}", mountpoint);
     info!("Press Ctrl+C to unmount and shut down.");

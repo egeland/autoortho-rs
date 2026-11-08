@@ -48,6 +48,9 @@ pub struct DdsCacheMetadata {
     pub missing_indices: Vec<u32>,
     /// Chunk indices that used fallback color
     pub fallback_indices: Vec<u32>,
+    /// How many times healing has re-generated this tile (0 = fresh build)
+    #[serde(default)]
+    pub attempts: u32,
     /// Disk compression method ("zstd" or "none")
     pub disk_compression: String,
 }
@@ -352,6 +355,11 @@ impl DdsCache {
         self.current_size_bytes
     }
 
+    /// All keys currently indexed (memory index mirrors disk contents).
+    pub fn keys(&self) -> Vec<String> {
+        self.index.iter().map(|(k, _)| k.clone()).collect()
+    }
+
     /// Get max cache size
     pub fn max_size_bytes(&self) -> u64 {
         self.max_size_bytes
@@ -379,8 +387,45 @@ mod tests {
             populated_mipmaps: vec![0, 1, 2, 3, 4],
             missing_indices: vec![],
             fallback_indices: vec![],
+            attempts: 0,
             disk_compression: "zstd".to_string(),
         }
+    }
+
+    #[test]
+    fn test_metadata_attempts_and_fallback_roundtrip() {
+        let tmp_dir = TempDir::new().unwrap();
+        let mut cache = DdsCache::new(tmp_dir.path().to_path_buf(), 1024 * 1024);
+        let key = DdsCache::tile_key(54321, 12345, 16, "BI");
+
+        let mut meta = sample_metadata();
+        meta.fallback_indices = vec![3, 17, 200];
+        meta.attempts = 2;
+        let dds = vec![0u8; 148];
+        cache.put(key.clone(), &dds, &meta).unwrap();
+
+        let got = cache.get_metadata(&key).unwrap();
+        assert_eq!(got.fallback_indices, vec![3, 17, 200]);
+        assert_eq!(got.attempts, 2);
+        assert!(got.needs_healing());
+    }
+
+    /// Old .ddm sidecar files (written before the attempts field) must
+    /// deserialize with attempts = 0 so healing can start from scratch.
+    #[test]
+    fn test_metadata_without_attempts_field_defaults_to_zero() {
+        let json = r#"{
+            "v": 3, "w": 4096, "h": 4096, "mm": 13, "zl": 16, "max_zl": 16,
+            "fmt": "BC3", "map": "BI", "built": 1700000000.0,
+            "tile_row": 100, "tile_col": 200,
+            "populated_mipmaps": [0],
+            "missing_indices": [],
+            "fallback_indices": [5],
+            "disk_compression": "zstd"
+        }"#;
+        let meta: DdsCacheMetadata = serde_json::from_str(json).unwrap();
+        assert_eq!(meta.attempts, 0);
+        assert!(meta.needs_healing());
     }
 
     #[test]

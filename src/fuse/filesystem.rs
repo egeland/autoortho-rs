@@ -27,7 +27,7 @@ use tracing::warn;
 pub struct DdsFileSystem {
     parser: DdsPathParser,
     /// Tile resolution pipeline: cache → fallback → generate → store
-    resolution: TileResolution,
+    resolution: Arc<TileResolution>,
     /// Pass-through for real files in the scenery root
     pass_through: Option<PassThroughFs>,
     /// Night exclusion: when true, read_dds returns a solid-color fallback tile
@@ -112,7 +112,7 @@ impl DdsFileSystemBuilder {
         }
         DdsFileSystem {
             parser: DdsPathParser::new(),
-            resolution,
+            resolution: Arc::new(resolution),
             pass_through: self.root.map(PassThroughFs::new),
             night_exclusion: self.night_exclusion,
         }
@@ -129,6 +129,12 @@ impl DdsFileSystem {
     /// to make `read_dds()` return fallback tiles instead of fetching imagery.
     pub fn night_exclusion_flag(&self) -> Arc<AtomicBool> {
         self.night_exclusion.clone()
+    }
+
+    /// Get a shared handle to the tile resolution pipeline (for background
+    /// tasks such as the tile healer).
+    pub fn resolution_arc(&self) -> Arc<TileResolution> {
+        Arc::clone(&self.resolution)
     }
 
     /// Get the DDS format used by this filesystem.
@@ -183,6 +189,24 @@ impl DdsFileSystem {
         let (row, col, maptype, zoom) = self.parser.parse(path)?;
         let resolved = self.resolution.resolve(row, col, &maptype, zoom).await?;
         Ok(TileResolution::slice_range(&resolved.data, offset, size).into_owned())
+    }
+
+    /// Read a byte range from any file served by the mount: the AOISWORKING
+    /// marker (empty), a virtual DDS tile, or a real pass-through file
+    /// (Earth nav data .dsf, terrain .ter). Both FUSE and Dokan read paths
+    /// must route through this or X-Plane cannot load the scenery pack.
+    pub async fn read(&self, path: &str, offset: u64, size: u32) -> Result<Vec<u8>, FuseError> {
+        let trimmed = path.trim_start_matches('/');
+        if trimmed.ends_with(MARKER_FILE) {
+            return Ok(Vec::new());
+        }
+        if self.parser.parse(path).is_ok() {
+            return self.read_dds(path, offset, size).await;
+        }
+        if let Some(ref pt) = self.pass_through {
+            return pt.read(trimmed, offset, size);
+        }
+        Err(FuseError::InvalidPath)
     }
 
     /// Check if a DDS tile exists in memory or disk cache.
@@ -540,6 +564,41 @@ mod tests {
         assert!(attr.is_dir);
     }
 
+    #[tokio::test]
+    async fn test_read_marker_returns_empty() {
+        let fs = make_fs();
+        // Monitoring tools and X-Plane pack scanners open the marker; a read
+        // must succeed (empty) instead of failing DDS-path parsing
+        let data = fs.read("/textures/AOISWORKING", 0, 64).await.unwrap();
+        assert!(data.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_read_pass_through_file() {
+        let tmp = tempfile::TempDir::new().unwrap();
+        std::fs::write(tmp.path().join("test.dsf"), b"fake dsf content").unwrap();
+        let provider = Arc::new(MockProvider);
+        let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
+        let fs = DdsFileSystem::builder(Arc::new(fetcher), "ARC")
+            .root(tmp.path().to_path_buf())
+            .build();
+
+        // Real files (Earth nav data .dsf, terrain .ter) must be readable
+        // through the mount or X-Plane cannot load the scenery pack
+        let data = fs.read("/test.dsf", 5, 4).await.unwrap();
+        assert_eq!(data, b"dsf ");
+
+        let data = fs.read("/test.dsf", 0, 100).await.unwrap();
+        assert_eq!(data, b"fake dsf content");
+    }
+
+    #[tokio::test]
+    async fn test_read_invalid_path() {
+        let fs = make_fs();
+        let result = fs.read("/nonexistent.bin", 0, 10).await;
+        assert!(result.is_err());
+    }
+
     #[test]
     fn test_list_dir_root_with_real_files() {
         let tmp = tempfile::TempDir::new().unwrap();
@@ -587,26 +646,95 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_fallback_used_on_provider_failure() {
+    async fn test_partial_tile_keeps_fetched_imagery() {
+        use crate::services::FallbackService;
+        use crate::services::fallback_service::tests::FakeFallbackService;
+
+        // Provider succeeds for some chunks and fails for others (ocean areas
+        // have no imagery). The tile must keep the fetched chunks instead of
+        // being replaced by a solid color tile.
+        struct PartialProvider;
+
+        impl crate::tiles::provider::TileProvider for PartialProvider {
+            fn fetch(
+                &self,
+                row: u32,
+                col: u32,
+                _zoom: u32,
+            ) -> std::pin::Pin<
+                Box<
+                    dyn std::future::Future<
+                            Output = Result<Vec<u8>, crate::tiles::provider::TileProviderError>,
+                        > + Send
+                        + '_,
+                >,
+            > {
+                Box::pin(async move {
+                    if (row + col) % 2 == 0 {
+                        Ok(crate::test_utils::MINIMAL_JPEG.to_vec())
+                    } else {
+                        Err(crate::tiles::provider::TileProviderError::NetworkError(
+                            "no imagery".into(),
+                        ))
+                    }
+                })
+            }
+
+            fn name(&self) -> &str {
+                "Partial"
+            }
+        }
+
+        let provider = Arc::new(PartialProvider);
+        let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
+        let fake_fallback = Arc::new(FakeFallbackService::new(false));
+
+        let fs = DdsFileSystem::builder(Arc::new(fetcher), "ARC")
+            .fallback_service(fake_fallback as Arc<dyn FallbackService>)
+            .build();
+
+        let data = fs
+            .read_dds("/textures/100_200_BI16.dds", 0, u32::MAX)
+            .await
+            .unwrap();
+
+        // A real composed DDS (megabytes), not the 148-byte solid fallback
+        assert!(
+            data.len() > 1_000_000,
+            "partial tile must keep composed imagery, got {} bytes",
+            data.len()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_provider_failure_yields_valid_tile() {
         use crate::services::FallbackService;
         use crate::services::fallback_service::tests::FakeFallbackService;
 
         let provider = Arc::new(FailingProvider);
         let fetcher = crate::tiles::fetcher::TileFetcher::new(provider, "ARC");
         let fake_fallback = Arc::new(FakeFallbackService::new(true));
-        let fallback_ref = fake_fallback.clone();
 
         let fs = DdsFileSystem::builder(Arc::new(fetcher), "ARC")
             .fallback_service(fake_fallback as Arc<dyn FallbackService>)
             .build();
 
-        // Read a tile — provider fails, fallback should be used
+        // Provider fails for every chunk: the tile is still valid, with the
+        // fallback color filling the missing chunks.
         let result = fs.read_dds("/textures/100_200_BI16.dds", 0, u32::MAX).await;
-        assert!(result.is_ok(), "should return fallback data, not error");
+        assert!(result.is_ok(), "should return tile data, not error");
 
         let data = result.unwrap();
-        // FakeFallbackService::solid_fallback returns DDS header with color bytes at 144-147
         assert_eq!(&data[0..4], b"DDS ", "should be valid DDS header");
-        assert_eq!(data.len(), 148, "fake fallback returns 148 bytes");
+        assert!(
+            data.len() > 1_000_000,
+            "should be a full tile, got {} bytes",
+            data.len()
+        );
+
+        // A second read must be served from cache, not regenerate the tile
+        let second = fs.read_dds("/textures/100_200_BI16.dds", 0, u32::MAX).await;
+        assert!(second.is_ok());
+        assert_eq!(second.unwrap().len(), data.len());
     }
 }

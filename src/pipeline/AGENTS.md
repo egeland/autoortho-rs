@@ -19,6 +19,8 @@ Image processing pipeline: JPEG decode → DDS generation, memory budget managem
 - `calculate_dds_size()` in `fuse/mod.rs` must match `dds_file_size_4096_bc3()`
 - Cache entries keyed by `(row, col, maptype, zoom)`
 - Budget limits: `dds_memory_cache_mb`, `chunk_memory_cache_mb`
+- `DdsCacheMetadata` v3 JSON sidecar (.ddm); additive fields need `#[serde(default)]`
+  so pre-existing sidecars still load (`attempts` is one)
 
 ## Work Guidance
 

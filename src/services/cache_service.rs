@@ -314,6 +314,7 @@ mod tests {
             populated_mipmaps: vec![0, 1, 2, 3, 4],
             missing_indices: vec![],
             fallback_indices: vec![],
+            attempts: 0,
             disk_compression: "zstd".to_string(),
         }
     }
