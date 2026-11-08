@@ -22,6 +22,9 @@ Browser-based dashboard: flight tracking map, stats, REST API, WebSocket, custom
 - Routes defined in `routes.rs` — add new endpoints there
 - `CustomMapStore` is loaded once at startup, persisted on mutation
 - `PositionUpdate` broadcast to all connected WebSocket clients
+- Shutdown watch sender must OUTLIVE the server: dropping it closes the
+  channel and axum's graceful shutdown kills the server instantly (web UI
+  dead on arrival — hit mount mode once, fixed in `run_with_mount`)
 
 ## Verification
 
