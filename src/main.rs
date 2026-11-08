@@ -400,11 +400,16 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
     // Shutdown channel for graceful termination of background tasks
     let (shutdown_tx, _) = broadcast::channel(1);
 
-    let addr = autoortho_lib::webui::start_server(
+    // Web UI shutdown: the sender MUST stay alive for the process lifetime —
+    // dropping it closes the watch channel and axum's graceful shutdown
+    // tears the server down immediately (web UI dead on arrival).
+    let (_web_shutdown_tx, web_shutdown_rx) = tokio::sync::watch::channel(false);
+    let addr = autoortho_lib::webui::start_server_with_shutdown(
         autoortho_lib::webui::WEB_UI_PORT,
         stats.clone(),
         tracker.clone(),
         web_config.clone(),
+        web_shutdown_rx,
     )
     .await
     .map_err(|e| format!("Web server error: {}", e))?;
