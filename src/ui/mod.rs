@@ -91,7 +91,8 @@ pub enum Message {
         Option<crate::xplane::Tracker>,
         std::sync::Arc<crate::ui::state::TileProgress>,
         Option<std::sync::Arc<parking_lot::Mutex<crate::pipeline::cache::DdsCache>>>,
-    ), // web URL, tracker, tile progress, and DDS cache
+        std::sync::Arc<crate::stats::StatsStore>,
+    ), // web URL, tracker, tile progress, DDS cache, stats store
     ServicesFailed(String),
 
     // Scenery management
@@ -360,8 +361,15 @@ impl AutoOrthoApp {
             }
             Message::StartServices => return handlers::handle_start_services(self),
             Message::StopServices => handlers::handle_stop_services(self),
-            Message::ServicesStarted(url, tracker, tile_progress, dds_cache) => {
-                handlers::handle_services_started(self, url, tracker, tile_progress, dds_cache)
+            Message::ServicesStarted(url, tracker, tile_progress, dds_cache, stats) => {
+                handlers::handle_services_started(
+                    self,
+                    url,
+                    tracker,
+                    tile_progress,
+                    dds_cache,
+                    stats,
+                )
             }
             Message::ServicesFailed(err) => handlers::handle_services_failed(self, err),
             Message::SetSceneryDownloadDir(v) => {
@@ -439,6 +447,11 @@ impl AutoOrthoApp {
                     self.state.prefetch.waypoint_status =
                         self.state.prefetch.waypoint_progress.get_all();
                 }
+
+                // Poll mount tile-request activity for the dashboard indicator
+                let snap = self.state.stats.snapshot();
+                self.state.mount_requests = snap.mount_requests;
+                self.state.mount_last_request_ms = snap.last_mount_request_ms;
             }
             Message::OpenMapInBrowser => {
                 if let Some(ref url) = self.state.services.web_server_url {
@@ -483,8 +496,8 @@ impl AutoOrthoApp {
             }),
         ];
 
-        // Tick every 500ms while downloads, tile progress, or prefetch is active
-        // to refresh progress bars
+        // Tick every 500ms while downloads, tile progress, prefetch is active,
+        // or services are running (keeps the mount tile-request indicator fresh)
         let tile_progress_active = self
             .state
             .tile_progress
@@ -493,6 +506,7 @@ impl AutoOrthoApp {
         if !self.state.scenery.downloading.is_empty()
             || tile_progress_active
             || self.state.prefetch.running
+            || self.state.any_service_running()
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_millis(500)).map(|_| Message::Tick),
@@ -673,6 +687,7 @@ pub(crate) async fn start_all_services(
         Arc<dyn crate::xplane::FlightDataTracker>,
         Arc<crate::ui::state::TileProgress>,
         Option<Arc<parking_lot::Mutex<crate::pipeline::cache::DdsCache>>>,
+        Arc<crate::stats::StatsStore>,
     ),
     String,
 > {
@@ -786,6 +801,7 @@ pub(crate) async fn start_all_services(
         tracker,
         tile_progress,
         dds_cache,
+        stats,
     ))
 }
 
@@ -1437,6 +1453,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::ui::state::TileProgress::new()),
             None,
+            std::sync::Arc::new(crate::stats::StatsStore::new()),
         ));
         assert_eq!(app.state.services.web_server, ServiceStatus::Running);
         assert_eq!(app.state.services.xplane_tracker, ServiceStatus::Running);
@@ -1462,6 +1479,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::ui::state::TileProgress::new()),
             None,
+            std::sync::Arc::new(crate::stats::StatsStore::new()),
         ));
         assert!(app.state.any_service_running());
 
@@ -1482,6 +1500,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::ui::state::TileProgress::new()),
             None,
+            std::sync::Arc::new(crate::stats::StatsStore::new()),
         ));
         assert!(app.title().contains("[Running]"));
     }
@@ -1523,7 +1542,7 @@ mod tests {
             "Services should start without FUSE when no X-Plane path: {:?}",
             result.err()
         );
-        let (url, _tracker, _tile_progress, _dds_cache) = result.unwrap();
+        let (url, _tracker, _tile_progress, _dds_cache, _stats) = result.unwrap();
         assert!(url.starts_with("http://"));
     }
 
@@ -1549,6 +1568,23 @@ mod tests {
             "Services should start even if FUSE fails: {:?}",
             result.err()
         );
+    }
+
+    #[test]
+    fn test_tick_updates_mount_request_activity() {
+        // The dashboard "X-Plane Tile Requests" indicator needs Tick to pull
+        // the latest mount request count/timestamp out of the shared stats
+        // store, otherwise a cache-hit-only flight would never pulse it.
+        setup_test_runtime();
+        let mut app = AutoOrthoApp::new();
+
+        app.state.stats.record_mount_request();
+        assert_eq!(app.state.mount_requests, 0, "pre-Tick: not yet polled");
+
+        let _ = app.update(Message::Tick);
+
+        assert_eq!(app.state.mount_requests, 1);
+        assert!(app.state.mount_last_request_ms > 0);
     }
 
     #[test]
@@ -1597,6 +1633,7 @@ mod tests {
             None,
             std::sync::Arc::new(crate::ui::state::TileProgress::new()),
             Some(cache),
+            std::sync::Arc::new(crate::stats::StatsStore::new()),
         ));
 
         // Tick should update cache size

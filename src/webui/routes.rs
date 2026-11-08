@@ -66,6 +66,10 @@ struct MetricsResponse {
     cache_hit_ratio: f64,
     tiles_pending: u32,
     tiles_completed: u32,
+    /// Tile read requests through the mount (X-Plane activity indicator)
+    mount_requests: u64,
+    /// Unix ms of the last mount tile request (0 = never)
+    last_mount_request_ms: u64,
 }
 
 // --- Route handlers ---
@@ -104,6 +108,8 @@ async fn metrics_json(State(state): State<Arc<WebState>>) -> Json<MetricsRespons
         cache_hit_ratio: state.stats.hit_ratio(),
         tiles_pending: snap.tiles_pending,
         tiles_completed: snap.tiles_completed,
+        mount_requests: snap.mount_requests,
+        last_mount_request_ms: snap.last_mount_request_ms,
     })
 }
 

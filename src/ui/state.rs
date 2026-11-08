@@ -123,6 +123,11 @@ pub struct AppState {
     pub dds_cache_size_bytes: u64,
     pub dds_cache: Option<std::sync::Arc<parking_lot::Mutex<crate::pipeline::cache::DdsCache>>>,
 
+    // Mount tile-request activity (X-Plane reads, for dashboard indicator)
+    pub stats: std::sync::Arc<crate::stats::StatsStore>,
+    pub mount_requests: u64,
+    pub mount_last_request_ms: u64,
+
     // SimBrief flight plan
     pub simbrief: crate::ui::simbrief_state::SimBriefState,
 
@@ -194,6 +199,9 @@ impl AppState {
             tracker: None,
             dds_cache_size_bytes: 0,
             dds_cache: None,
+            stats: Arc::new(crate::stats::StatsStore::new()),
+            mount_requests: 0,
+            mount_last_request_ms: 0,
             simbrief: Default::default(),
             dev_test: crate::ui::dev_test_state::DevTestState::new(),
             prefetch: crate::ui::prefetch_state::PrefetchState::new(),

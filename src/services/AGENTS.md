@@ -13,7 +13,10 @@ Service traits for dependency injection, enabling FUSE-less testing and swappabl
 
 ## Local Contracts
 
-- `StatsService` trait: `record_download()`, `record_cache_hit()`, `record_cache_miss()`, `snapshot()`, `hit_ratio()`, `clear()`
+- `StatsService` trait: `record_download()`, `record_cache_hit()`, `record_cache_miss()`, `record_mount_request()`, `snapshot()`, `hit_ratio()`, `clear()`
+- `record_mount_request()` is called ONLY from the mount read path
+  (`DdsFileSystem::read`, DDS branch) — prefetch and healer must never call
+  it, it feeds the dashboard "X-Plane Tile Requests" activity indicator
 - `FallbackService` trait: `find_fallback()`, `solid_fallback()`, `needs_fallback()`
 - `CacheService` trait: `get()`, `put()`, `has()`, `remove()`, `clear()`, `entry_count()`, `size_bytes()`, `max_size_bytes()`, `usage_fraction()`, `promote()`, `evict_non_route_tiles()`
 - Each trait has a `Fake*` implementation in `#[cfg(test)]` module for testing
