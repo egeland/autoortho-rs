@@ -7,7 +7,7 @@ X-Plane integration: flight data tracking, SimBrief flight plan parsing, UDP com
 ## Ownership
 
 - `dataref.rs` — `FlightDataStore` (thread-safe snapshot + averaging), `FlightData` builder, `FlightAverages`
-- `udp_loop.rs` — `run_tracker()`, `connect_and_track()`, `datarefs` constants, reconnection loop
+- `udp_loop.rs` — `run_tracker()`, `spawn_tracker()` (broadcast→watch shutdown bridge for headless mount mode), `connect_and_track()`, `datarefs` constants, reconnection loop
 - `udp.rs` — UDP socket utilities
 - `simbrief.rs` — `FlightPlan`, `FlightFix`, SimBrief XML parsing
 - `mod.rs` — `RrefCodec`, re-exports
@@ -31,6 +31,9 @@ X-Plane integration: flight data tracking, SimBrief flight plan parsing, UDP com
 - SimBrief parsing uses XML (quick-xml crate)
 - UDP packets are fixed-size binary (little-endian)
 - `udp_loop.rs` handles reconnection on connection loss
+- Headless mount mode starts telemetry via `spawn_tracker()` (called in
+  `run_with_mount`); GUI mode starts it via `start_all_services` — both feed
+  the same shared `FlightDataTracker`
 
 ## Verification
 
