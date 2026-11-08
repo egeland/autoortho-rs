@@ -23,6 +23,13 @@ Scenery pack discovery, download, installation, and management. Handles SimHeave
 - `packs.ini` defines installed pack metadata
 - DSF files define tile coverage; DDS textures generated on-the-fly
 - `installer.rs` re-exports `download` and `extract` for backward compatibility
+- Ortho (z_) pack entries MUST sit at the END of `scenery_packs.ini` (below
+  `*GLOBAL_AIRPORTS*` and landmark/airport packs). An ortho DSF above them
+  suppresses airport/landmark rendering for cells it covers (confirmed
+  2026-11-08, bead-2aa). `ensure_pack_entry` appends at the end - preserve
+  that behavior
+- Commenting a pack out in `scenery_packs.ini` does NOT disable it while its
+  directory exists: X-Plane drops the comment and re-adds the entry on rescan
 
 ## Work Guidance
 

@@ -73,6 +73,32 @@ pub async fn run_tracker(
     }
 }
 
+/// Spawn the tracker loop wired to a broadcast shutdown channel.
+///
+/// Headless mount mode uses `broadcast` for shutdown (web server, healer,
+/// Ctrl+C), while `run_tracker` expects a `watch` channel; this bridges the
+/// two so the mount path gets live X-Plane telemetry too.
+pub fn spawn_tracker(
+    tracker: Arc<dyn FlightDataTracker>,
+    xplane_addr: SocketAddr,
+    shutdown_rx: tokio::sync::broadcast::Receiver<()>,
+) -> tokio::task::JoinHandle<()> {
+    let (watch_tx, watch_rx) = tokio::sync::watch::channel(false);
+    tokio::spawn(async move {
+        let mut rx = shutdown_rx;
+        loop {
+            match rx.recv().await {
+                Ok(()) | Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    let _ = watch_tx.send(true);
+                    break;
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => continue,
+            }
+        }
+    });
+    tokio::spawn(run_tracker(tracker, xplane_addr, watch_rx))
+}
+
 async fn connect_and_track(
     tracker: &dyn FlightDataTracker,
     addr: SocketAddr,
@@ -160,6 +186,73 @@ async fn connect_and_track(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::xplane::dataref::FlightData;
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct StubTracker {
+        updates: Mutex<Vec<(i32, f32)>>,
+    }
+
+    impl FlightDataTracker for StubTracker {
+        fn update_from_response(&self, values: &[(i32, f32)]) {
+            self.updates.lock().unwrap().extend_from_slice(values);
+        }
+        fn get_flight_data(&self) -> FlightData {
+            FlightData::builder().build()
+        }
+        fn mark_disconnected(&self) {}
+        fn clear_averages(&self) {}
+    }
+
+    /// Headless mount mode only has a broadcast shutdown channel, while
+    /// run_tracker wants a watch channel. spawn_tracker must bridge the two
+    /// and feed received RREF data into the tracker — otherwise the mount
+    /// path has no live flight data (night exclusion, position-aware
+    /// prefetch and dynamic zoom stay dead).
+    #[tokio::test]
+    async fn test_spawn_tracker_feeds_updates_and_shuts_down_on_broadcast() {
+        // Fake X-Plane: stream a valid RREF response (index 0 = 42.5) so the
+        // tracker's recv loop wakes promptly and shutdown is observed fast.
+        let server = tokio::net::UdpSocket::bind("127.0.0.1:0").await.unwrap();
+        let server_addr = server.local_addr().unwrap();
+        let server_task = tokio::spawn(async move {
+            let mut buf = [0u8; 512];
+            let (_, peer) = server.recv_from(&mut buf).await.unwrap();
+            let mut response = b"RREF".to_vec();
+            response.extend_from_slice(&0i32.to_le_bytes());
+            response.extend_from_slice(&42.5f32.to_le_bytes());
+            loop {
+                server.send_to(&response, peer).await.unwrap();
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        });
+
+        let store = Arc::new(StubTracker::default());
+        let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<()>(1);
+
+        let handle = spawn_tracker(store.clone(), server_addr, shutdown_rx);
+
+        // Tracker must receive the streamed RREF data
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            let got = !store.updates.lock().unwrap().is_empty();
+            if got || tokio::time::Instant::now() > deadline {
+                assert!(got, "tracker never received RREF data");
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+        assert_eq!(*store.updates.lock().unwrap(), vec![(0, 42.5)]);
+
+        // Broadcast shutdown must terminate the loop
+        let _ = shutdown_tx.send(());
+        tokio::time::timeout(Duration::from_secs(5), handle)
+            .await
+            .expect("tracker task did not shut down on broadcast")
+            .unwrap();
+        server_task.abort();
+    }
 
     #[test]
     fn test_datarefs_all_has_8_entries() {

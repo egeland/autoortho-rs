@@ -419,6 +419,28 @@ async fn run_with_mount(mountpoint: &str) -> Result<(), Box<dyn Error>> {
         autoortho_lib::tiles::healer::PASS_INTERVAL,
     );
 
+    // Live X-Plane telemetry: feed the dataref tracker from X-Plane's UDP
+    // datarefs so night exclusion, position-aware prefetch and dynamic zoom
+    // work in headless mount mode too (GUI mode starts this via Start services).
+    let (xplane_host, xplane_port) = {
+        let cfg = context.config.read();
+        (cfg.network.xplane_host.clone(), cfg.network.xplane_port)
+    };
+    match format!("{}:{}", xplane_host, xplane_port).parse::<std::net::SocketAddr>() {
+        Ok(xplane_addr) => {
+            autoortho_lib::xplane::udp_loop::spawn_tracker(
+                context.tracker.clone(),
+                xplane_addr,
+                shutdown_tx.subscribe(),
+            );
+            info!("X-Plane telemetry tracking {}", xplane_addr);
+        }
+        Err(e) => warn!(
+            "Invalid X-Plane address {}:{}: {}",
+            xplane_host, xplane_port, e
+        ),
+    }
+
     // Night exclusion: poll sun_pitch from the dataref tracker and update the
     // filesystem's night exclusion flag accordingly.
     let fs = context.fs.clone();
